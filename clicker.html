@@ -1,0 +1,2210 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fruit Clicker</title>
+    <style>
+        @font-face {
+            font-family: 'Cafe24PROSlim';
+            src: url('./Cafe24PROSlimMax.woff2') format('woff2');
+            font-weight: 700; font-display: swap;
+        }
+        @font-face {
+            font-family: 'Cafe24PROSlim';
+            src: url('./Cafe24PROSlimFit.woff2') format('woff2');
+            font-weight: 400; font-display: swap;
+        }
+    </style>
+    <style>
+        :root {
+            --white:    #ffffff;
+            --bg:       #F8F8F8;
+            --surface:  #ffffff;
+            --border:   #ececec;
+            --pink:     #ff6b8a;
+            --pink-lt:  #ffd6de;
+            --green:    #5bbf7a;
+            --green-lt: #d4f5e2;
+            --yellow:   #ffb830;
+            --yellow-lt:#fff0cc;
+            --blue:     #5b9fff;
+            --blue-lt:  #d6eaff;
+            --purple:   #a57bff;
+            --purple-lt:#ede0ff;
+            --text:     #3a3a3a;
+            --text-sub: #888888;
+            --shadow:   0 4px 20px rgba(0,0,0,.18);
+            --shadow-lg:0 8px 40px rgba(0,0,0,.26);
+            --radius:   20px;
+            --radius-sm:14px;
+        }
+        * { box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+        body { margin:0; overflow:hidden; background:var(--bg); font-family:'Cafe24PROSlim','Apple SD Gothic Neo',sans-serif; font-weight:400; touch-action:none; color:var(--text); }
+
+        #score-wrapper { position:absolute; top:40px; width:100%; display:flex; flex-direction:column; align-items:center; pointer-events:none; z-index:10; }
+        #score-container { font-size:clamp(66px,11.8vw,94px); font-weight:700; }
+        #score {
+            font-size:clamp(66px,11.8vw,94px); font-weight:700; color:#ffffff;
+            filter: url(#score-filter);
+            display:inline-block;
+        }
+        .click-popup { position:absolute; font-size:clamp(24px,4.7vw,31px); font-weight:700; animation:shootUp .55s ease-out forwards; white-space:nowrap; pointer-events:none; }
+        @keyframes shootUp { 0%{transform:translateY(0) scale(1);opacity:1} 60%{transform:translateY(-40px) scale(1.1);opacity:1} 100%{transform:translateY(-70px) scale(.8);opacity:0} }
+
+        #hold-ring { position:fixed; pointer-events:none; z-index:999; width:76px; height:76px; display:none; transform:translate(-50%,-50%); filter:drop-shadow(0 2px 8px rgba(255,184,48,.5)); }
+        #hold-ring svg { width:100%; height:100%; transform:rotate(-90deg); }
+        #hold-ring .track { fill:none; stroke:rgba(255,184,48,.2); stroke-width:5; }
+        #hold-ring .prog  { fill:none; stroke:var(--yellow); stroke-width:5; stroke-dasharray:175.9; stroke-dashoffset:175.9; stroke-linecap:round; }
+
+        .unlock-img { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); width:220px; z-index:1000; pointer-events:none; opacity:0; animation:bounceInFade 2s forwards; }
+        @keyframes bounceInFade {
+            0%  {opacity:0; transform:translate(-50%,-50%) scale(.4);}
+            25% {opacity:1; transform:translate(-50%,-50%) scale(1.15);}
+            45% {transform:translate(-50%,-50%) scale(.95);}
+            60% {transform:translate(-50%,-50%) scale(1.05);}
+            75% {transform:translate(-50%,-50%) scale(1);}
+            100%{opacity:0; transform:translate(-50%,-58%) scale(.95);}
+        }
+
+        #sell-toast {
+            position:fixed; top:50%; left:50%;
+            transform:translate(-50%,-50%) scale(.85);
+            background:var(--white); color:var(--pink);
+            font-size:clamp(19px,4.1vw,24px);
+            padding:16px 28px; font-weight:400;
+            border-radius:999px; border:2.5px solid var(--pink-lt);
+            box-shadow:var(--shadow-lg);
+            z-index:1100; pointer-events:none; opacity:0;
+            transition:all .25s cubic-bezier(.34,1.56,.64,1); white-space:nowrap;
+        }
+        #sell-toast.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
+        #sell-toast.hide { opacity:0; transform:translate(-50%,-60%) scale(.9); transition:all .3s ease-in; }
+
+        #hold-hint {
+            position:fixed; bottom:90px; left:50%; transform:translateX(-50%);
+            background:var(--white); color:#777;
+            font-size:clamp(14px,2.9vw,15px); padding:9px 20px; border-radius:999px;
+            pointer-events:none; z-index:50; border:2px solid var(--border);
+            box-shadow:var(--shadow); opacity:0; transition:opacity .4s; font-weight:400;
+        }
+        #hold-hint.visible { opacity:1; }
+
+        #settings-btn {
+            position:fixed; top:16px; left:16px; z-index:100;
+            background:none; border:none; padding:0; cursor:pointer;
+            transition:all .18s; filter:drop-shadow(0 2px 6px rgba(0,0,0,.15));
+            -webkit-tap-highlight-color:transparent;
+        }
+        #settings-btn img { width:clamp(80px,11.5vw,100px); height:auto; display:block; }
+        #settings-btn:hover { transform:translateY(-3px) scale(1.08); filter:drop-shadow(0 5px 12px rgba(0,0,0,.2)); }
+        #settings-btn:active { transform:translateY(0) scale(.93); }
+
+        #settings-overlay {
+            position:fixed; inset:0; background:rgba(60,40,40,.18);
+            backdrop-filter:blur(12px) saturate(1.5);
+            -webkit-backdrop-filter:blur(12px) saturate(1.5);
+            z-index:500; display:none; align-items:center; justify-content:center;
+            opacity:0; transition:opacity .22s;
+        }
+        #settings-overlay.open    { display:flex; }
+        #settings-overlay.visible { opacity:1; }
+
+        .settings-panel {
+            background:var(--white); border:2px solid var(--border); border-radius:28px;
+            width:420px; max-width:90vw; max-height:88vh; overflow:hidden;
+            display:flex; flex-direction:column;
+            box-shadow:0 24px 60px rgba(0,0,0,.30);
+            transform:translateY(18px) scale(.97);
+            transition:transform .26s cubic-bezier(.34,1.56,.64,1);
+        }
+        #settings-overlay.visible .settings-panel { transform:translateY(0) scale(1); }
+
+        .settings-body {
+            padding:24px 24px 28px; display:flex; flex-direction:column; gap:20px;
+            overflow-y:auto; flex:1; touch-action:pan-y; -webkit-overflow-scrolling:touch;
+        }
+        .settings-body::-webkit-scrollbar { width:5px; }
+        .settings-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:99px; }
+
+        .settings-row {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:0 4px;
+        }
+        .settings-group {
+            display:flex; flex-direction:column; gap:10px;
+            padding:0 4px;
+        }
+        .settings-group-head {
+            display:flex; align-items:center; justify-content:space-between;
+            gap:16px;
+        }
+        .settings-volume {
+            display:flex; flex-direction:column; gap:6px;
+            padding-left:2px;
+        }
+        .settings-label {
+            font-size:clamp(15px,3.2vw,18px); font-weight:700; color:var(--text);
+        }
+        .settings-sub {
+            font-size:clamp(12px,2.5vw,13px); color:var(--text-sub); font-weight:400;
+        }
+
+        .toggle-switch {
+            position:relative; width:52px; height:30px; flex-shrink:0;
+        }
+        .toggle-switch input { opacity:0; width:0; height:0; }
+        .toggle-slider {
+            position:absolute; inset:0; background:#ccc; border-radius:999px;
+            cursor:pointer; transition:background .25s;
+        }
+        .toggle-slider::before {
+            content:''; position:absolute; width:24px; height:24px;
+            left:3px; bottom:3px; background:#fff; border-radius:50%;
+            transition:transform .25s; box-shadow:0 1px 4px rgba(0,0,0,.15);
+        }
+        .toggle-switch input:checked + .toggle-slider { background:var(--green); }
+        .toggle-switch input:checked + .toggle-slider::before { transform:translateX(22px); }
+
+        .settings-code-input {
+            width:100%; padding:12px 16px; border:2px solid var(--border);
+            border-radius:14px; font-family:inherit; font-size:clamp(14px,2.8vw,16px);
+            color:var(--text); background:var(--bg); outline:none;
+            transition:border-color .2s;
+        }
+        .settings-code-input:focus { border-color:var(--blue); }
+        .settings-code-input::placeholder { color:#bbb; }
+
+        .settings-select {
+            appearance:none; -webkit-appearance:none;
+            background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23aaa' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 12px center;
+            border:2px solid var(--border); border-radius:10px;
+            padding:7px 32px 7px 12px; font-family:inherit;
+            font-size:clamp(13px,2.6vw,15px); color:var(--text);
+            cursor:pointer; outline:none; transition:border-color .2s; flex-shrink:0;
+        }
+        .settings-select:focus { border-color:var(--blue); }
+        .settings-range {
+            width:100%; appearance:none; -webkit-appearance:none; height:8px;
+            border-radius:999px; background:linear-gradient(90deg, var(--green) 0%, var(--green) var(--range-fill, 60%), #e5e5e5 var(--range-fill, 60%), #e5e5e5 100%);
+            outline:none;
+        }
+        .settings-range::-webkit-slider-thumb {
+            -webkit-appearance:none; appearance:none; width:22px; height:22px;
+            border-radius:50%; background:#fff; border:2px solid var(--green);
+            box-shadow:0 2px 8px rgba(0,0,0,.15); cursor:pointer;
+        }
+        .settings-range::-moz-range-thumb {
+            width:22px; height:22px; border-radius:50%;
+            background:#fff; border:2px solid var(--green);
+            box-shadow:0 2px 8px rgba(0,0,0,.15); cursor:pointer;
+        }
+
+        .settings-code-btn {
+            background:var(--blue); color:#fff; border:none; padding:10px 0;
+            border-radius:999px; cursor:pointer; font-family:inherit;
+            font-size:clamp(13px,2.6vw,15px); font-weight:700; width:100%;
+            box-shadow:0 3px 12px rgba(91,159,255,.35); transition:all .18s;
+        }
+        .settings-code-btn:hover { transform:scale(1.04) translateY(-1px); filter:brightness(1.05); }
+        .settings-code-btn:active { transform:scale(.88); filter:brightness(.92); transition:all .06s; }
+
+        #bottom-btns { position:fixed; bottom:20px; right:16px; display:flex; gap:8px; z-index:100; align-items:flex-end; }
+        .bottom-btn {
+            background: none; border: none; padding: 0; cursor: pointer;
+            transition: all .18s; filter: drop-shadow(0 2px 6px rgba(0,0,0,.15));
+            -webkit-tap-highlight-color: transparent; display: block;
+        }
+        .bottom-btn img { width: clamp(80px, 11.5vw, 100px); height: auto; display: block; }
+        .bottom-btn:hover  { transform:translateY(-3px) scale(1.08); filter:drop-shadow(0 5px 12px rgba(0,0,0,.2)); }
+        .bottom-btn:active { transform:translateY(0) scale(.93); }
+        #fruit-shop-btn, #bee-shop-btn, #bucket-btn, #box-shop-btn { background:none; box-shadow:none; }
+
+        .shop-overlay {
+            position:fixed; inset:0; background:rgba(60,40,40,.18);
+            backdrop-filter:blur(12px) saturate(1.5);
+            -webkit-backdrop-filter:blur(12px) saturate(1.5);
+            z-index:500; display:none; align-items:center; justify-content:center;
+            opacity:0; transition:opacity .22s;
+        }
+        .shop-overlay.open    { display:flex; }
+        .shop-overlay.visible { opacity:1; }
+
+        .shop-panel {
+            background:var(--white); border:2px solid var(--border); border-radius:28px;
+            width:560px; max-width:94vw; max-height:88vh; overflow:hidden;
+            display:flex; flex-direction:column;
+            box-shadow:0 24px 60px rgba(0,0,0,.30);
+            transform:translateY(18px) scale(.97);
+            transition:transform .26s cubic-bezier(.34,1.56,.64,1); position:relative;
+        }
+        .shop-overlay.visible .shop-panel { transform:translateY(0) scale(1); }
+
+        .shop-header {
+            background: rgba(255,255,255,0.55);
+            -webkit-backdrop-filter: blur(20px) saturate(2);
+            backdrop-filter: blur(20px) saturate(2);
+            border-radius:26px 26px 0 0; padding:26px 22px 28px;
+            display:flex; align-items:center; flex-shrink:0;
+            position:sticky; top:0; z-index:10;
+        }
+        .shop-title {
+            position:absolute !important; left:50%; transform:translateX(-50%);
+            pointer-events:none; font-size:clamp(34px,8vw,52px); color:#fff;
+            font-weight:700; letter-spacing:-0.5px; filter: url(#score-filter);
+            white-space:nowrap;
+        }
+        .shop-header-left  { margin-right:auto; }
+        .shop-header-right { margin-left:auto; }
+        .shop-score-badge {
+            background:var(--white); color:var(--pink); padding:7px 18px; border-radius:999px;
+            font-size:clamp(14px,2.9vw,15px); border:none; font-weight:700;
+            box-shadow:0 2px 8px rgba(0,0,0,.08); white-space:nowrap; flex-shrink:0;
+        }
+        .shop-close {
+            background:rgba(255,255,255,.6); border:none; color:var(--text-sub);
+            width:34px; height:34px; border-radius:50%; cursor:pointer; font-size:16px;
+            display:flex; align-items:center; justify-content:center;
+            transition:all .18s; font-family:inherit; flex-shrink:0;
+        }
+        .shop-close:hover { background:var(--white); color:var(--pink); transform:scale(1.1); }
+
+        .shop-body { overflow-y:auto; padding:20px 20px 24px; flex:1; touch-action:pan-y; -webkit-overflow-scrolling:touch; }
+        .shop-body::-webkit-scrollbar { width:5px; }
+        .shop-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:99px; }
+
+        .shop-section-label { font-size:clamp(12px,2.4vw,13px); letter-spacing:1px; color:#aaa; margin:0 0 12px 2px; font-weight:400; }
+        .shop-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+        .shop-item {
+            background:var(--bg); border:2px solid var(--border); border-radius:18px;
+            padding:14px 14px; display:flex; flex-direction:column; align-items:flex-start; gap:0; transition:all .18s;
+        }
+        .shop-item:hover:not(.locked) { border-color:#ddd; box-shadow:var(--shadow); transform:translateY(-2px); }
+        .shop-item:active:not(.locked){ transform:translateY(0) scale(.98); }
+        .shop-item.locked { opacity:.4; }
+
+        .shop-item-emoji { width:100%; margin-bottom:8px; }
+        .shop-item-emoji img { width:100%; max-width:190px; height:190px; object-fit:contain; display:block; margin:0 auto; border-radius:12px; }
+        .shop-item-info  { width:100%; flex:1; text-align:left; margin-bottom:10px; }
+        .shop-item-name  { color:var(--text); font-size:clamp(18px,3.6vw,22px); font-weight:700; line-height:1.1; margin-bottom:4px; }
+        .shop-item-meta  { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+        .price-free { color:var(--green); font-size:clamp(12px,2.4vw,13px); font-weight:400; }
+        .price-paid { color:#b07800; font-size:clamp(12px,2.4vw,13px); font-weight:400; }
+        .shop-item-count { color:var(--text-sub); font-size:clamp(12px,2.4vw,13px); font-weight:400; }
+        .shop-item-info2 { color:#bbb; font-size:clamp(11px,2.2vw,12px); margin-top:2px; font-weight:400; }
+        .shop-item-clickval { color:#888; font-size:clamp(14px,2.8vw,16px); margin-top:3px; font-weight:400; }
+
+        .shop-buy-btn {
+            background:var(--blue); color:#fff; border:none; padding:10px 0; border-radius:999px;
+            cursor:pointer; font-family:inherit; font-size:clamp(13px,2.6vw,15px); font-weight:700;
+            white-space:nowrap; transition:all .18s; width:100%;
+            box-shadow:0 3px 12px rgba(91,159,255,.35); text-align:center;
+        }
+        .shop-buy-btn.free  { background:var(--green); box-shadow:0 3px 12px rgba(91,191,122,.35); }
+        .shop-buy-btn.bee-btn { background:var(--yellow); color:#5a3800; box-shadow:0 3px 12px rgba(255,184,48,.35); font-weight:700; }
+        .shop-buy-btn:hover:not(:disabled) { transform:scale(1.06) translateY(-1px); filter:brightness(1.05); }
+        .shop-buy-btn:active:not(:disabled){ transform:scale(.88); filter:brightness(.92); transition:all .06s; }
+        .shop-buy-btn:disabled { opacity:1; cursor:not-allowed; transform:none; background:#d8d8d8; box-shadow:none; color:#aaa; font-size:clamp(11px,2.2vw,13px); font-weight:400; }
+
+        .slot-buy-row {
+            background:var(--purple-lt); border:2px solid var(--purple); border-radius:var(--radius-sm);
+            padding:14px 16px; display:flex; align-items:center; gap:14px; transition:all .18s;
+        }
+        .slot-buy-row:hover { box-shadow:0 4px 16px rgba(165,123,255,.2); transform:translateY(-1px); }
+        .slot-buy-emoji { font-size:32px; width:48px; text-align:center; flex-shrink:0; }
+        .slot-buy-info  { flex:1; }
+        .slot-buy-name  { color:var(--text); font-size:clamp(17px,3.5vw,18px); margin-bottom:3px; font-weight:400; }
+        .slot-buy-meta  { display:flex; gap:8px; align-items:center; }
+        .slot-buy-price { color:var(--purple); font-size:clamp(13px,2.9vw,14px); font-weight:400; }
+        .slot-buy-count { color:var(--text-sub); font-size:clamp(13px,2.9vw,14px); font-weight:400; }
+        .slot-buy-btn {
+            background:var(--purple); color:#fff; border:none; padding:9px 17px; border-radius:999px;
+            cursor:pointer; font-family:inherit; font-size:clamp(14px,2.9vw,15px); font-weight:700;
+            white-space:nowrap; transition:all .18s; flex-shrink:0; min-width:72px;
+            box-shadow:0 3px 12px rgba(165,123,255,.4);
+        }
+        .slot-buy-btn:hover:not(:disabled) { transform:scale(1.07) translateY(-1px); filter:brightness(1.05); }
+        .slot-buy-btn:active:not(:disabled){ transform:scale(.88); filter:brightness(.92); transition:all .06s; }
+        .slot-buy-btn:disabled { opacity:.35; cursor:not-allowed; transform:none; background:var(--border); box-shadow:none; color:var(--text-sub); font-size:11px; }
+
+        .buy-particle { position:fixed; pointer-events:none; z-index:600; font-size:24px; animation:pFly .7s ease-out forwards; }
+        @keyframes pFly { 0%{opacity:1;transform:translate(0,0) scale(1)} 100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.1)} }
+
+        #loading-overlay {
+            position:fixed; inset:0; background:#ffffff;
+            display:flex; align-items:center; justify-content:center; z-index:9999;
+            flex-direction:column; gap:0; color:var(--text-sub); transition:opacity .6s ease-out;
+        }
+        #loading-overlay.fade { opacity:0; pointer-events:none; }
+
+        .loading-fruits { display:flex; gap:10px; margin-bottom:24px; align-items:flex-end; }
+        .loading-fruit {
+            width:clamp(48px,11vw,64px); height:clamp(48px,11vw,64px);
+            object-fit:contain; display:block;
+            animation:fruitBounce 1.4s ease-in-out infinite;
+            filter:drop-shadow(0 3px 6px rgba(0,0,0,.12));
+        }
+        .loading-fruit:nth-child(1) { animation-delay:0s; }
+        .loading-fruit:nth-child(2) { animation-delay:.15s; }
+        .loading-fruit:nth-child(3) { animation-delay:.3s; }
+        .loading-fruit:nth-child(4) { animation-delay:.45s; }
+        .loading-fruit:nth-child(5) { animation-delay:.6s; }
+
+        @keyframes fruitBounce {
+            0%,100% { transform:translateY(0) scale(1); }
+            30% { transform:translateY(-22px) scale(1.15); }
+            50% { transform:translateY(0) scale(.93); }
+            65% { transform:translateY(-8px) scale(1.05); }
+            80% { transform:translateY(0) scale(1); }
+        }
+
+        .loading-text {
+            font-size:clamp(15px,3.2vw,18px); font-weight:700; color:var(--text);
+            margin-bottom:18px; letter-spacing:.5px;
+        }
+        .loading-sub {
+            font-size:clamp(12px,2.5vw,14px); color:var(--text-sub); font-weight:400;
+        }
+
+        .loading-bar-wrap {
+            width:180px; height:8px; background:var(--border); border-radius:99px;
+            overflow:hidden; margin-top:16px;
+        }
+        .loading-bar {
+            height:100%; width:0%; border-radius:99px;
+            background:var(--pink);
+            transition:width .3s ease-out;
+        }
+
+        .loading-main-fruit {
+            width:clamp(84px,19vw,112px); height:clamp(84px,19vw,112px);
+            object-fit:contain; margin-bottom:12px;
+            animation:fruitSpin 2.5s ease-in-out infinite;
+            filter:drop-shadow(0 4px 10px rgba(0,0,0,.12));
+        }
+        @keyframes fruitSpin {
+            0% { transform:rotate(0deg) scale(1); }
+            25% { transform:rotate(15deg) scale(1.1); }
+            50% { transform:rotate(0deg) scale(1); }
+            75% { transform:rotate(-15deg) scale(1.1); }
+            100% { transform:rotate(0deg) scale(1); }
+        }
+
+        @keyframes manurePulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.15)} }
+        .rebirth-cond { font-size:clamp(13px,2.5vw,14px); color:#bbb; font-weight:400; padding:4px 0; transition:color .3s; }
+        .rebirth-cond.met { color:var(--green); font-weight:700; }
+    </style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <filter id="score-filter" x="-10%" y="-10%" width="120%" height="140%">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="1" result="outline"/>
+      <feFlood flood-color="#1a1a1a" result="black"/>
+      <feComposite in="black" in2="outline" operator="in" result="stroke"/>
+      <feOffset in="stroke" dx="0" dy="2" result="shadow"/>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="stroke"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+</svg>
+
+<div id="loading-overlay">
+    <img class="loading-main-fruit" src="./Apple.png" alt="">
+    <div class="loading-text">과일 농장 준비 중</div>
+    <div class="loading-fruits">
+        <img class="loading-fruit" src="./Apple.png" alt="">
+        <img class="loading-fruit" src="./Watermelon.png" alt="">
+        <img class="loading-fruit" src="./Orange.png" alt="">
+        <img class="loading-fruit" src="./Blueberry.png" alt="">
+        <img class="loading-fruit" src="./Cherry.png" alt="">
+    </div>
+    <div class="loading-bar-wrap"><div class="loading-bar" id="loading-bar"></div></div>
+    <div class="loading-sub" id="loading-status">과일을 가져오고 있어요</div>
+</div>
+
+<div id="score-wrapper">
+    <div id="score-container"><span id="score">0</span></div>
+    <div id="popup-area" style="position:relative;width:100%;height:50px;display:flex;justify-content:center;"></div>
+</div>
+
+<div id="hold-ring">
+    <svg viewBox="0 0 60 60">
+        <circle class="track" cx="30" cy="30" r="28"/>
+        <circle class="prog"  cx="30" cy="30" r="28" id="hold-prog"/>
+    </svg>
+</div>
+
+<div id="sell-toast"></div>
+<div id="hold-hint">🖱️ 길게 누르면 판매</div>
+
+<!-- 설정 버튼 -->
+<button id="settings-btn">
+    <img src="./SettingsUI.PNG" alt="설정">
+</button>
+
+<!-- 설정 오버레이 -->
+<div id="settings-overlay">
+    <div class="settings-panel">
+        <div class="shop-header">
+            <div style="width:34px;flex-shrink:0;"></div>
+            <div class="shop-title">설정</div>
+            <button class="shop-close shop-header-right" id="settings-close">✕</button>
+        </div>
+        <div class="settings-body">
+            <div style="display:flex;flex-direction:column;gap:8px;">
+                <div class="settings-label">코드 입력</div>
+                <input type="text" class="settings-code-input" id="settings-code" placeholder="코드를 입력하세요">
+                <button class="settings-code-btn" id="settings-code-apply">적용</button>
+            </div>
+
+            <div style="height:1px;background:var(--border);"></div>
+
+            <div class="settings-row">
+                <span class="settings-label">과일 클릭음</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-fruit-sound" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="settings-row">
+                <span class="settings-label">UI 클릭음</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-ui-sound" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-group-head">
+                    <span class="settings-label">배경음악</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggle-bgm" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="settings-volume">
+                    <div class="settings-row" style="padding:0;">
+                        <span class="settings-sub">음량</span>
+                        <span class="settings-sub" id="bgm-volume-value">60%</span>
+                    </div>
+                    <input type="range" id="bgm-volume" class="settings-range" min="0" max="100" step="1" value="60">
+                </div>
+            </div>
+
+            <div style="height:1px;background:var(--border);"></div>
+            <div style="font-size:clamp(11px,2.2vw,12px);letter-spacing:1px;color:#aaa;font-weight:400;">그래픽</div>
+
+            <div class="settings-row">
+                <span class="settings-label">그림자</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-shadow" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="settings-row" id="shadow-quality-row">
+                <span class="settings-label">그림자 품질</span>
+                <select id="select-shadow-quality" class="settings-select">
+                    <option value="512">낮음</option>
+                    <option value="1024">보통</option>
+                    <option value="2048" selected>높음</option>
+                </select>
+            </div>
+
+            <div class="settings-row">
+                <span class="settings-label">안티앨리어싱</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-antialias" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="settings-row">
+                <span class="settings-label">픽셀 비율</span>
+                <select id="select-pixel-ratio" class="settings-select">
+                    <option value="1">×1 (저사양)</option>
+                    <option value="1.5">×1.5</option>
+                    <option value="2" selected>×2 (기본)</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="bottom-btns">
+    <button class="bottom-btn img-btn" id="box-shop-btn">
+        <img src="./FruitBox.png" alt="과일박스">
+    </button>
+    <button class="bottom-btn img-btn" id="fruit-shop-btn">
+        <img src="./FruitStore.PNG" alt="과일 상점">
+    </button>
+    <button class="bottom-btn img-btn" id="bee-shop-btn">
+        <img src="./BeeStore.PNG" alt="벌 상점">
+    </button>
+    <button class="bottom-btn img-btn" id="bucket-btn">
+        <img src="./FruitBucketUI.PNG" alt="과일바구니">
+    </button>
+</div>
+
+<!-- 과일바구니(환생) 오버레이 -->
+<div class="shop-overlay" id="bucket-overlay">
+    <div class="shop-panel">
+        <div class="shop-header">
+            <div class="shop-score-badge shop-header-left" id="bucket-shop-score">0점</div>
+            <div class="shop-title">과일바구니</div>
+            <button class="shop-close shop-header-right" id="bucket-close">✕</button>
+        </div>
+        <div class="shop-body" style="display:flex;flex-direction:column;align-items:center;gap:20px;padding:28px 20px;">
+            <img src="./FruitBucket.png" alt="과일바구니" style="width:180px;height:180px;object-fit:contain;">
+            <div style="text-align:center;">
+                <div style="font-size:clamp(18px,4vw,22px);font-weight:700;color:var(--text);margin-bottom:8px;">바구니에 담기</div>
+                <div style="font-size:clamp(13px,2.5vw,15px);color:#888;line-height:1.7;">
+                    환생 후 점수 획득이 <span style="color:var(--pink);font-weight:700;">×1.5배</span>가 돼요<br>
+                    점수·과일·벌이 모두 초기화돼요
+                </div>
+            </div>
+            <div id="rebirth-conditions" style="width:100%;background:var(--bg);border-radius:14px;padding:14px 18px;display:flex;flex-direction:column;gap:8px;">
+                <div class="rebirth-cond" id="cond-cherry">체리 보유</div>
+                <div class="rebirth-cond" id="cond-full">3×3 그리드 꽉 채우기</div>
+                <div class="rebirth-cond" id="cond-score">60,000점 이상</div>
+            </div>
+            <button id="rebirth-btn" onclick="window.__rebirth()" style="
+                width:100%;padding:14px;border-radius:999px;border:none;
+                background:#ccc;color:#fff;font-family:inherit;font-size:clamp(15px,3vw,18px);
+                font-weight:700;cursor:not-allowed;transition:all .2s;
+            ">조건 미충족</button>
+        </div>
+    </div>
+</div>
+
+<!-- 과일 상점 -->
+<div class="shop-overlay" id="fruit-shop-overlay">
+    <div class="shop-panel">
+        <div class="shop-header">
+            <div class="shop-score-badge shop-header-left" id="fruit-shop-score">0점</div>
+            <div class="shop-title">과일상점</div>
+            <button class="shop-close shop-header-right" id="fruit-shop-close">✕</button>
+        </div>
+        <div class="shop-body">
+            <div class="shop-section-label">슬롯 확장</div>
+            <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:20px" id="slot-shop-grid"></div>
+            <div class="shop-section-label">구매 가능한 과일</div>
+            <div class="shop-grid" id="fruit-shop-grid"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 과일박스 상점 -->
+<div class="shop-overlay" id="box-shop-overlay">
+    <div class="shop-panel">
+        <div class="shop-header">
+            <div class="shop-score-badge shop-header-left" id="box-shop-score">0점</div>
+            <div class="shop-title">과일박스</div>
+            <button class="shop-close shop-header-right" id="box-shop-close">✕</button>
+        </div>
+        <div class="shop-body">
+            <div class="shop-section-label">5번 클릭해서 열면 랜덤 과일이 나와요!</div>
+            <div class="shop-grid" id="box-shop-grid"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 벌 상점 -->
+<div class="shop-overlay" id="bee-shop-overlay">
+    <div class="shop-panel">
+        <div class="shop-header">
+            <div class="shop-score-badge shop-header-left" id="bee-shop-score">0점</div>
+            <div class="shop-title">벌상점</div>
+            <button class="shop-close shop-header-right" id="bee-shop-close">✕</button>
+        </div>
+        <div class="shop-body">
+            <div class="shop-section-label">과일에 붙어 점수를 벌어요</div>
+            <div class="shop-section-label" style="margin-top:4px;">가장 높은 과일에 배치 · 과일 클릭값÷n 초당 수입</div>
+            <div class="shop-grid" id="bee-shop-grid"></div>
+            <div class="shop-section-label" style="margin-top:20px;">아이템</div>
+            <div class="shop-grid" id="bee-shop-items-grid"></div>
+        </div>
+    </div>
+</div>
+
+<script type="importmap">
+{
+    "imports": {
+        "three":             "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/":     "https://unpkg.com/three@0.160.0/examples/jsm/",
+        "@tweenjs/tween.js": "https://unpkg.com/@tweenjs/tween.js@23.1.1/dist/tween.esm.js"
+    }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader }    from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import * as TWEEN        from '@tweenjs/tween.js';
+
+// ═══════════════════════════════════════════════════════════
+//  🔊 사운드 시스템
+// ═══════════════════════════════════════════════════════════
+const _fruitSoundUrls = ['./Click1.m4a', './Click2.m4a', './Click4.m4a', './Clcik3.m4a'];
+const _uiSoundUrls    = ['./UIClick.m4a', './UIClick2.m4a', './UIClick3.m4a'];
+const _bgmUrls        = [
+    './행복한 밭의 오후.mp3',
+    './행복한 밭의 오후-2.mp3',
+    './행복한 밭의 오후-3.mp3',
+    './행복한 밭의 오후-4.mp3',
+    './행복한 밭의 오후-5.mp3',
+    './행복한 밭의 오후-6.mp3',
+    './행복한 밭의 오후-7.mp3',
+    './행복한 밭의 오후-8.mp3',
+    './행복한 밭의 오후-9.mp3',
+    './행복한 밭의 오후-10.mp3'
+];
+
+const _audioCtx   = new (window.AudioContext || window.webkitAudioContext)();
+const _audioCache = {};   // url → AudioBuffer | null
+const _bgmAudio   = new Audio();
+let _bgmQueue = [];
+
+// 오디오 파일 디코딩 & 캐싱
+async function _loadAudio(url) {
+    if (url in _audioCache) return _audioCache[url];
+    try {
+        const res = await fetch(url);
+        const raw = await res.arrayBuffer();
+        _audioCache[url] = await _audioCtx.decodeAudioData(raw);
+    } catch (e) {
+        _audioCache[url] = null;  // 실패해도 조용히 무시
+    }
+    return _audioCache[url];
+}
+
+// 모바일 자동재생 정책 대응: 첫 터치 시 컨텍스트 resume
+function _resumeAudioCtx() {
+    if (_audioCtx.state === 'suspended') _audioCtx.resume();
+}
+
+// 배열에서 랜덤 선택 후 재생
+function _playRandom(urls, volume = 1.0) {
+    _resumeAudioCtx();
+    const url = urls[Math.floor(Math.random() * urls.length)];
+    _loadAudio(url).then(buf => {
+        if (!buf) return;
+        const src  = _audioCtx.createBufferSource();
+        const gain = _audioCtx.createGain();
+        gain.gain.value = volume;
+        src.buffer = buf;
+        src.connect(gain);
+        gain.connect(_audioCtx.destination);
+        src.start(0);
+    });
+}
+
+// ── 설정: 사운드 토글 (localStorage에 저장) ──
+const _settingsKey = 'fc_settings';
+function _loadSettings() { try { return JSON.parse(localStorage.getItem(_settingsKey)) || {}; } catch { return {}; } }
+function _saveSettings(s) { localStorage.setItem(_settingsKey, JSON.stringify(s)); }
+
+const _settings = _loadSettings();
+let _fruitSoundOn = _settings.fruitSound !== false;   // 기본 켬
+let _uiSoundOn    = _settings.uiSound    !== false;   // 기본 켬
+let _bgmOn        = _settings.bgmOn      !== false;   // 기본 켬
+let _bgmVolume    = Math.min(Math.max(Number(_settings.bgmVolume ?? 0.6), 0), 1);
+
+/** 과일 클릭 시 재생 (Click1~4 랜덤) */
+function playFruitClick() { if (_fruitSoundOn) _playRandom(_fruitSoundUrls, 0.7); }
+
+/** UI 버튼 클릭 시 재생 (UIClick1~3 랜덤) */
+function playUIClick()    { if (_uiSoundOn) _playRandom(_uiSoundUrls, 0.6); }
+
+/** 과일·박스 등장/사라질 때 재생 */
+function playShowup()     { _playRandom(['./Showup.m4a'], 0.75); }
+
+/** 벌 등장/사라질 때 재생 */
+function playBeeSound()   { _playRandom(['./Bee.m4a'], 0.75); }
+
+function _applyBgmVolume() {
+    _bgmAudio.volume = _bgmVolume;
+}
+
+function _shuffleBgmQueue() {
+    _bgmQueue = [..._bgmUrls];
+    for (let i = _bgmQueue.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [_bgmQueue[i], _bgmQueue[j]] = [_bgmQueue[j], _bgmQueue[i]];
+    }
+}
+
+function _setNextBgmTrack() {
+    if (_bgmUrls.length === 0) return;
+    if (_bgmQueue.length === 0) _shuffleBgmQueue();
+    _bgmAudio.src = _bgmQueue.shift();
+    _bgmAudio.load();
+    _applyBgmVolume();
+}
+
+function _tryPlayBgm() {
+    if (!_bgmOn || !_bgmUrls.length) return;
+    if (!_bgmAudio.src) _setNextBgmTrack();
+    _bgmAudio.play().catch(() => {});
+}
+
+function _stopBgm() {
+    _bgmAudio.pause();
+}
+
+_bgmAudio.preload = 'auto';
+_bgmAudio.addEventListener('ended', () => {
+    _setNextBgmTrack();
+    _tryPlayBgm();
+});
+_applyBgmVolume();
+_setNextBgmTrack();
+
+const _unlockBgmPlayback = () => {
+    _resumeAudioCtx();
+    _tryPlayBgm();
+};
+window.addEventListener('pointerdown', _unlockBgmPlayback, { passive: true });
+window.addEventListener('keydown', _unlockBgmPlayback, { passive: true });
+
+// 페이지 로드 시 모든 사운드 미리 디코딩
+[..._fruitSoundUrls, ..._uiSoundUrls, './Showup.m4a', './Bee.m4a'].forEach(u => _loadAudio(u));
+// ═══════════════════════════════════════════════════════════
+
+const FRUIT_DEFS = [
+    { key:'apple',      icon:'./Apple.png',      file:'./Apple.glb',      emoji:'🍎', name:'사과',     clickVal:1,   color:'#ff4d4d', buyPrice:0,      ms:1.0 },
+    { key:'watermelon', icon:'./Watermelon.png',  file:'./Watermelon.glb', emoji:'🍉', name:'수박',     clickVal:4,   color:'#28a745', buyPrice:100,    ms:1.0 },
+    { key:'orange',     icon:'./Orange.png',      file:'./Orange.glb',     emoji:'🍊', name:'오렌지',   clickVal:12,  color:'#ffa500', buyPrice:500,    ms:1.0 },
+    { key:'blueberry',  icon:'./Blueberry.png',   file:'./Blueberry.glb',  emoji:'🫐', name:'블루베리', clickVal:32,  color:'#4f5bd5', buyPrice:2000,   ms:1.0 },
+    { key:'avocado',    icon:'./Avocado.png',      file:'./Avocado.glb',    emoji:'🥑', name:'아보카도', clickVal:80,  color:'#568203', buyPrice:8000,   ms:1.0 },
+    { key:'cherry',     icon:'./Cherry.png',       file:'./Cherry.glb',     emoji:'🍒', name:'체리',     clickVal:200, color:'#c0001a', buyPrice:30000,  ms:1.0 },
+    { key:'pineapple',  icon:'./Pineapple.png',    file:'./Pineapple.glb',  emoji:'🍍', name:'파인애플', clickVal:500,  color:'#e6a817', buyPrice:120000,  ms:1.0 },
+    { key:'lemon',      icon:'./Lemon.PNG',        file:'./Lemon.glb',      emoji:'🍋', name:'레몬',     clickVal:1200, color:'#FFE135', buyPrice:300000,  ms:1.0 },
+    { key:'coconut',    icon:'./Coconut.PNG',      file:'./Coconut.glb',    emoji:'🥥', name:'코코넛',   clickVal:3000,  color:'#8B6914', buyPrice:800000,  ms:1.0 },
+    { key:'kiwi',       icon:'./Kiwi.PNG',         file:'./Kiwi.glb',       emoji:'🥝', name:'키위',     clickVal:7000,  color:'#8DB600', buyPrice:2000000, ms:1.0 },
+    { key:'strawberry', icon:'./Strawberry.PNG',   file:'./Strawberry.glb', emoji:'🍓', name:'딸기',     clickVal:16000, color:'#FC5A8D', buyPrice:5000000, ms:1.0 },
+];
+
+// ★ _fromBox 플래그 포함해서 판매가 계산
+const getSellVal = (def, item) => {
+    if (item && item._fromBox) return 0;
+    return def.key === 'apple' ? 1 : def.buyPrice;
+};
+
+const BEE_DEFS = [
+    { key:'bee',      file:'./Bee.glb',     emoji:'🐝', icon:'./Bee.png',     name:'꿀벌',   buyPrice:1500,  beeScale:0.4,  divisor:3, color:'#FFD700', orbitR:0.55, orbitSpeed:0.0022 },
+    { key:'queenBee', file:'./QeenBee.glb', emoji:'👑', icon:'./QeenBee.png', name:'여왕벌', buyPrice:5800,  beeScale:0.48, divisor:2, color:'#FF4500', orbitR:0.70, orbitSpeed:0.0018 },
+];
+
+const SAVE_KEY = 'fc_v16';
+let _uiTimer = null;
+let isResetting = false;
+
+function loadSave() { try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch { return {}; } }
+
+// ★ writeSave: 슬롯 순서대로 {key, fromBox} 배열(fruitsEx)로 저장
+function writeSave() {
+    if (isResetting) return;
+    const d = { score, unlockedSlots, rebirthCount };
+
+    // fruitsEx: 슬롯 인덱스 순으로 과일 key + _fromBox 플래그 저장
+    const fruitsEx = [];
+    for (let s = 0; s < MAX_SLOTS; s++) {
+        const g = gridSlots[s];
+        if (!g || g === 'locked' || g === 'reserved' || g.key === '__box__' || g.key === '__plusbox__') continue;
+        const item = pools[g.key]?.list[g.idx];
+        fruitsEx.push({ key: g.key, fromBox: !!(item && item._fromBox) });
+    }
+    d.fruitsEx = fruitsEx;
+
+    // 구버전 호환용 카운트도 함께 저장
+    for (const fd of FRUIT_DEFS) d['f_' + fd.key] = (pools[fd.key]?.list.length) || 0;
+
+    d.bees = beeInstances.map(b => ({ bk: b.bDef.key, fk: b.fruitKey, fi: b.fruitIdx }));
+    d.boxSlots = boxInstances.map(b => b.slot);
+    d.plusBoxSlots = plusBoxInstances.map(b => b.slot);
+    localStorage.setItem(SAVE_KEY, JSON.stringify(d));
+}
+
+const save  = loadSave();
+let   score = save.score || 0;
+let   rebirthCount = save.rebirthCount || 0;
+const REBIRTH_MULTI = () => 1 + rebirthCount * 0.5;
+
+// ★ 효과 아이템 시스템
+const FLOWER_PRICE = 18000;
+const MANURE_PRICE = 25000;
+const FLOWER_DURATION = 15000; // 15초
+const MANURE_DURATION = 15000; // 15초
+const ITEM_COOLDOWN = 30000; // 30초
+let _flowerMulti = 1;
+let _flowerTimer = null;
+let _flowerEndTime = 0;
+let _flowerCooldownEndTime = 0;
+let _manureMulti = 1;
+let _manureTimer = null;
+let _manureEndTime = 0;
+let _manureCooldownEndTime = 0;
+let _itemCooldownTimer = null;
+const CLICK_SCORE_MULTI = () => REBIRTH_MULTI() * _manureMulti;
+const BEE_SCORE_MULTI = () => REBIRTH_MULTI() * _manureMulti * _flowerMulti;
+const scoreEl = document.getElementById('score');
+function fmtN(n) {
+    const abs = Math.abs(n);
+    if (abs < 1e3) return n.toLocaleString();
+    const units = [
+        { v:1e15, s:'Q' }, { v:1e12, s:'T' }, { v:1e9, s:'B' },
+        { v:1e6, s:'M' }, { v:1e3, s:'K' },
+    ];
+    for (const u of units) {
+        if (abs >= u.v) {
+            const d = n / u.v;
+            const decimals = Math.abs(d) >= 100 ? 0 : Math.abs(d) >= 10 ? 1 : 2;
+            const factor = 10 ** decimals;
+            const truncated = Math.trunc(d * factor) / factor;
+            return truncated.toLocaleString('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: decimals,
+            }) + u.s;
+        }
+    }
+    return n.toLocaleString();
+}
+scoreEl.innerText = fmtN(score);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xF8F8F8);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const aspect = window.innerWidth / window.innerHeight;
+const FRUS = 10;
+const camera = new THREE.OrthographicCamera(-FRUS*aspect/2, FRUS*aspect/2, FRUS/2, -FRUS/2, 0.1, 1000);
+camera.position.set(-7-4.4, 7, -7-4.4);
+camera.lookAt(-4.4, 0, -4.4);
+
+scene.add(new THREE.AmbientLight(0xf3ede1, 1.0));
+const dirLight = new THREE.DirectionalLight(0xf3ede1, 2.3);
+dirLight.position.set(-8, 12, -8);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width  = 2048;
+dirLight.shadow.mapSize.height = 2048;
+dirLight.shadow.bias = -0.001; dirLight.shadow.normalBias = 0.02; dirLight.shadow.radius = 12;
+dirLight.shadow.camera.near = 0.1; dirLight.shadow.camera.far = 50;
+dirLight.shadow.camera.left = -15; dirLight.shadow.camera.right = 15;
+dirLight.shadow.camera.top = 15; dirLight.shadow.camera.bottom = -15;
+scene.add(dirLight);
+
+const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.ShadowMaterial({ opacity:0.10 }));
+floorMesh.rotation.x = -Math.PI/2; floorMesh.receiveShadow = true; scene.add(floorMesh);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(-4.4, 0, -4.4);
+controls.enableDamping = true; controls.dampingFactor = 0.2; controls.enablePan = false;
+controls.minZoom = 0.8;
+controls.maxZoom = 2.4;
+
+
+const COLS = 3, GAP = 2.2, MAX_SLOTS = 9;
+const gridSlots = new Array(MAX_SLOTS).fill(null);
+const SLOT_PRICES = [200,500,1200,3000,7000,15000];
+let unlockedSlots = Math.min(save.unlockedSlots || 3, MAX_SLOTS);
+function initLockedSlots() { for (let i=unlockedSlots;i<MAX_SLOTS;i++) gridSlots[i]='locked'; }
+initLockedSlots();
+function gridPos(i) { return { x:(i%COLS-2)*GAP, z:(Math.floor(i/COLS)-2)*GAP }; }
+function nextFreeSlot() { return gridSlots.findIndex(s=>s===null); }
+function slotPrice(n) { const idx = n - 4; return SLOT_PRICES[Math.min(idx, SLOT_PRICES.length-1)] || 999999; }
+function nextLockedSlot() { return unlockedSlots<MAX_SLOTS?unlockedSlots:-1; }
+
+const pools = {};
+let floorY = null;
+
+const BOX_PRICE = 1500;
+// ★ 파인애플 제거 — 가중치 합계 100
+const BOX_REWARDS = [
+    { key:'orange',    weight:45 },
+    { key:'blueberry', weight:30 },
+    { key:'avocado',   weight:18 },
+    { key:'cherry',    weight:7  },
+];
+const boxInstances = [];
+
+// ★ 과일 플러스 박스 (체리~코코넛)
+const PLUS_BOX_PRICE = 50000;
+const PLUS_BOX_REWARDS = [
+    { key:'cherry',    weight:40 },
+    { key:'pineapple', weight:35 },
+    { key:'lemon',     weight:15 },
+    { key:'coconut',   weight:10 },
+];
+const plusBoxInstances = [];
+
+const loader = new GLTFLoader();
+const _gltfCache = {};
+const _origLoad = loader.load.bind(loader);
+loader.load = function(url, onLoad, onProgress, onError) {
+    if (_gltfCache[url]) {
+        setTimeout(() => {
+            const clone = _gltfCache[url].scene.clone();
+            clone.position.set(0, 0, 0); clone.rotation.set(0, 0, 0); clone.scale.set(1, 1, 1);
+            onLoad({ scene: clone });
+        }, 0);
+        return;
+    }
+    _origLoad(url, (gltf) => {
+        gltf.scene.position.set(0, 0, 0); gltf.scene.rotation.set(0, 0, 0); gltf.scene.scale.set(1, 1, 1);
+        _gltfCache[url] = gltf;
+        onLoad(gltf);
+    }, onProgress, onError);
+};
+
+function fixMesh(obj) {
+    obj.traverse(c => {
+        if (!c.isMesh) return;
+        c.castShadow = c.receiveShadow = true;
+        if (c.geometry) c.geometry.computeBoundingBox();
+        if (c.material?.map) { c.material.map.minFilter=THREE.LinearFilter; c.material.map.anisotropy=renderer.capabilities.getMaxAnisotropy(); c.material.map.needsUpdate=true; }
+    });
+}
+
+function place(def, slotIdx, animate, cb) {
+    loader.load(def.file, gltf => {
+        const model = gltf.scene; fixMesh(model);
+        const box = new THREE.Box3().setFromObject(model);
+        if (floorY===null) { floorY=box.min.y; floorMesh.position.y=floorY; }
+        const {x,z} = gridPos(slotIdx);
+        model.position.set(x, floorY-box.min.y, z);
+        model.rotation.y = Math.PI;
+        model.scale.setScalar(animate?0:def.ms); scene.add(model);
+        if (animate) { playShowup(); new TWEEN.Tween(model.scale).to({x:def.ms,y:def.ms,z:def.ms},650).easing(TWEEN.Easing.Elastic.Out).start(); }
+        if (!pools[def.key]) pools[def.key]={list:[]};
+        const instIdx=pools[def.key].list.length;
+        pools[def.key].list.push({model,slot:slotIdx});
+        gridSlots[slotIdx]={key:def.key,idx:instIdx};
+        if (cb) cb(instIdx); else { updateAllUI(); writeSave(); }
+    }, undefined, err=>{ console.error('GLB 실패:',def.file,err); if(cb) cb(null); });
+}
+
+function addFruit(def, animate, cb) {
+    const slot=nextFreeSlot(); if(slot===-1){if(cb)cb(null);return;}
+    gridSlots[slot]='reserved'; place(def,slot,animate,cb);
+}
+
+function removeFruitAt(key, idx, refund) {
+    const pool=pools[key]; if(!pool||idx>=pool.list.length) return false;
+    const {model,slot}=pool.list[idx];
+    const beesToRemove=beeInstances.filter(b=>b.fruitKey===key&&b.fruitIdx===idx);
+    for (const b of beesToRemove) {
+        clearInterval(b.intervalId); if(b._squishTimer) clearTimeout(b._squishTimer);
+        scene.remove(b.model); const bi=beeInstances.indexOf(b); if(bi!==-1) beeInstances.splice(bi,1);
+        if(refund){score+=b.bDef.buyPrice;scoreEl.innerText=fmtN(score);createPopup(b.bDef.buyPrice,b.bDef.color);}
+    }
+    new TWEEN.Tween(model.scale).to({x:0,y:0,z:0},150).easing(TWEEN.Easing.Cubic.In).onComplete(()=>scene.remove(model)).start();
+    playShowup(); // 🔊 과일 사라질 때
+    pool.list.splice(idx,1); gridSlots[slot]=null;
+    pool.list.forEach((item,i)=>{gridSlots[item.slot]={key,idx:i};});
+    beeInstances.filter(b=>b.fruitKey===key&&b.fruitIdx>idx).forEach(b=>{b.fruitIdx-=1;});
+    compactGrid(slot); updateAllUI(); writeSave(); return true;
+}
+
+function moveCameraTo(model) {
+    if(!model) return;
+    const tp=model.position.clone(), off=new THREE.Vector3().subVectors(camera.position,controls.target);
+    if(fTw) fTw.stop(); if(cTw) cTw.stop();
+    fTw=new TWEEN.Tween(controls.target).to({x:tp.x,y:tp.y,z:tp.z},420).easing(TWEEN.Easing.Quadratic.Out).start();
+    cTw=new TWEEN.Tween(camera.position).to({x:tp.x+off.x,y:tp.y+off.y,z:tp.z+off.z},420).easing(TWEEN.Easing.Quadratic.Out).start();
+}
+
+function compactGrid(trackSlot) {
+    const entries=[];
+    for (let s=0;s<gridSlots.length;s++) {
+        const g=gridSlots[s]; if(!g||g==='reserved'||g==='locked') continue;
+        if(g.key==='__manure__'){if(_manureModel)entries.push({key:'__manure__',oldSlot:s});continue;}
+        if(g.key==='__flower__'){if(_flowerModel)entries.push({key:'__flower__',oldSlot:s});continue;}
+        if(g.key==='__box__'){const inst=boxInstances[g.idx];if(!inst)continue;entries.push({key:'__box__',inst,oldSlot:s});}
+        else if(g.key==='__plusbox__'){const inst=plusBoxInstances[g.idx];if(!inst)continue;entries.push({key:'__plusbox__',inst,oldSlot:s});}
+        else{const p=pools[g.key];if(!p)continue;const item=p.list[g.idx];if(!item)continue;entries.push({key:g.key,item,oldSlot:s});}
+    }
+    for (let i=0;i<gridSlots.length;i++) gridSlots[i]=i>=unlockedSlots?'locked':null;
+    for (const k of Object.keys(pools)) pools[k].list=[];
+    const newBoxList=[];
+    const newPlusBoxList=[];
+    entries.forEach(({key:k,item,inst,oldSlot},newSlot)=>{
+        if(k==='__manure__'){
+            _manureSlot=newSlot; gridSlots[newSlot]={key:'__manure__',idx:0};
+            if(newSlot!==oldSlot&&_manureModel){
+                const {x,z}=gridPos(newSlot),delay=newSlot*28,baseY=_manureModel.position.y;
+                new TWEEN.Tween(_manureModel.position).to({x,z},380).delay(delay).easing(TWEEN.Easing.Back.Out).start();
+                new TWEEN.Tween(_manureModel.position).to({y:baseY-0.08},160).delay(delay).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(_manureModel.position).to({y:baseY},220).easing(TWEEN.Easing.Quadratic.InOut)).start();
+                new TWEEN.Tween(_manureModel.scale).to({x:1.15,y:0.82,z:1.15},140).delay(delay).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(_manureModel.scale).to({x:1,y:1,z:1},320).easing(TWEEN.Easing.Elastic.Out)).start();
+            } return;
+        }
+        if(k==='__flower__'){
+            _flowerSlot=newSlot; gridSlots[newSlot]={key:'__flower__',idx:0};
+            if(newSlot!==oldSlot&&_flowerModel){
+                const {x,z}=gridPos(newSlot),delay=newSlot*28,baseY=_flowerModel.position.y;
+                new TWEEN.Tween(_flowerModel.position).to({x,z},380).delay(delay).easing(TWEEN.Easing.Back.Out).start();
+                new TWEEN.Tween(_flowerModel.position).to({y:baseY-0.08},160).delay(delay).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(_flowerModel.position).to({y:baseY},220).easing(TWEEN.Easing.Quadratic.InOut)).start();
+                new TWEEN.Tween(_flowerModel.scale).to({x:1.15,y:0.82,z:1.15},140).delay(delay).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(_flowerModel.scale).to({x:1,y:1,z:1},320).easing(TWEEN.Easing.Elastic.Out)).start();
+            } return;
+        }
+        if(k==='__box__'){
+            inst.slot=newSlot; gridSlots[newSlot]={key:'__box__',idx:newBoxList.length}; newBoxList.push(inst);
+            if(newSlot!==oldSlot){
+                const {x,z}=gridPos(newSlot),delay=newSlot*28,baseY=inst.model.position.y;
+                new TWEEN.Tween(inst.model.position).to({x,z},380).delay(delay).easing(TWEEN.Easing.Back.Out).start();
+                new TWEEN.Tween(inst.model.position).to({y:baseY-0.08},160).delay(delay).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(inst.model.position).to({y:baseY},220).easing(TWEEN.Easing.Quadratic.InOut)).start();
+                new TWEEN.Tween(inst.model.scale).to({x:1.15,y:0.82,z:1.15},140).delay(delay).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(inst.model.scale).to({x:1,y:1,z:1},320).easing(TWEEN.Easing.Elastic.Out)).start();
+            } return;
+        }
+        if(k==='__plusbox__'){
+            inst.slot=newSlot; gridSlots[newSlot]={key:'__plusbox__',idx:newPlusBoxList.length}; newPlusBoxList.push(inst);
+            if(newSlot!==oldSlot){
+                const {x,z}=gridPos(newSlot),delay=newSlot*28,baseY=inst.model.position.y;
+                new TWEEN.Tween(inst.model.position).to({x,z},380).delay(delay).easing(TWEEN.Easing.Back.Out).start();
+                new TWEEN.Tween(inst.model.position).to({y:baseY-0.08},160).delay(delay).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(inst.model.position).to({y:baseY},220).easing(TWEEN.Easing.Quadratic.InOut)).start();
+                new TWEEN.Tween(inst.model.scale).to({x:1.15,y:0.82,z:1.15},140).delay(delay).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(inst.model.scale).to({x:1,y:1,z:1},320).easing(TWEEN.Easing.Elastic.Out)).start();
+            } return;
+        }
+        const p=pools[k],newIdx=p.list.length; p.list.push(item); item.slot=newSlot; gridSlots[newSlot]={key:k,idx:newIdx};
+        if(newSlot!==oldSlot){
+            const {x,z}=gridPos(newSlot),delay=newSlot*28,baseY=item.model.position.y,model=item.model;
+            new TWEEN.Tween(model.position).to({x,z},380).delay(delay).easing(TWEEN.Easing.Back.Out).start();
+            new TWEEN.Tween(model.position).to({y:baseY-0.08},160).delay(delay).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(model.position).to({y:baseY},220).easing(TWEEN.Easing.Quadratic.InOut)).start();
+            new TWEEN.Tween(model.scale).to({x:1.15,y:0.82,z:1.15},140).delay(delay).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(model.scale).to({x:1.0,y:1.0,z:1.0},320).easing(TWEEN.Easing.Elastic.Out)).start();
+        }
+    });
+    for (const bee of beeInstances){const p=pools[bee.fruitKey];if(!p)continue;const newIdx=p.list.findIndex(it=>it===bee._fruitItem);if(newIdx!==-1)bee.fruitIdx=newIdx;}
+    boxInstances.length=0; for(const b of newBoxList) boxInstances.push(b);
+    plusBoxInstances.length=0; for(const b of newPlusBoxList) plusBoxInstances.push(b);
+    if(trackSlot!==undefined&&trackSlot>0){const g=gridSlots[trackSlot-1];if(g&&g!=='reserved'){const p=pools[g.key];const item=p?.list[g.idx];if(item)setTimeout(()=>moveCameraTo(item.model),80);}}
+}
+
+const beeInstances=[];
+function removeBeeInstance(b,doSave=true){const i=beeInstances.indexOf(b);if(i===-1)return;clearInterval(b.intervalId);playBeeSound(); scene.remove(b.model);beeInstances.splice(i,1);if(doSave){updateAllUI();writeSave();}}
+
+function spawnBeeOnFruit(bDef,fruitKey,fruitInstIdx,restore,startAngle=0){
+    loader.load(bDef.file,gltf=>{
+        const model=gltf.scene;fixMesh(model);scene.add(model);const s=bDef.beeScale;model.scale.setScalar(restore?s:0);
+        if(!restore){ playBeeSound(); new TWEEN.Tween(model.scale).to({x:s,y:s,z:s},700).easing(TWEEN.Easing.Elastic.Out).start(); }
+        const _fruitItem=pools[fruitKey]?.list[fruitInstIdx]||null;
+        const bee={bDef,fruitKey,fruitIdx:fruitInstIdx,model,angle:startAngle,_fruitItem};
+        const fd=FRUIT_DEFS.find(f=>f.key===fruitKey),perSec=fd?Math.floor(fd.clickVal/bDef.divisor):0;
+        bee.intervalId=setInterval(()=>{
+            if(!isResetting&&perSec>0){
+                score+=Math.floor(perSec*BEE_SCORE_MULTI());
+                // 비료 또잉
+                if(_manureModel&&_manureMulti>1&&!_manureModel._tweenActive){
+                    _manureModel._tweenActive=true;const ms=1.0;
+                    new TWEEN.Tween(_manureModel.scale).to({x:ms*1.08,y:ms*.92,z:ms*1.08},120).easing(TWEEN.Easing.Sinusoidal.Out)
+                    .chain(new TWEEN.Tween(_manureModel.scale).to({x:ms*.97,y:ms*1.03,z:ms*.97},140).easing(TWEEN.Easing.Sinusoidal.InOut)
+                    .chain(new TWEEN.Tween(_manureModel.scale).to({x:ms,y:ms,z:ms},300).easing(TWEEN.Easing.Elastic.Out).onComplete(()=>{if(_manureModel)_manureModel._tweenActive=false;}))).start();
+                }
+                if(_flowerModel&&_flowerMulti>1&&!_flowerModel._tweenActive){
+                    _flowerModel._tweenActive=true;const fs=1.0;
+                    new TWEEN.Tween(_flowerModel.scale).to({x:fs*1.08,y:fs*.92,z:fs*1.08},120).easing(TWEEN.Easing.Sinusoidal.Out)
+                    .chain(new TWEEN.Tween(_flowerModel.scale).to({x:fs*.97,y:fs*1.03,z:fs*.97},140).easing(TWEEN.Easing.Sinusoidal.InOut)
+                    .chain(new TWEEN.Tween(_flowerModel.scale).to({x:fs,y:fs,z:fs},300).easing(TWEEN.Easing.Elastic.Out).onComplete(()=>{if(_flowerModel)_flowerModel._tweenActive=false;}))).start();
+                }
+                scoreEl.innerText=fmtN(score);
+                const _fs=document.getElementById('fruit-shop-score');
+                const _bs=document.getElementById('bee-shop-score');
+                const _bxs=document.getElementById('box-shop-score');
+                const _sl=`${fmtN(score)}점`;
+                if(_fs)_fs.innerText=_sl; if(_bs)_bs.innerText=_sl; if(_bxs)_bxs.innerText=_sl;
+                writeSave();
+            }
+        },1000);
+        _pendingBeeSlots.delete(fruitKey+'_'+fruitInstIdx);
+        beeInstances.push(bee);updateAllUI();writeSave();
+    },undefined,err=>{console.error('벌 GLB 실패:',bDef.file,err);_pendingBeeSlots.delete(fruitKey+'_'+fruitInstIdx);});
+}
+
+const _pendingBeeSlots = new Set();
+
+function getBestFruitSlot(){
+    const sorted=[...FRUIT_DEFS].sort((a,b)=>b.clickVal-a.clickVal);
+    for(const fd of sorted){
+        const pool=pools[fd.key];if(!pool)continue;
+        for(let i=0;i<pool.list.length;i++){
+            const key=fd.key+'_'+i;
+            if(!beeInstances.some(b=>b.fruitKey===fd.key&&b.fruitIdx===i)&&!_pendingBeeSlots.has(key))
+                return{fruitKey:fd.key,fruitIdx:i};
+        }
+    }
+    return null;
+}
+function hasFreeFruitForBee(){return getBestFruitSlot()!==null;}
+
+// ★ 로딩 진행바 업데이트
+const _fruitImgs = ['./Apple.png','./Watermelon.png','./Orange.png','./Blueberry.png','./Avocado.png','./Cherry.png','./Pineapple.png','./Lemon.PNG','./Coconut.PNG'];
+function _updateLoadingBar(loaded, total) {
+    const bar = document.getElementById('loading-bar');
+    const status = document.getElementById('loading-status');
+    const spin = document.querySelector('.loading-main-fruit');
+    if (bar) bar.style.width = Math.round((loaded / total) * 100) + '%';
+    const msgs = ['과일을 가져오고 있어요', '농장을 꾸미는 중이에요', '거의 다 됐어요!'];
+    if (status) status.textContent = loaded >= total ? '완료' : msgs[Math.min(Math.floor(loaded/total*3), 2)];
+    if (spin) spin.src = _fruitImgs[loaded % _fruitImgs.length];
+}
+
+// ★ GLB 파일 병렬 프리로드
+function preloadGLBs(urls) {
+    let loaded = 0;
+    const total = urls.length;
+    if (total === 0) return Promise.resolve();
+    let resolved = false;
+    return new Promise(resolve => {
+        const finish = () => { if (!resolved) { resolved = true; resolve(); } };
+        // 안전장치: 6초 타임아웃
+        setTimeout(finish, 6000);
+        let done = 0;
+        const tick = () => { done++; loaded++; _updateLoadingBar(loaded, total); if (done >= total) finish(); };
+        urls.forEach(url => {
+            if (_gltfCache[url]) { tick(); return; }
+            try {
+                _origLoad(url, gltf => {
+                    gltf.scene.position.set(0,0,0); gltf.scene.rotation.set(0,0,0); gltf.scene.scale.set(1,1,1);
+                    _gltfCache[url] = gltf;
+                    tick();
+                }, undefined, () => { tick(); });
+            } catch(e) { console.error('GLB preload error:', url, e); tick(); }
+        });
+    });
+}
+
+// ★ initGame: fruitsEx가 있으면 fromBox 플래그 포함 복원, 없으면 구버전 카운트 방식
+function initGame(){
+    const toLoad = [];
+
+    if (save.fruitsEx && save.fruitsEx.length > 0) {
+        for (const { key, fromBox } of save.fruitsEx) {
+            const fd = FRUIT_DEFS.find(f => f.key === key);
+            if (fd) toLoad.push({ fd, fromBox: !!fromBox });
+        }
+    } else {
+        // 구버전 세이브 호환
+        for (const fd of FRUIT_DEFS) {
+            const n = save['f_' + fd.key] || 0;
+            for (let j = 0; j < n; j++) toLoad.push({ fd, fromBox: false });
+        }
+    }
+
+    const limited = toLoad.slice(0, MAX_SLOTS);
+    if (limited.length === 0) { finishInit(); return; }
+
+    // ★ 필요한 GLB 파일들을 병렬로 프리로드한 후 순차 배치
+    const glbUrls = new Set();
+    limited.forEach(({ fd }) => glbUrls.add(fd.file));
+    // 벌, 박스 GLB도 미리 로드
+    (save.bees || []).forEach(({ bk }) => { const bd = BEE_DEFS.find(b => b.key === bk); if (bd) glbUrls.add(bd.file); });
+    (save.boxSlots || []).forEach(() => glbUrls.add('./RandomBox.glb'));
+    (save.plusBoxSlots || []).forEach(() => glbUrls.add('./FruitsPlusBox.glb'));
+    if (save.bucket) glbUrls.add('./Bucket.glb');
+
+    preloadGLBs([...glbUrls]).then(() => {
+        // 프리로드 완료 — 캐시에서 즉시 배치 (순차)
+        let i = 0;
+        function loadNext() {
+            if (i >= limited.length) { restoreBees(); return; }
+            const { fd, fromBox } = limited[i++];
+            addFruit(fd, false, (instIdx) => {
+                if (fromBox && instIdx != null) {
+                    const pool = pools[fd.key];
+                    if (pool && pool.list[instIdx]) pool.list[instIdx]._fromBox = true;
+                }
+                loadNext();
+            });
+        }
+        loadNext();
+    });
+}
+
+function restoreBoxes(){
+    const saved=save.boxSlots||[];let i=0;
+    function next(){if(i>=saved.length){restorePlusBoxes();return;}const slotIdx=saved[i++];if(gridSlots[slotIdx]===null)spawnBox(slotIdx,false,next);else next();}
+    next();
+}
+function restorePlusBoxes(){
+    const saved=save.plusBoxSlots||[];let i=0;
+    function next(){if(i>=saved.length)return;const slotIdx=saved[i++];if(gridSlots[slotIdx]===null)spawnPlusBox(slotIdx,false,next);else next();}
+    next();
+}
+
+function restoreBees(){
+    const savedBees=save.bees||[];
+    restoreBoxes();
+    for(const{bk,fk,fi}of savedBees){const bDef=BEE_DEFS.find(b=>b.key===bk);const pool=pools[fk];if(bDef&&pool&&fi<pool.list.length)spawnBeeOnFruit(bDef,fk,fi,true,Math.random()*Math.PI*2);}
+    finishInit();
+}
+
+function finishInit(){
+    buildSlotShopUI();buildFruitShopUI();buildBeeShopUI();buildBoxShopUI();
+    const bar = document.getElementById('loading-bar');
+    if (bar) bar.style.width = '100%';
+    const status = document.getElementById('loading-status');
+    if (status) status.textContent = '완료';
+    setTimeout(() => {
+        const ov=document.getElementById('loading-overlay');
+        if(ov){ov.classList.add('fade');setTimeout(()=>ov.remove(),700);}
+    }, 400);
+    if(!save.hint){setTimeout(()=>{document.getElementById('hold-hint').classList.add('visible');setTimeout(()=>document.getElementById('hold-hint').classList.remove('visible'),3500);},2500);}
+}
+
+try { initGame(); } catch(e) { console.error('initGame error:', e); finishInit(); }
+setTimeout(()=>{const ov=document.getElementById('loading-overlay');if(ov){const bar=document.getElementById('loading-bar');if(bar)bar.style.width='100%';ov.classList.add('fade');setTimeout(()=>ov.remove(),700);}try{buildSlotShopUI();buildFruitShopUI();buildBeeShopUI();buildBoxShopUI();}catch(e){console.error('fallback init error:',e);}},8000);
+
+const popupArea=document.getElementById('popup-area');
+function createPopup(val,color){
+    if(popupArea.children.length>=8) return;
+    const d=document.createElement('div');d.className='click-popup';d.innerText=`+${fmtN(val)}`;d.style.color=color;d.style.left=`calc(50% + ${(Math.random()-.5)*120}px)`;popupArea.appendChild(d);setTimeout(()=>d.remove(),600);
+}
+
+let toastTmr;
+function showSellToast(msg){const t=document.getElementById('sell-toast');t.innerText=msg;t.className='show';clearTimeout(toastTmr);toastTmr=setTimeout(()=>{t.className='hide';setTimeout(()=>{t.className='';},380);},1800);}
+function showUnlockImg(src){const img=document.createElement('img');img.src=src;img.className='unlock-img';document.body.appendChild(img);setTimeout(()=>img.parentNode&&img.remove(),2000);}
+function spawnParticles(emoji,btnEl){if(!btnEl)return;const r=btnEl.getBoundingClientRect();for(let i=0;i<7;i++){const p=document.createElement('div');p.className='buy-particle';p.innerText=emoji;p.style.cssText=`left:${r.left+r.width/2}px;top:${r.top+r.height/2}px`;const ang=(i/7)*Math.PI*2,d=70+Math.random()*60;p.style.setProperty('--dx',Math.cos(ang)*d+'px');p.style.setProperty('--dy',Math.sin(ang)*d+'px');p.style.animationDelay=Math.random()*.08+'s';document.body.appendChild(p);setTimeout(()=>p.remove(),850);}}
+
+function buildSlotShopUI(){
+    const grid=document.getElementById('slot-shop-grid');if(!grid)return;grid.innerHTML='';
+    const nextIdx=nextLockedSlot();
+    if(nextIdx===-1){const div=document.createElement('div');div.className='slot-buy-row';div.innerHTML=`<div class="slot-buy-emoji">✅</div><div class="slot-buy-info"><div class="slot-buy-name">슬롯 최대 확장 완료!</div><div class="slot-buy-meta"><span class="slot-buy-count">${MAX_SLOTS} / ${MAX_SLOTS}칸</span></div></div>`;grid.appendChild(div);return;}
+    const price=slotPrice(nextIdx+1);
+    const row=document.createElement('div');row.className='slot-buy-row';row.id='slot-buy-row';
+    row.innerHTML=`<div class="slot-buy-emoji">📦</div><div class="slot-buy-info"><div class="slot-buy-name">슬롯 확장</div><div class="slot-buy-meta"><span class="slot-buy-price">💰 ${fmtN(price)}점</span><span class="slot-buy-count" id="slot-count-display">${unlockedSlots} / ${MAX_SLOTS}칸</span></div></div><button class="slot-buy-btn" id="slot-buy-btn" onclick="window.__buySlot()">확장</button>`;
+    grid.appendChild(row);updateSlotShopUI();
+}
+function updateSlotShopUI(){
+    const nextIdx=nextLockedSlot(),countEl=document.getElementById('slot-count-display'),btnEl=document.getElementById('slot-buy-btn');
+    if(countEl)countEl.innerText=`${unlockedSlots} / ${MAX_SLOTS}칸`;
+    if(!btnEl)return;if(nextIdx===-1){buildSlotShopUI();return;}
+    const price=slotPrice(nextIdx+1);btnEl.disabled=score<price;btnEl.innerText=score<price?'잔액부족':'확장';
+}
+window.__buySlot=function(){
+    const nextIdx=nextLockedSlot();if(nextIdx===-1)return;const price=slotPrice(nextIdx+1);if(score<price)return;
+    playUIClick(); // 🔊 UI 클릭음
+    score-=price;scoreEl.innerText=fmtN(score);gridSlots[nextIdx]=null;unlockedSlots++;writeSave();buildSlotShopUI();updateAllUI();};
+
+function buildFruitShopUI(){
+    const grid=document.getElementById('fruit-shop-grid');grid.innerHTML='';
+    for(const fd of FRUIT_DEFS){
+        const isFree=fd.buyPrice===0,card=document.createElement('div');card.className='shop-item';card.id=`fsi-${fd.key}`;
+        card.innerHTML=`<div class="shop-item-emoji">${fd.icon?`<img src="${fd.icon}" alt="${fd.name}">`:`<span style="font-size:72px;line-height:140px;display:block;text-align:center;">${fd.emoji}</span>`}</div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${fd.name}</div><div class="shop-item-clickval">클릭 +${fd.clickVal}</div></div><button class="shop-buy-btn${isFree?' free':''}" id="fsb-${fd.key}" onclick="window.__buyFruit('${fd.key}')">${isFree?'무료 획득':fmtN(fd.buyPrice)}</button>`;
+        grid.appendChild(card);
+    }
+    updateAllUI();
+}
+function updateFruitShopUI(){
+    document.getElementById('fruit-shop-score').innerText=`${fmtN(score)}점`;
+    const full=gridSlots.every(s=>s!==null);
+    for(const fd of FRUIT_DEFS){
+        const bEl=document.getElementById(`fsb-${fd.key}`),rEl=document.getElementById(`fsi-${fd.key}`);if(!bEl||!rEl)continue;
+        const isFree=fd.buyPrice===0,label=isFree?'무료 획득':fmtN(fd.buyPrice);
+        if(full){bEl.disabled=true;bEl.innerText='꽉참';bEl.className='shop-buy-btn';}
+        else if(score<fd.buyPrice){bEl.disabled=true;bEl.innerText=label;bEl.className='shop-buy-btn';}
+        else{bEl.disabled=false;bEl.innerText=label;bEl.className=`shop-buy-btn${isFree?' free':''}`;}
+    }
+}
+window.__buyFruit=function(key){
+    const fd=FRUIT_DEFS.find(d=>d.key===key);if(!fd||score<fd.buyPrice||nextFreeSlot()===-1)return;
+    playUIClick(); // 🔊 UI 클릭음
+    score-=fd.buyPrice;scoreEl.innerText=fmtN(score);writeSave();updateAllUI();
+    addFruit(fd,true,()=>{updateAllUI();});
+};
+
+function buildBeeShopUI(){
+    const grid=document.getElementById('bee-shop-grid');grid.innerHTML='';
+    for(const bd of BEE_DEFS){
+        const card=document.createElement('div');card.className='shop-item';card.id=`bsi-${bd.key}`;
+        card.innerHTML=`<div class="shop-item-emoji">${bd.icon?`<img src="${bd.icon}" alt="${bd.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span style="font-size:72px;line-height:190px;display:none;text-align:center;width:100%">${bd.emoji}</span>`:`<span style="font-size:72px;line-height:190px;display:block;text-align:center;">${bd.emoji}</span>`}</div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${bd.name}</div><div class="shop-item-clickval">초당 ÷${bd.divisor}</div></div><button class="shop-buy-btn bee-btn" id="bsb-${bd.key}" onclick="window.__buyBee('${bd.key}')">${fmtN(bd.buyPrice)}</button>`;
+        grid.appendChild(card);
+    }
+    // ★ 아이템 그리드 (꽃, 비료 등)
+    const itemsGrid=document.getElementById('bee-shop-items-grid');if(itemsGrid){itemsGrid.innerHTML='';
+    const flowerCard=document.createElement('div');flowerCard.className='shop-item';flowerCard.id='bsi-flower';
+    flowerCard.innerHTML=`<div class="shop-item-emoji"><img src="./Flower.png" alt="꽃" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">꽃</div><div class="shop-item-clickval">벌 수입 15초간 ×2배</div><div class="shop-item-info2" style="color:#b04f8b;margin-top:3px;">환생 1회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-flower" onclick="window.__buyFlower()">${fmtN(FLOWER_PRICE)}</button>`;
+    itemsGrid.appendChild(flowerCard);
+    const manureCard=document.createElement('div');manureCard.className='shop-item';manureCard.id='bsi-manure';
+    manureCard.innerHTML=`<div class="shop-item-emoji"><img src="./Manure.png" alt="비료" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">비료</div><div class="shop-item-clickval">전체 수입 15초간 ×2배</div><div class="shop-item-info2" style="color:#8B6914;margin-top:3px;">환생 2회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-manure" onclick="window.__buyManure()">${fmtN(MANURE_PRICE)}</button>`;
+    itemsGrid.appendChild(manureCard);}
+    updateAllUI();
+}
+function updateBeeShopUI(){
+    document.getElementById('bee-shop-score').innerText=`${fmtN(score)}점`;
+    const hasFruit=Object.values(pools).some(p=>p.list.length>0);
+    for(const bd of BEE_DEFS){
+        const bEl=document.getElementById(`bsb-${bd.key}`),rEl=document.getElementById(`bsi-${bd.key}`);if(!bEl||!rEl)continue;
+        const priceLabel=fmtN(bd.buyPrice);
+        if(!hasFruit){bEl.disabled=true;bEl.innerText='과일 없음';bEl.className='shop-buy-btn';}
+        else if(!hasFreeFruitForBee()){bEl.disabled=true;bEl.innerText='슬롯 꽉참';bEl.className='shop-buy-btn';}
+        else if(score<bd.buyPrice){bEl.disabled=true;bEl.innerText=priceLabel;bEl.className='shop-buy-btn';}
+        else{bEl.disabled=false;bEl.innerText=priceLabel;bEl.className='shop-buy-btn bee-btn';}
+    }
+    updateFlowerBtnUI();
+    updateManureBtnUI();
+}
+window.__buyBee=function(key){
+    const bd=BEE_DEFS.find(b=>b.key===key);if(!bd||score<bd.buyPrice)return;
+    const slot=getBestFruitSlot();if(!slot)return;
+    playUIClick(); // 🔊 UI 클릭음
+    _pendingBeeSlots.add(slot.fruitKey+'_'+slot.fruitIdx);
+    score-=bd.buyPrice;scoreEl.innerText=fmtN(score);writeSave();updateAllUI();
+    spawnBeeOnFruit(bd,slot.fruitKey,slot.fruitIdx,false,0);
+};
+
+// ★ 꽃/비료 구매 & 효과
+let _flowerModel = null;
+let _flowerSlot = -1;
+let _manureModel = null;
+let _manureSlot = -1;
+
+function _getCooldownRemain(endTime) {
+    return Math.max(0, Math.ceil((endTime - performance.now()) / 1000));
+}
+
+function _ensureItemCooldownTimer() {
+    if (_itemCooldownTimer) return;
+    _itemCooldownTimer = setInterval(() => {
+        updateFlowerBtnUI();
+        updateManureBtnUI();
+        if (_getCooldownRemain(_flowerCooldownEndTime) <= 0 && _getCooldownRemain(_manureCooldownEndTime) <= 0) {
+            clearInterval(_itemCooldownTimer);
+            _itemCooldownTimer = null;
+        }
+    }, 200);
+}
+
+function _startItemCooldown(type) {
+    if (type === 'flower') _flowerCooldownEndTime = performance.now() + ITEM_COOLDOWN;
+    if (type === 'manure') _manureCooldownEndTime = performance.now() + ITEM_COOLDOWN;
+    _ensureItemCooldownTimer();
+}
+
+function _removeEffectItem(model, slot, afterRemove) {
+    new TWEEN.Tween(model.scale).to({x:0,y:0,z:0}, 200).easing(TWEEN.Easing.Cubic.In).onComplete(() => {
+        scene.remove(model);
+        if (afterRemove) afterRemove(slot);
+    }).start();
+}
+
+function spawnFlower(slotIdx, animate) {
+    loader.load('./Flower.glb', gltf => {
+        const model = gltf.scene; fixMesh(model);
+        const box = new THREE.Box3().setFromObject(model);
+        const {x,z} = gridPos(slotIdx);
+        model.position.set(x, (floorY||0) - box.min.y, z);
+        model.rotation.y = Math.PI;
+        model.scale.setScalar(animate ? 0 : 1.0); scene.add(model);
+        if (animate) { playShowup(); new TWEEN.Tween(model.scale).to({x:1,y:1,z:1}, 600).easing(TWEEN.Easing.Elastic.Out).start(); }
+        _flowerModel = model;
+        _flowerSlot = slotIdx;
+        gridSlots[slotIdx] = { key:'__flower__', idx:0 };
+        activateFlower();
+    });
+}
+
+function spawnManure(slotIdx, animate) {
+    loader.load('./Manure.glb', gltf => {
+        const model = gltf.scene; fixMesh(model);
+        const box = new THREE.Box3().setFromObject(model);
+        const {x,z} = gridPos(slotIdx);
+        model.position.set(x, (floorY||0) - box.min.y, z);
+        model.rotation.y = Math.PI;
+        model.scale.setScalar(animate ? 0 : 1.0); scene.add(model);
+        if (animate) { playShowup(); new TWEEN.Tween(model.scale).to({x:1,y:1,z:1}, 600).easing(TWEEN.Easing.Elastic.Out).start(); }
+        _manureModel = model;
+        _manureSlot = slotIdx;
+        gridSlots[slotIdx] = { key:'__manure__', idx:0 };
+        activateManure();
+    });
+}
+
+function activateFlower() {
+    _flowerMulti = 2;
+    _flowerEndTime = performance.now() + FLOWER_DURATION;
+    showSellToast('꽃 사용! 15초간 벌 수입 ×2배!');
+    updateFlowerTimerUI();
+    if (_flowerTimer) clearInterval(_flowerTimer);
+    _flowerTimer = setInterval(() => {
+        const remain = _getCooldownRemain(_flowerEndTime);
+        updateFlowerTimerUI();
+        if (remain <= 0) {
+            clearInterval(_flowerTimer); _flowerTimer = null;
+            _flowerMulti = 1;
+            if (_flowerModel) {
+                const model = _flowerModel;
+                const slot = _flowerSlot;
+                _removeEffectItem(model, slot, oldSlot => {
+                    _flowerModel = null;
+                    if (oldSlot >= 0) { gridSlots[oldSlot] = null; compactGrid(oldSlot); }
+                    _flowerSlot = -1;
+                    updateAllUI(); writeSave();
+                });
+            }
+            updateFlowerTimerUI();
+        }
+    }, 200);
+}
+
+function activateManure() {
+    _manureMulti = 2;
+    _manureEndTime = performance.now() + MANURE_DURATION;
+    showSellToast('비료 사용! 15초간 ×2배!');
+    updateManureTimerUI();
+    if (_manureTimer) clearInterval(_manureTimer);
+    _manureTimer = setInterval(() => {
+        const remain = _getCooldownRemain(_manureEndTime);
+        updateManureTimerUI();
+        if (remain <= 0) {
+            clearInterval(_manureTimer); _manureTimer = null;
+            _manureMulti = 1;
+            if (_manureModel) {
+                const model = _manureModel;
+                const slot = _manureSlot;
+                _removeEffectItem(model, slot, oldSlot => {
+                    _manureModel = null;
+                    if (oldSlot >= 0) { gridSlots[oldSlot] = null; compactGrid(oldSlot); }
+                    _manureSlot = -1;
+                    updateAllUI(); writeSave();
+                });
+            }
+            updateManureTimerUI();
+        }
+    }, 200);
+}
+
+function updateFlowerTimerUI() {
+    let el = document.getElementById('flower-timer');
+    let badge = document.getElementById('flower-badge');
+    if (_flowerMulti > 1) {
+        const remain = _getCooldownRemain(_flowerEndTime);
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'flower-timer';
+            el.style.cssText = 'position:fixed;top:48px;left:50%;transform:translateX(-50%);z-index:100;background:#fff;border:2px solid #b04f8b;border-radius:999px;padding:5px 18px;font-family:inherit;font-size:clamp(12px,2.6vw,14px);font-weight:700;color:#b04f8b;box-shadow:0 3px 12px rgba(176,79,139,.25);pointer-events:none;white-space:nowrap;';
+            document.body.appendChild(el);
+        }
+        el.textContent = `꽃 ${remain}s`;
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.id = 'flower-badge';
+            badge.style.cssText = 'display:inline-block;font-size:clamp(16px,3vw,22px);font-weight:700;color:#b04f8b;margin-left:6px;vertical-align:middle;animation:manurePulse 1s ease-in-out infinite;filter:url(#score-filter);';
+            badge.textContent = '🐝×2';
+            const scoreContainer = document.getElementById('score-container');
+            if (scoreContainer) scoreContainer.appendChild(badge);
+        }
+    } else {
+        if (el) el.remove();
+        if (badge) badge.remove();
+    }
+}
+
+function updateManureTimerUI() {
+    let el = document.getElementById('manure-timer');
+    let badge = document.getElementById('manure-badge');
+    if (_manureMulti > 1) {
+        const remain = _getCooldownRemain(_manureEndTime);
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'manure-timer';
+            el.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:100;background:#fff;border:2px solid #8B6914;border-radius:999px;padding:5px 18px;font-family:inherit;font-size:clamp(12px,2.6vw,14px);font-weight:700;color:#8B6914;box-shadow:0 3px 12px rgba(139,105,20,.25);pointer-events:none;white-space:nowrap;';
+            document.body.appendChild(el);
+        }
+        el.textContent = `비료 ${remain}s`;
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.id = 'manure-badge';
+            badge.style.cssText = 'display:inline-block;font-size:clamp(18px,3.5vw,24px);font-weight:700;color:#8B6914;margin-left:6px;vertical-align:middle;animation:manurePulse 1s ease-in-out infinite;filter:url(#score-filter);';
+            badge.textContent = '×2';
+            const scoreContainer = document.getElementById('score-container');
+            if (scoreContainer) scoreContainer.appendChild(badge);
+        }
+    } else {
+        if (el) el.remove();
+        if (badge) badge.remove();
+    }
+}
+
+function updateFlowerBtnUI() {
+    const card = document.getElementById('bsi-flower');
+    const btn = document.getElementById('bsb-flower');
+    if (!btn) return;
+    if (rebirthCount < 1) {
+        if (card) card.classList.add('locked');
+        btn.disabled = true; btn.innerText = '환생 1회 필요'; btn.className = 'shop-buy-btn';
+        return;
+    }
+    if (card) card.classList.remove('locked');
+    const cooldown = _getCooldownRemain(_flowerCooldownEndTime);
+    const active = _flowerMulti > 1;
+    const full = nextFreeSlot() === -1;
+    if (active) { btn.disabled = true; btn.innerText = '사용 중'; btn.className = 'shop-buy-btn'; }
+    else if (cooldown > 0) { btn.disabled = true; btn.innerText = `${cooldown}s`; btn.className = 'shop-buy-btn'; }
+    else if (full) { btn.disabled = true; btn.innerText = '슬롯 꽉참'; btn.className = 'shop-buy-btn'; }
+    else if (score < FLOWER_PRICE) { btn.disabled = true; btn.innerText = fmtN(FLOWER_PRICE); btn.className = 'shop-buy-btn'; }
+    else { btn.disabled = false; btn.innerText = fmtN(FLOWER_PRICE); btn.className = 'shop-buy-btn bee-btn'; }
+}
+
+function updateManureBtnUI() {
+    const card = document.getElementById('bsi-manure');
+    const btn = document.getElementById('bsb-manure');
+    if (!btn) return;
+    if (rebirthCount < 2) {
+        if (card) card.classList.add('locked');
+        btn.disabled = true; btn.innerText = '환생 2회 필요'; btn.className = 'shop-buy-btn';
+        return;
+    }
+    if (card) card.classList.remove('locked');
+    const cooldown = _getCooldownRemain(_manureCooldownEndTime);
+    const active = _manureMulti > 1;
+    const full = nextFreeSlot() === -1;
+    if (active) { btn.disabled = true; btn.innerText = '사용 중'; btn.className = 'shop-buy-btn'; }
+    else if (cooldown > 0) { btn.disabled = true; btn.innerText = `${cooldown}s`; btn.className = 'shop-buy-btn'; }
+    else if (full) { btn.disabled = true; btn.innerText = '슬롯 꽉참'; btn.className = 'shop-buy-btn'; }
+    else if (score < MANURE_PRICE) { btn.disabled = true; btn.innerText = fmtN(MANURE_PRICE); btn.className = 'shop-buy-btn'; }
+    else { btn.disabled = false; btn.innerText = fmtN(MANURE_PRICE); btn.className = 'shop-buy-btn bee-btn'; }
+}
+
+window.__buyFlower = function() {
+    if (rebirthCount < 1 || score < FLOWER_PRICE || _flowerMulti > 1 || _getCooldownRemain(_flowerCooldownEndTime) > 0 || nextFreeSlot() === -1) return;
+    const slot = nextFreeSlot(); if (slot === -1) return;
+    playUIClick();
+    _startItemCooldown('flower');
+    gridSlots[slot] = 'reserved';
+    score -= FLOWER_PRICE; scoreEl.innerText = fmtN(score); writeSave(); updateAllUI();
+    spawnFlower(slot, true);
+    closeShop('bee-shop-overlay');
+};
+
+window.__buyManure = function() {
+    if (rebirthCount < 2 || score < MANURE_PRICE || _manureMulti > 1 || _getCooldownRemain(_manureCooldownEndTime) > 0 || nextFreeSlot() === -1) return;
+    const slot = nextFreeSlot(); if (slot === -1) return;
+    playUIClick();
+    _startItemCooldown('manure');
+    gridSlots[slot] = 'reserved';
+    score -= MANURE_PRICE; scoreEl.innerText = fmtN(score); writeSave(); updateAllUI();
+    spawnManure(slot, true);
+    closeShop('bee-shop-overlay');
+};
+
+// ★ rollBoxReward: BOX_REWARDS 기반 동적 가중치
+function rollBoxReward(){
+    const total=BOX_REWARDS.reduce((s,r)=>s+r.weight,0);
+    let rand=Math.random()*total;
+    for(const r of BOX_REWARDS){rand-=r.weight;if(rand<=0)return FRUIT_DEFS.find(f=>f.key===r.key);}
+    return FRUIT_DEFS.find(f=>f.key===BOX_REWARDS[0].key);
+}
+
+// ★ rollPlusBoxReward: PLUS_BOX_REWARDS 기반 동적 가중치
+function rollPlusBoxReward(){
+    const total=PLUS_BOX_REWARDS.reduce((s,r)=>s+r.weight,0);
+    let rand=Math.random()*total;
+    for(const r of PLUS_BOX_REWARDS){rand-=r.weight;if(rand<=0)return FRUIT_DEFS.find(f=>f.key===r.key);}
+    return FRUIT_DEFS.find(f=>f.key===PLUS_BOX_REWARDS[0].key);
+}
+
+function spawnBox(slotIdx,animate,cb){
+    loader.load('./RandomBox.glb',gltf=>{
+        const model=gltf.scene;fixMesh(model);
+        const{x,z}=gridPos(slotIdx);
+        model.position.set(x,0,z);
+        model.rotation.y = Math.PI;
+        model.scale.setScalar(animate?0:1.0);scene.add(model);
+        if(animate){ playShowup(); new TWEEN.Tween(model.scale).to({x:1.0,y:1.0,z:1.0},600).easing(TWEEN.Easing.Elastic.Out).start(); }
+        const inst={model,slot:slotIdx,clicks:0};boxInstances.push(inst);gridSlots[slotIdx]={key:'__box__',idx:boxInstances.length-1};
+        updateBoxShopUI();writeSave();if(cb)cb();
+    },undefined,err=>console.error('BoxGLB 실패',err));
+}
+
+function clickBox(inst){
+    inst.clicks++;moveCameraTo(inst.model);
+    playFruitClick(); // 🔊 과일 클릭음 (박스도 같은 클릭 피드백)
+    const s=1.0;
+    new TWEEN.Tween(inst.model.scale).to({x:1.25,y:0.72,z:1.25},80).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(inst.model.scale).to({x:0.88,y:1.18,z:0.88},100).easing(TWEEN.Easing.Quadratic.InOut).chain(new TWEEN.Tween(inst.model.scale).to({x:s,y:s,z:s},260).easing(TWEEN.Easing.Elastic.Out))).start();
+    createPopup(inst.clicks+'/5','#ff6b8a');
+    if(inst.clicks>=5&&!inst._opening){inst._opening=true;setTimeout(()=>openBox(inst),350);}
+}
+
+function openBox(inst){
+    const slotIdx=inst.slot;moveCameraTo(inst.model);const rewardDef=rollBoxReward();
+    const bi=boxInstances.indexOf(inst);if(bi!==-1)boxInstances.splice(bi,1);
+    gridSlots[slotIdx]=null;boxInstances.forEach((b,i)=>{gridSlots[b.slot]={key:'__box__',idx:i};});
+    new TWEEN.Tween(inst.model.scale).to({x:1.5,y:1.5,z:1.5},120).easing(TWEEN.Easing.Quadratic.Out).chain(
+        new TWEEN.Tween(inst.model.scale).to({x:0,y:0,z:0},200).easing(TWEEN.Easing.Quadratic.In).onComplete(()=>{
+            scene.remove(inst.model);gridSlots[slotIdx]='reserved';
+            if(!pools[rewardDef.key])pools[rewardDef.key]={list:[]};
+            place(rewardDef,slotIdx,true,(newInstIdx)=>{
+                // ★ 박스에서 나온 과일에 _fromBox 플래그 설정 → 이후 writeSave에서 fruitsEx에 저장됨
+                const p=pools[rewardDef.key];
+                if(p&&newInstIdx!=null&&p.list[newInstIdx]) p.list[newInstIdx]._fromBox=true;
+                createPopup('✨ '+rewardDef.name+'!',rewardDef.color);
+                showSellToast('🎁 '+rewardDef.name+' 획득!');
+                updateAllUI();writeSave();
+            });
+        })
+    ).start();
+}
+
+function spawnPlusBox(slotIdx,animate,cb){
+    loader.load('./FruitsPlusBox.glb',gltf=>{
+        const model=gltf.scene;fixMesh(model);
+        const{x,z}=gridPos(slotIdx);
+        model.position.set(x,0,z);
+        model.rotation.y = Math.PI;
+        model.scale.setScalar(animate?0:1.0);scene.add(model);
+        if(animate){ playShowup(); new TWEEN.Tween(model.scale).to({x:1.0,y:1.0,z:1.0},600).easing(TWEEN.Easing.Elastic.Out).start(); }
+        const inst={model,slot:slotIdx,clicks:0};plusBoxInstances.push(inst);gridSlots[slotIdx]={key:'__plusbox__',idx:plusBoxInstances.length-1};
+        updateBoxShopUI();writeSave();if(cb)cb();
+    },undefined,err=>console.error('PlusBoxGLB 실패',err));
+}
+
+function clickPlusBox(inst){
+    inst.clicks++;moveCameraTo(inst.model);
+    playFruitClick(); // 🔊 과일 클릭음 (플러스박스도 동일한 클릭 피드백)
+    const s=1.0;
+    new TWEEN.Tween(inst.model.scale).to({x:1.25,y:0.72,z:1.25},80).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(inst.model.scale).to({x:0.88,y:1.18,z:0.88},100).easing(TWEEN.Easing.Quadratic.InOut).chain(new TWEEN.Tween(inst.model.scale).to({x:s,y:s,z:s},260).easing(TWEEN.Easing.Elastic.Out))).start();
+    createPopup(inst.clicks+'/5','#5bbf7a');
+    if(inst.clicks>=5&&!inst._opening){inst._opening=true;setTimeout(()=>openPlusBox(inst),350);}
+}
+
+function openPlusBox(inst){
+    const slotIdx=inst.slot;moveCameraTo(inst.model);const rewardDef=rollPlusBoxReward();
+    const bi=plusBoxInstances.indexOf(inst);if(bi!==-1)plusBoxInstances.splice(bi,1);
+    gridSlots[slotIdx]=null;plusBoxInstances.forEach((b,i)=>{gridSlots[b.slot]={key:'__plusbox__',idx:i};});
+    new TWEEN.Tween(inst.model.scale).to({x:1.5,y:1.5,z:1.5},120).easing(TWEEN.Easing.Quadratic.Out).chain(
+        new TWEEN.Tween(inst.model.scale).to({x:0,y:0,z:0},200).easing(TWEEN.Easing.Quadratic.In).onComplete(()=>{
+            scene.remove(inst.model);gridSlots[slotIdx]='reserved';
+            if(!pools[rewardDef.key])pools[rewardDef.key]={list:[]};
+            place(rewardDef,slotIdx,true,(newInstIdx)=>{
+                const p=pools[rewardDef.key];
+                if(p&&newInstIdx!=null&&p.list[newInstIdx]) p.list[newInstIdx]._fromBox=true;
+                createPopup('✨ '+rewardDef.name+'!',rewardDef.color);
+                showSellToast('🎁✨ '+rewardDef.name+' 획득!');
+                updateAllUI();writeSave();
+            });
+        })
+    ).start();
+}
+
+// ★ buildBoxShopUI: BOX_REWARDS 배열 기반으로 확률 동적 생성
+function buildBoxShopUI(){
+    const grid=document.getElementById('box-shop-grid');if(!grid)return;grid.innerHTML='';
+
+    const total=BOX_REWARDS.reduce((s,r)=>s+r.weight,0);
+    const probRows=BOX_REWARDS.map(r=>{
+        const fd=FRUIT_DEFS.find(f=>f.key===r.key);
+        const pct=Math.round(r.weight/total*100);
+        return `${fd.name} <span style="float:right;font-weight:700;color:var(--text);">${pct}%</span>`;
+    }).join('<br>');
+
+    const card=document.createElement('div');card.className='shop-item';card.id='box-shop-item';card.style.position='relative';
+    card.innerHTML=`
+        <button onclick="window.__toggleBoxInfo(event)" style="position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;background:#bbb;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.12);">i</button>
+        <div id="box-info-popup" style="display:none;position:absolute;top:38px;right:8px;background:var(--white);border:2px solid var(--border);border-radius:14px;padding:12px 16px;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:180px;">
+            <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;">📦 뽑기 확률</div>
+            <div style="font-size:12px;color:#666;line-height:1.9;">${probRows}</div>
+        </div>
+        <div class="shop-item-emoji"><img src="./RandomBox.png" alt="과일박스" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div>
+        <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">과일박스</div><div class="shop-item-clickval">오렌지~체리 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">⚠️ 판매 시 0점</div></div>
+        <button class="shop-buy-btn" id="box-buy-btn" style="background:linear-gradient(135deg,#ff6b8a,#ff4757);box-shadow:0 3px 12px rgba(255,71,87,.35);width:100%;" onclick="window.__buyBox()">${fmtN(BOX_PRICE)}</button>`;
+    grid.appendChild(card);
+
+    // ★ 과일 플러스 박스 카드
+    const plusTotal=PLUS_BOX_REWARDS.reduce((s,r)=>s+r.weight,0);
+    const plusProbRows=PLUS_BOX_REWARDS.map(r=>{
+        const fd=FRUIT_DEFS.find(f=>f.key===r.key);
+        const pct=Math.round(r.weight/plusTotal*100);
+        return `${fd.name} <span style="float:right;font-weight:700;color:var(--text);">${pct}%</span>`;
+    }).join('<br>');
+
+    const plusCard=document.createElement('div');plusCard.className='shop-item';plusCard.id='plusbox-shop-item';plusCard.style.position='relative';
+    plusCard.innerHTML=`
+        <button onclick="window.__togglePlusBoxInfo(event)" style="position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;background:#bbb;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.12);">i</button>
+        <div id="plusbox-info-popup" style="display:none;position:absolute;top:38px;right:8px;background:var(--white);border:2px solid var(--border);border-radius:14px;padding:12px 16px;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:180px;">
+            <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;">✨ 뽑기 확률</div>
+            <div style="font-size:12px;color:#666;line-height:1.9;">${plusProbRows}</div>
+        </div>
+        <div class="shop-item-emoji"><img src="./FruitsPlusBox.png" alt="과일플러스박스" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div>
+        <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">플러스 박스</div><div class="shop-item-clickval">체리~코코넛 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">⚠️ 판매 시 0점</div></div>
+        <button class="shop-buy-btn" id="plusbox-buy-btn" style="background:linear-gradient(135deg,#5bbf7a,#28a745);box-shadow:0 3px 12px rgba(40,167,69,.35);width:100%;" onclick="window.__buyPlusBox()">${fmtN(PLUS_BOX_PRICE)}</button>`;
+    grid.appendChild(plusCard);
+    updateBoxShopUI();
+}
+function updateBoxShopUI(){
+    const disp=document.getElementById('box-shop-score');if(disp)disp.innerText=`${fmtN(score)}점`;
+    const full=nextFreeSlot()===-1;
+    // 일반 박스 버튼
+    const btn=document.getElementById('box-buy-btn');
+    if(btn){
+        if(full){btn.disabled=true;btn.innerText='슬롯 꽉참';btn.style.background='';btn.style.boxShadow='';}
+        else if(score<BOX_PRICE){btn.disabled=true;btn.innerText=fmtN(BOX_PRICE);btn.style.background='';btn.style.boxShadow='';}
+        else{btn.disabled=false;btn.innerText=fmtN(BOX_PRICE);btn.style.background='linear-gradient(135deg,#ff6b8a,#ff4757)';btn.style.boxShadow='0 3px 12px rgba(255,71,87,.35)';}
+    }
+    // 플러스 박스 버튼
+    const pbtn=document.getElementById('plusbox-buy-btn');
+    if(pbtn){
+        if(full){pbtn.disabled=true;pbtn.innerText='슬롯 꽉참';pbtn.style.background='';pbtn.style.boxShadow='';}
+        else if(score<PLUS_BOX_PRICE){pbtn.disabled=true;pbtn.innerText=fmtN(PLUS_BOX_PRICE);pbtn.style.background='';pbtn.style.boxShadow='';}
+        else{pbtn.disabled=false;pbtn.innerText=fmtN(PLUS_BOX_PRICE);pbtn.style.background='linear-gradient(135deg,#5bbf7a,#28a745)';pbtn.style.boxShadow='0 3px 12px rgba(40,167,69,.35)';}
+    }
+}
+window.__toggleBoxInfo=function(e){
+    e.stopPropagation();const popup=document.getElementById('box-info-popup');if(!popup)return;
+    popup.style.display=popup.style.display==='none'?'block':'none';
+    if(popup.style.display==='block'){const close=(ev)=>{if(!popup.contains(ev.target)){popup.style.display='none';document.removeEventListener('pointerdown',close);}};setTimeout(()=>document.addEventListener('pointerdown',close),10);}
+};
+window.__togglePlusBoxInfo=function(e){
+    e.stopPropagation();const popup=document.getElementById('plusbox-info-popup');if(!popup)return;
+    popup.style.display=popup.style.display==='none'?'block':'none';
+    if(popup.style.display==='block'){const close=(ev)=>{if(!popup.contains(ev.target)){popup.style.display='none';document.removeEventListener('pointerdown',close);}};setTimeout(()=>document.addEventListener('pointerdown',close),10);}
+};
+window.__buyBox=function(){
+    if(score<BOX_PRICE||nextFreeSlot()===-1)return;const slot=nextFreeSlot();if(slot===-1)return;
+    playUIClick(); // 🔊 UI 클릭음
+    gridSlots[slot]='reserved';score-=BOX_PRICE;scoreEl.innerText=fmtN(score);writeSave();updateAllUI();spawnBox(slot,true,null);closeShop('box-shop-overlay');
+};
+window.__buyPlusBox=function(){
+    if(score<PLUS_BOX_PRICE||nextFreeSlot()===-1)return;const slot=nextFreeSlot();if(slot===-1)return;
+    playUIClick(); // 🔊 UI 클릭음
+    gridSlots[slot]='reserved';score-=PLUS_BOX_PRICE;scoreEl.innerText=fmtN(score);writeSave();updateAllUI();spawnPlusBox(slot,true,null);closeShop('box-shop-overlay');
+};
+
+// ─────────────────────────────────────
+//  환생 시스템
+// ─────────────────────────────────────
+const REBIRTH_TIERS = [
+    { fruitKey:'cherry',     fruitName:'체리',     score:60000 },
+    { fruitKey:'lemon',      fruitName:'레몬',     score:500000 },
+    { fruitKey:'coconut',    fruitName:'코코넛',   score:2000000 },
+    { fruitKey:'kiwi',       fruitName:'키위',     score:10000000 },
+    { fruitKey:'strawberry', fruitName:'딸기',     score:50000000 },
+];
+function getRebirthTier() { return REBIRTH_TIERS[Math.min(rebirthCount, REBIRTH_TIERS.length - 1)]; }
+
+function checkRebirthConditions() {
+    const tier = getRebirthTier();
+    const hasFruit = (pools[tier.fruitKey]?.list.length || 0) > 0;
+    const isFull = gridSlots.filter(s => s !== null && s !== 'locked' && s !== 'reserved').length >= MAX_SLOTS;
+    const hasScore = score >= tier.score;
+    return { hasFruit, isFull, hasScore, tier };
+}
+
+function updateBucketUI() {
+    const disp = document.getElementById('bucket-shop-score');
+    if (disp) disp.innerText = `${fmtN(score)}점`;
+    const { hasFruit, isFull, hasScore, tier } = checkRebirthConditions();
+    const condCherry = document.getElementById('cond-cherry');
+    const condFull   = document.getElementById('cond-full');
+    const condScore  = document.getElementById('cond-score');
+    const btn        = document.getElementById('rebirth-btn');
+    if (!btn) return;
+    if (condCherry) { condCherry.textContent = `${tier.fruitName} 보유`; condCherry.classList.toggle('met', hasFruit); }
+    if (condFull)   condFull.classList.toggle('met', isFull);
+    if (condScore)  { condScore.textContent = `${fmtN(tier.score)}점 이상`; condScore.classList.toggle('met', hasScore); }
+    const canRebirth = hasFruit && isFull && hasScore;
+    btn.disabled = !canRebirth;
+    btn.style.background = canRebirth ? 'linear-gradient(135deg,#ff6b8a,#a57bff)' : '#ccc';
+    btn.style.boxShadow  = canRebirth ? '0 4px 20px rgba(165,123,255,.4)' : 'none';
+    btn.style.cursor     = canRebirth ? 'pointer' : 'not-allowed';
+    btn.innerText        = canRebirth ? `✨ 환생 (×${REBIRTH_MULTI().toFixed(1)})` : '조건 미충족';
+    if (rebirthCount > 0) {
+        btn.innerText = canRebirth
+            ? `✨ 바구니에 담기 ${rebirthCount+1}회차 (×${(REBIRTH_MULTI()+0.5).toFixed(1)})`
+            : `조건 미충족 (현재 ×${REBIRTH_MULTI().toFixed(1)})`;
+    }
+}
+
+window.__rebirth = async function() {
+    const { hasFruit, isFull, hasScore } = checkRebirthConditions();
+    if (!hasFruit || !isFull || !hasScore) return;
+    playUIClick(); // 🔊 UI 클릭음
+    closeShop('bucket-overlay');
+    await new Promise(r => setTimeout(r, 300));
+    await playRebirthAnimation();
+};
+
+function playRebirthAnimation() {
+    return new Promise(resolve => {
+        loader.load('./Bucket.glb', gltf => {
+            const bucket = gltf.scene;
+            fixMesh(bucket);
+            bucket.scale.setScalar(0);
+            const center = gridPos(4);
+            bucket.position.set(center.x, floorY || 0, center.z);
+            bucket.rotation.y = Math.PI;
+            scene.add(bucket);
+            new TWEEN.Tween(bucket.scale).to({x:2.5,y:2.5,z:2.5},600).easing(TWEEN.Easing.Elastic.Out).onComplete(()=>{
+                const allFruits=[];
+                for(const fd of FRUIT_DEFS){const pool=pools[fd.key];if(!pool)continue;for(const item of pool.list)allFruits.push(item.model);}
+                for(const inst of boxInstances)allFruits.push(inst.model);
+                for(const inst of plusBoxInstances)allFruits.push(inst.model);
+                if(_manureModel)allFruits.push(_manureModel);
+                if(_flowerModel)allFruits.push(_flowerModel);
+                let done=0;
+                if(allFruits.length===0){finishRebirth(bucket,resolve);return;}
+                allFruits.forEach((model,i)=>{
+                    const delay=i*60;
+                    new TWEEN.Tween(model.position).to({x:bucket.position.x,y:bucket.position.y+0.5,z:bucket.position.z},400).delay(delay).easing(TWEEN.Easing.Quadratic.In).start();
+                    new TWEEN.Tween(model.scale).to({x:0,y:0,z:0},400).delay(delay).easing(TWEEN.Easing.Quadratic.In).onComplete(()=>{scene.remove(model);done++;if(done>=allFruits.length)finishRebirth(bucket,resolve);}).start();
+                });
+            }).start();
+        }, undefined, err=>{console.error('Bucket GLB 실패',err);resolve();});
+    });
+}
+
+function finishRebirth(bucket, resolve) {
+    for(const b of [...beeInstances]){clearInterval(b.intervalId);if(b._squishTimer)clearTimeout(b._squishTimer);scene.remove(b.model);}
+    beeInstances.length=0;
+    new TWEEN.Tween(bucket.scale).to({x:3.2,y:3.2,z:3.2},150).easing(TWEEN.Easing.Quadratic.Out).chain(
+        new TWEEN.Tween(bucket.scale).to({x:0,y:0,z:0},300).easing(TWEEN.Easing.Back.In).onComplete(()=>{
+            scene.remove(bucket);
+            rebirthCount++;score=0;unlockedSlots=3;
+            for(const k of Object.keys(pools))pools[k].list=[];
+            for(let i=0;i<MAX_SLOTS;i++)gridSlots[i]=i>=unlockedSlots?'locked':null;
+            boxInstances.length=0;plusBoxInstances.length=0;Object.keys(idleState).forEach(k=>delete idleState[k]);
+            // 효과 아이템 정리
+            if(_manureTimer){clearInterval(_manureTimer);_manureTimer=null;}_manureMulti=1;
+            if(_manureModel){scene.remove(_manureModel);_manureModel=null;}_manureSlot=-1;
+            if(_flowerTimer){clearInterval(_flowerTimer);_flowerTimer=null;}_flowerMulti=1;
+            if(_flowerModel){scene.remove(_flowerModel);_flowerModel=null;}_flowerSlot=-1;
+            _manureCooldownEndTime=0;_flowerCooldownEndTime=0;
+            if(_itemCooldownTimer){clearInterval(_itemCooldownTimer);_itemCooldownTimer=null;}
+            updateManureTimerUI();
+            updateFlowerTimerUI();
+            writeSave();scoreEl.innerText=fmtN(score);
+            buildSlotShopUI();buildFruitShopUI();buildBeeShopUI();buildBoxShopUI();
+            updateAllUIImmediate();
+            showSellToast(`🎉 바구니에 담겼어요! 이제 ×${REBIRTH_MULTI().toFixed(1)}배!`);
+            resolve();
+        })
+    ).start();
+}
+
+function updateAllUI() {
+    scoreEl.innerText=fmtN(score);
+    const fs=document.getElementById('fruit-shop-score');
+    const bs=document.getElementById('bee-shop-score');
+    const bxs=document.getElementById('box-shop-score');
+    if(fs)fs.innerText=`${fmtN(score)}점`;
+    if(bs)bs.innerText=`${fmtN(score)}점`;
+    if(bxs)bxs.innerText=`${fmtN(score)}점`;
+    if(_uiTimer)return;
+    _uiTimer=setTimeout(()=>{_uiTimer=null;updateSlotShopUI();updateFruitShopUI();updateBeeShopUI();updateBoxShopUI();updateBucketUI();},200);
+}
+function updateAllUIImmediate(){
+    if(_uiTimer){clearTimeout(_uiTimer);_uiTimer=null;}
+    scoreEl.innerText=fmtN(score);
+    updateSlotShopUI();updateFruitShopUI();updateBeeShopUI();updateBoxShopUI();updateBucketUI();
+}
+
+function openShop(id){
+    playUIClick(); // 🔊 UI 클릭음 (상점 열기)
+    const ov=document.getElementById(id);ov.classList.add('open');requestAnimationFrame(()=>requestAnimationFrame(()=>ov.classList.add('visible')));updateAllUI();
+    const body=ov.querySelector('.shop-body'),header=ov.querySelector('.shop-header');
+    if(body&&header){body._scrollHandler&&body.removeEventListener('scroll',body._scrollHandler);body._scrollHandler=()=>{header.classList.toggle('scrolled',body.scrollTop>4);};body.addEventListener('scroll',body._scrollHandler,{passive:true});header.classList.remove('scrolled');body.scrollTop=0;}
+}
+function closeShop(id){const ov=document.getElementById(id);ov.classList.remove('visible');setTimeout(()=>ov.classList.remove('open'),260);}
+
+document.getElementById('fruit-shop-btn').addEventListener('click',()=>openShop('fruit-shop-overlay'));
+document.getElementById('fruit-shop-close').addEventListener('click',()=>closeShop('fruit-shop-overlay'));
+document.getElementById('fruit-shop-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('fruit-shop-overlay'))closeShop('fruit-shop-overlay');});
+document.getElementById('box-shop-btn').addEventListener('click',()=>openShop('box-shop-overlay'));
+document.getElementById('box-shop-close').addEventListener('click',()=>closeShop('box-shop-overlay'));
+document.getElementById('box-shop-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('box-shop-overlay'))closeShop('box-shop-overlay');});
+document.getElementById('bee-shop-btn').addEventListener('click',()=>openShop('bee-shop-overlay'));
+document.getElementById('bee-shop-close').addEventListener('click',()=>closeShop('bee-shop-overlay'));
+document.getElementById('bee-shop-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('bee-shop-overlay'))closeShop('bee-shop-overlay');});
+document.getElementById('bucket-btn').addEventListener('click',()=>{updateBucketUI();openShop('bucket-overlay');});
+document.getElementById('bucket-close').addEventListener('click',()=>closeShop('bucket-overlay'));
+document.getElementById('bucket-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('bucket-overlay'))closeShop('bucket-overlay');});
+
+// ── 설정 UI 이벤트 ──
+{
+    const settingsOverlay = document.getElementById('settings-overlay');
+    const toggleFruit = document.getElementById('toggle-fruit-sound');
+    const toggleUI    = document.getElementById('toggle-ui-sound');
+    const toggleBGM   = document.getElementById('toggle-bgm');
+    const rangeBGM    = document.getElementById('bgm-volume');
+    const bgmVolumeValue = document.getElementById('bgm-volume-value');
+    const toggleShadow = document.getElementById('toggle-shadow');
+    const selectShadowQ = document.getElementById('select-shadow-quality');
+    const toggleAA = document.getElementById('toggle-antialias');
+    const selectPR = document.getElementById('select-pixel-ratio');
+
+    // 저장된 상태 반영
+    toggleFruit.checked = _fruitSoundOn;
+    toggleUI.checked    = _uiSoundOn;
+    toggleBGM.checked   = _bgmOn;
+    rangeBGM.value      = String(Math.round(_bgmVolume * 100));
+
+    function updateBgmSliderUI() {
+        const value = `${rangeBGM.value}%`;
+        rangeBGM.style.setProperty('--range-fill', value);
+        bgmVolumeValue.textContent = value;
+    }
+    updateBgmSliderUI();
+
+    // 그래픽 설정 로드
+    const gs = _loadSettings();
+    const _shadowOn     = gs.shadowOn     !== false;
+    const _shadowQuality= gs.shadowQuality || 2048;
+    const _antiAlias    = gs.antiAlias    !== false;
+    const _pixelRatio   = gs.pixelRatio   || Math.min(window.devicePixelRatio, 2);
+
+    // Three.js 그래픽 설정 초기 적용
+    function _applyShadow(on) {
+        renderer.shadowMap.enabled = on;
+        dirLight.castShadow = on;
+        document.getElementById('shadow-quality-row').style.opacity = on ? '1' : '0.4';
+        document.getElementById('shadow-quality-row').style.pointerEvents = on ? '' : 'none';
+    }
+    function _applyShadowQuality(size) {
+        const s = parseInt(size);
+        dirLight.shadow.mapSize.width = s;
+        dirLight.shadow.mapSize.height = s;
+        dirLight.shadow.map?.dispose();
+        dirLight.shadow.map = null;
+    }
+    function _applyPixelRatio(ratio) {
+        renderer.setPixelRatio(Math.min(parseFloat(ratio), window.devicePixelRatio));
+    }
+
+    toggleShadow.checked = _shadowOn;
+    selectShadowQ.value  = String(_shadowQuality);
+    toggleAA.checked     = _antiAlias;
+    selectPR.value       = String(Math.min(_pixelRatio, window.devicePixelRatio));
+
+    _applyShadow(_shadowOn);
+    _applyShadowQuality(_shadowQuality);
+    _applyPixelRatio(_pixelRatio);
+
+    // 안티앨리어싱 안내 (WebGL은 런타임 변경 불가 — 재시작 필요)
+    toggleAA.addEventListener('change', () => {
+        const s = _loadSettings(); s.antiAlias = toggleAA.checked; _saveSettings(s);
+        // 안내 토스트
+        const t = document.getElementById('sell-toast');
+        t.textContent = '새로고침 후 적용돼요 🔄'; t.classList.add('show');
+        setTimeout(() => { t.classList.remove('show'); t.classList.add('hide'); setTimeout(() => { t.classList.remove('hide'); }, 350); }, 1800);
+    });
+
+    document.getElementById('settings-btn').addEventListener('click', () => {
+        playUIClick();
+        settingsOverlay.classList.add('open');
+        requestAnimationFrame(() => requestAnimationFrame(() => settingsOverlay.classList.add('visible')));
+    });
+    document.getElementById('settings-close').addEventListener('click', () => closeShop('settings-overlay'));
+    settingsOverlay.addEventListener('click', e => { if (e.target === settingsOverlay) closeShop('settings-overlay'); });
+
+    toggleFruit.addEventListener('change', () => {
+        _fruitSoundOn = toggleFruit.checked;
+        const s = _loadSettings(); s.fruitSound = _fruitSoundOn; _saveSettings(s);
+    });
+    toggleUI.addEventListener('change', () => {
+        _uiSoundOn = toggleUI.checked;
+        const s = _loadSettings(); s.uiSound = _uiSoundOn; _saveSettings(s);
+    });
+    toggleBGM.addEventListener('change', () => {
+        _bgmOn = toggleBGM.checked;
+        const s = _loadSettings(); s.bgmOn = _bgmOn; _saveSettings(s);
+        if (_bgmOn) _tryPlayBgm();
+        else _stopBgm();
+    });
+    rangeBGM.addEventListener('input', () => {
+        _bgmVolume = Number(rangeBGM.value) / 100;
+        _applyBgmVolume();
+        updateBgmSliderUI();
+        const s = _loadSettings(); s.bgmVolume = _bgmVolume; _saveSettings(s);
+    });
+
+    toggleShadow.addEventListener('change', () => {
+        _applyShadow(toggleShadow.checked);
+        const s = _loadSettings(); s.shadowOn = toggleShadow.checked; _saveSettings(s);
+    });
+    selectShadowQ.addEventListener('change', () => {
+        _applyShadowQuality(selectShadowQ.value);
+        const s = _loadSettings(); s.shadowQuality = parseInt(selectShadowQ.value); _saveSettings(s);
+    });
+    selectPR.addEventListener('change', () => {
+        _applyPixelRatio(selectPR.value);
+        const s = _loadSettings(); s.pixelRatio = parseFloat(selectPR.value); _saveSettings(s);
+    });
+
+    document.getElementById('settings-code-apply').addEventListener('click', () => {
+        const code = document.getElementById('settings-code').value.trim();
+        if (!code) return;
+        playUIClick();
+        // 히든 코드: score + 숫자
+        const scoreMatch = code.match(/^score(\d+)$/i);
+        if (scoreMatch) {
+            const amount = parseInt(scoreMatch[1], 10);
+            if (amount > 0) { score += amount; scoreEl.innerText = fmtN(score); writeSave(); showSellToast(`+${fmtN(amount)}`); }
+        }
+        document.getElementById('settings-code').value = '';
+    });
+}
+
+const anyShopOpen=()=>
+    document.getElementById('fruit-shop-overlay').classList.contains('open')||
+    document.getElementById('bee-shop-overlay').classList.contains('open')||
+    document.getElementById('box-shop-overlay').classList.contains('open')||
+    document.getElementById('bucket-overlay').classList.contains('open')||
+    document.getElementById('settings-overlay').classList.contains('open');
+
+const HOLD_MS=800,CIRC=175.9;
+const holdRing=document.getElementById('hold-ring'),holdProg=document.getElementById('hold-prog');
+let hold=null,holdRAF=null;
+function startHold(key,idx,cx,cy){cancelHold();hold={key,idx,t0:performance.now(),cx,cy};holdRing.style.cssText=`display:block;left:${cx}px;top:${cy}px`;holdProg.style.strokeDashoffset=CIRC;tickHold();}
+function tickHold(){if(!hold)return;const p=Math.min((performance.now()-hold.t0)/HOLD_MS,1);holdProg.style.strokeDashoffset=CIRC*(1-p);if(p>=1){doSell(hold.key,hold.idx);cancelHold();return;}holdRAF=requestAnimationFrame(tickHold);}
+function cancelHold(){if(holdRAF){cancelAnimationFrame(holdRAF);holdRAF=null;}hold=null;holdRing.style.display='none';holdProg.style.strokeDashoffset=CIRC;}
+function doSell(key,idx){
+    // 효과 아이템 판매: 0원, 효과 즉시 종료
+    if(key==='__manure__'){
+        if(!_manureModel)return;
+        if(_manureTimer){clearInterval(_manureTimer);_manureTimer=null;}
+        _manureMulti=1; updateManureTimerUI();
+        playShowup();
+        new TWEEN.Tween(_manureModel.scale).to({x:0,y:0,z:0},150).easing(TWEEN.Easing.Cubic.In).onComplete(()=>{
+            scene.remove(_manureModel);_manureModel=null;
+            if(_manureSlot>=0){gridSlots[_manureSlot]=null;compactGrid(_manureSlot);_manureSlot=-1;}
+            updateAllUI();writeSave();
+        }).start();
+        showSellToast('비료 판매! +0점');
+        return;
+    }
+    if(key==='__flower__'){
+        if(!_flowerModel)return;
+        if(_flowerTimer){clearInterval(_flowerTimer);_flowerTimer=null;}
+        _flowerMulti=1; updateFlowerTimerUI();
+        playShowup();
+        new TWEEN.Tween(_flowerModel.scale).to({x:0,y:0,z:0},150).easing(TWEEN.Easing.Cubic.In).onComplete(()=>{
+            scene.remove(_flowerModel);_flowerModel=null;
+            if(_flowerSlot>=0){gridSlots[_flowerSlot]=null;compactGrid(_flowerSlot);_flowerSlot=-1;}
+            updateAllUI();writeSave();
+        }).start();
+        showSellToast('꽃 판매! +0점');
+        return;
+    }
+    const fd=FRUIT_DEFS.find(d=>d.key===key);if(!fd)return;
+    const item=pools[key]?.list[idx];
+    const fruitGain=getSellVal(fd,item);
+    const beeGain=beeInstances.filter(b=>b.fruitKey===key&&b.fruitIdx===idx).reduce((s,b)=>s+b.bDef.buyPrice,0);
+    const total=fruitGain+beeGain;
+    if(removeFruitAt(key,idx,true)){
+        score+=fruitGain;scoreEl.innerText=fmtN(score);writeSave();
+        showSellToast(fruitGain===0?`💰 ${fd.name} 판매! +${fmtN(total)}점 (과일 0점)`:`💰 ${fd.name} 판매! +${fmtN(total)}점`);
+        createPopup(total>0?total:'0',fd.color);updateAllUIImmediate();
+    }
+}
+
+const ray=new THREE.Raycaster(),mp=new THREE.Vector2();
+let fTw,cTw;
+function findFruitByMesh(obj){
+    // 효과 아이템 체크
+    if(_manureModel){let cur=obj;while(cur){if(cur===_manureModel)return{isManure:true};cur=cur.parent;}}
+    if(_flowerModel){let cur=obj;while(cur){if(cur===_flowerModel)return{isFlower:true};cur=cur.parent;}}
+    for(let i=0;i<boxInstances.length;i++){let cur=obj;while(cur){if(cur===boxInstances[i].model)return{isBox:true,boxInst:boxInstances[i]};cur=cur.parent;}}
+    for(let i=0;i<plusBoxInstances.length;i++){let cur=obj;while(cur){if(cur===plusBoxInstances[i].model)return{isPlusBox:true,boxInst:plusBoxInstances[i]};cur=cur.parent;}}
+    for(const fd of FRUIT_DEFS){const pool=pools[fd.key];if(!pool)continue;for(let i=0;i<pool.list.length;i++){let cur=obj;while(cur){if(cur===pool.list[i].model)return{fd,idx:i};cur=cur.parent;}}}
+    return null;
+}
+function hitFruit(cx,cy){mp.x=(cx/window.innerWidth)*2-1;mp.y=-(cy/window.innerHeight)*2+1;ray.setFromCamera(mp,camera);for(const h of ray.intersectObjects(scene.children,true)){const r=findFruitByMesh(h.object);if(r)return r;}return null;}
+
+renderer.domElement.addEventListener('pointerdown',e=>{
+    if(!e.isPrimary||anyShopOpen())return;const hit=hitFruit(e.clientX,e.clientY);
+    if(hit){if(hit.isManure){startHold('__manure__',0,e.clientX,e.clientY);controls.enabled=false;}else if(hit.isFlower){startHold('__flower__',0,e.clientX,e.clientY);controls.enabled=false;}else if(hit.isBox){clickBox(hit.boxInst);controls.enabled=false;}else if(hit.isPlusBox){clickPlusBox(hit.boxInst);controls.enabled=false;}else{startHold(hit.fd.key,hit.idx,e.clientX,e.clientY);controls.enabled=false;}}
+});
+renderer.domElement.addEventListener('pointerup',e=>{
+    controls.enabled=true;if(!e.isPrimary||!hold)return;
+    const elapsed=performance.now()-hold.t0;const{key,idx}=hold;cancelHold();
+    if(elapsed<HOLD_MS){
+        // 효과 아이템 짧은 클릭: squish만, 점수 없음
+        if(key==='__manure__'){
+            if(_manureModel){ const s=1.0; new TWEEN.Tween(_manureModel.scale).to({x:s*1.3,y:s*.7,z:s*1.3},75).chain(new TWEEN.Tween(_manureModel.scale).to({x:s,y:s,z:s},380).easing(TWEEN.Easing.Elastic.Out)).start(); moveCameraTo(_manureModel); playFruitClick(); }
+            return;
+        }
+        if(key==='__flower__'){
+            if(_flowerModel){ const s=1.0; new TWEEN.Tween(_flowerModel.scale).to({x:s*1.3,y:s*.7,z:s*1.3},75).chain(new TWEEN.Tween(_flowerModel.scale).to({x:s,y:s,z:s},380).easing(TWEEN.Easing.Elastic.Out)).start(); moveCameraTo(_flowerModel); playFruitClick(); }
+            return;
+        }
+        const fd=FRUIT_DEFS.find(d=>d.key===key);const pool=pools[key];if(!fd||!pool||idx>=pool.list.length)return;
+        const model=pool.list[idx].model;const s=fd.ms;
+        new TWEEN.Tween(model.scale).to({x:s*1.3,y:s*.7,z:s*1.3},75).chain(new TWEEN.Tween(model.scale).to({x:s,y:s,z:s},380).easing(TWEEN.Easing.Elastic.Out)).start();
+        moveCameraTo(model);
+        const _gain=Math.floor(fd.clickVal*CLICK_SCORE_MULTI());score+=_gain;scoreEl.innerText=fmtN(score);
+        playFruitClick(); // 🔊 과일 클릭음
+        // 비료 또잉 애니메이션
+        if(_manureModel&&_manureMulti>1&&!_manureModel._tweenActive){
+            _manureModel._tweenActive=true;const ms=1.0;
+            new TWEEN.Tween(_manureModel.scale).to({x:ms*1.12,y:ms*.88,z:ms*1.12},100).easing(TWEEN.Easing.Sinusoidal.Out)
+            .chain(new TWEEN.Tween(_manureModel.scale).to({x:ms*.96,y:ms*1.04,z:ms*.96},120).easing(TWEEN.Easing.Sinusoidal.InOut)
+            .chain(new TWEEN.Tween(_manureModel.scale).to({x:ms,y:ms,z:ms},320).easing(TWEEN.Easing.Elastic.Out).onComplete(()=>{if(_manureModel)_manureModel._tweenActive=false;}))).start();
+        }
+        writeSave();createPopup(_gain,fd.color);if(anyShopOpen())updateAllUIImmediate();resetIdle(key,idx);
+    }
+});
+renderer.domElement.addEventListener('pointermove',e=>{if(!hold)return;if((e.clientX-hold.cx)**2+(e.clientY-hold.cy)**2>18**2){cancelHold();controls.enabled=true;}});
+renderer.domElement.addEventListener('pointercancel',()=>{cancelHold();controls.enabled=true;});
+
+function initBeeRandom(bee){bee._rMult=0.82+Math.random()*0.36;bee._sMult=0.75+Math.random()*0.5;bee._hPhase=Math.random()*Math.PI*2;bee._hAmp=0.08+Math.random()*0.18;bee._tilt=0.65+Math.random()*0.7;bee._wPhase=Math.random()*Math.PI*2;bee._wAmp=0.03+Math.random()*0.05;scheduleBeeSquish(bee);}
+function scheduleBeeSquish(bee){
+    const delay=5000+Math.random()*7000;bee._squishTimer=setTimeout(()=>{if(!bee.model)return;const s=bee.bDef.beeScale;new TWEEN.Tween(bee.model.scale).to({x:s*1.06,y:s*0.91,z:s*1.06},100).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(bee.model.scale).to({x:s*0.96,y:s*1.05,z:s*0.96},120).easing(TWEEN.Easing.Quadratic.InOut).chain(new TWEEN.Tween(bee.model.scale).to({x:s,y:s,z:s},200).easing(TWEEN.Easing.Elastic.Out))).start();scheduleBeeSquish(bee);},delay);}
+const _origPush=beeInstances.push.bind(beeInstances);beeInstances.push=function(...args){for(const b of args)initBeeRandom(b);return _origPush(...args);};
+
+const idleState={},IDLE_MIN=4000,IDLE_MAX=9000;
+function getFruitIdleKey(key,idx){return key+'_'+idx;}
+function scheduleIdle(key,idx){const k=getFruitIdleKey(key,idx);if(!idleState[k])idleState[k]={playing:false};idleState[k].nextIdleT=performance.now()+IDLE_MIN+Math.random()*(IDLE_MAX-IDLE_MIN);}
+function resetIdle(key,idx){const k=getFruitIdleKey(key,idx);if(idleState[k])idleState[k].nextIdleT=performance.now()+IDLE_MIN+Math.random()*(IDLE_MAX-IDLE_MIN);}
+function playIdleAnim(model,scale){if(!model)return;const s=scale||1;const seq=[{scale:{x:s*0.92,y:s*1.08,z:s*0.92},dur:120},{scale:{x:s*1.08,y:s*0.93,z:s*1.08},dur:140},{scale:{x:s*0.95,y:s*1.05,z:s*0.95},dur:110},{scale:{x:s,y:s,z:s},dur:180}];let tw=new TWEEN.Tween(model.scale).to(seq[0].scale,seq[0].dur).easing(TWEEN.Easing.Quadratic.InOut);let cur=tw;for(let i=1;i<seq.length;i++){const next=new TWEEN.Tween(model.scale).to(seq[i].scale,seq[i].dur).easing(TWEEN.Easing.Quadratic.InOut);cur.chain(next);cur=next;}tw.start();}
+
+let lastT=0,_lastScoreUpdate=0,_frameCount=0;
+function animate(t){
+    requestAnimationFrame(animate);
+    TWEEN.update(t);
+    const dt=Math.min(t-lastT,50);lastT=t;_frameCount++;
+    if(t-_lastScoreUpdate>150){scoreEl.innerText=fmtN(score);_lastScoreUpdate=t;}
+    const beeSkip=2,idleSkip=4;
+    const doUpdateBees=(_frameCount%beeSkip===0);
+    for(const bee of beeInstances){
+        if(!doUpdateBees)continue;
+        const pool=pools[bee.fruitKey];if(!pool||bee.fruitIdx>=pool.list.length)continue;
+        const center=pool.list[bee.fruitIdx].model.position;if(!bee._rMult)initBeeRandom(bee);
+        const speed=bee.bDef.orbitSpeed*bee._sMult;bee.angle+=speed*(dt*beeSkip);
+        const r=bee.bDef.orbitR*bee._rMult;
+        const bx=center.x+Math.cos(bee.angle)*r;
+        const bz=center.z+Math.sin(bee.angle)*r*bee._tilt;
+        const by=center.y+Math.sin(t*0.0035+bee._hPhase)*bee._hAmp+Math.sin(t*0.0091+bee._wPhase)*bee._wAmp+1.2;
+        bee.model.position.set(bx,by,bz);
+        const nextAngle=bee.angle+0.05;
+        const nx=center.x+Math.cos(nextAngle)*r;
+        const nz=center.z+Math.sin(nextAngle)*r*bee._tilt;
+        bee.model.rotation.y=Math.atan2(nx-bx,nz-bz);
+    }
+    const now=t;
+    if(_frameCount%idleSkip===0)for(const fd of FRUIT_DEFS){const pool=pools[fd.key];if(!pool)continue;for(let i=0;i<pool.list.length;i++){const k=getFruitIdleKey(fd.key,i);if(!idleState[k]){scheduleIdle(fd.key,i);continue;}const st=idleState[k];if(!st.playing&&now>=st.nextIdleT){st.playing=true;playIdleAnim(pool.list[i].model,fd.ms);setTimeout(()=>{st.playing=false;scheduleIdle(fd.key,i);},600);}}}
+    controls.update();renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener('resize',()=>{const nA=window.innerWidth/window.innerHeight;camera.left=-FRUS*nA/2;camera.right=FRUS*nA/2;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight);});
+document.addEventListener('contextmenu',e=>e.preventDefault());
+document.addEventListener('selectstart',e=>e.preventDefault());
+document.addEventListener('touchstart',e=>{if(anyShopOpen())return;if(e.touches.length>1)e.preventDefault();},{passive:false});
+</script>
+</body>
+</html>

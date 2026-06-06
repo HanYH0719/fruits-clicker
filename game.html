@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fruit Clicker</title>
+    <style>
+        @font-face {
+            font-family: 'Cafe24PROSlim';
+            src: url('./Cafe24PROSlimMax.woff2') format('woff2');
+            font-weight: 700; font-display: swap;
+        }
+        @font-face {
+            font-family: 'Cafe24PROSlim';
+            src: url('./Cafe24PROSlimFit.woff2') format('woff2');
+            font-weight: 400; font-display: swap;
+        }
+        @font-face {
+            font-family: 'Cafe24PROSlim';
+            src: url('./Cafe24PROSlimAir.woff2') format('woff2');
+            font-weight: 300; font-display: swap;
+        }
+    </style>
+    <style>
+        :root {
+            --white:    #ffffff;
+            --bg:       #fafafa;
+            --surface:  #ffffff;
+            --border:   #ececec;
+            --pink:     #ff6b8a;
+            --pink-lt:  #ffd6de;
+            --green:    #5bbf7a;
+            --green-lt: #d4f5e2;
+            --yellow:   #ffb830;
+            --yellow-lt:#fff0cc;
+            --blue:     #5b9fff;
+            --blue-lt:  #d6eaff;
+            --purple:   #a57bff;
+            --purple-lt:#ede0ff;
+            --text:     #3a3a3a;
+            --text-sub: #888888;
+            --shadow:   0 4px 20px rgba(0,0,0,.18);
+            --shadow-lg:0 8px 40px rgba(0,0,0,.26);
+            --radius:   20px;
+            --radius-sm:14px;
+        }
+        * { box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+        body { margin:0; overflow:hidden; background:var(--bg); font-family:'Cafe24PROSlim','Apple SD Gothic Neo',sans-serif; font-weight:400; touch-action:none; color:var(--text); }
+
+        #score-wrapper { position:absolute; top:40px; width:100%; display:flex; flex-direction:column; align-items:center; pointer-events:none; z-index:10; }
+        #score-container { font-size:clamp(66px,11.8vw,94px); font-weight:700; }
+        #score {
+            font-size:clamp(66px,11.8vw,94px); font-weight:700; color:#ffffff;
+            filter: url(#score-filter);
+            display:inline-block;
+        }
+        .click-popup { position:absolute; font-size:clamp(24px,4.7vw,31px); font-weight:700; animation:shootUp .55s ease-out forwards; white-space:nowrap; pointer-events:none; }
+        @keyframes shootUp { 0%{transform:translateY(0) scale(1);opacity:1} 60%{transform:translateY(-40px) scale(1.1);opacity:1} 100%{transform:translateY(-70px) scale(.8);opacity:0} }
+
+        #hold-ring { position:fixed; pointer-events:none; z-index:999; width:76px; height:76px; display:none; transform:translate(-50%,-50%); filter:drop-shadow(0 2px 8px rgba(255,184,48,.5)); }
+        #hold-ring svg { width:100%; height:100%; transform:rotate(-90deg); }
+        #hold-ring .track { fill:none; stroke:rgba(255,184,48,.2); stroke-width:5; }
+        #hold-ring .prog  { fill:none; stroke:var(--yellow); stroke-width:5; stroke-dasharray:175.9; stroke-dashoffset:175.9; stroke-linecap:round; }
+
+        .unlock-img { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); width:220px; z-index:1000; pointer-events:none; opacity:0; animation:bounceInFade 2s forwards; }
+        @keyframes bounceInFade {
+            0%  {opacity:0; transform:translate(-50%,-50%) scale(.4);}
+            25% {opacity:1; transform:translate(-50%,-50%) scale(1.15);}
+            45% {transform:translate(-50%,-50%) scale(.95);}
+            60% {transform:translate(-50%,-50%) scale(1.05);}
+            75% {transform:translate(-50%,-50%) scale(1);}
+            100%{opacity:0; transform:translate(-50%,-58%) scale(.95);}
+        }
+
+        #sell-toast {
+            position:fixed; top:50%; left:50%;
+            transform:translate(-50%,-50%) scale(.85);
+            background:var(--white); color:var(--pink);
+            font-size:clamp(19px,4.1vw,24px);
+            padding:16px 28px; font-weight:400;
+            border-radius:999px; border:2.5px solid var(--pink-lt);
+            box-shadow:var(--shadow-lg);
+            z-index:1100; pointer-events:none; opacity:0;
+            transition:all .25s cubic-bezier(.34,1.56,.64,1); white-space:nowrap;
+        }
+        #sell-toast.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
+        #sell-toast.hide { opacity:0; transform:translate(-50%,-60%) scale(.9); transition:all .3s ease-in; }
+
+        #hold-hint {
+            position:fixed; bottom:90px; left:50%; transform:translateX(-50%);
+            background:var(--white); color:#777;
+            font-size:clamp(14px,2.9vw,15px); padding:9px 20px; border-radius:999px;
+            pointer-events:none; z-index:50; border:2px solid var(--border);
+            box-shadow:var(--shadow); opacity:0; transition:opacity .4s; font-weight:300;
+        }
+        #hold-hint.visible { opacity:1; }
+
+        #bottom-btns { position:fixed; bottom:20px; right:16px; display:flex; gap:8px; z-index:100; align-items:flex-end; }
+        .bottom-btn {
+            background: none; border: none; padding: 0; cursor: pointer;
+            transition: all .18s; filter: drop-shadow(0 2px 6px rgba(0,0,0,.15));
+            -webkit-tap-highlight-color: transparent; display: block;
+        }
+        .bottom-btn img { width: clamp(80px, 11.5vw, 100px); height: auto; display: block; }
+        .bottom-btn:hover  { transform:translateY(-3px) scale(1.08); filter:drop-shadow(0 5px 12px rgba(0,0,0,.2)); }
+        .bottom-btn:active { transform:translateY(0) scale(.93); }
+        #fruit-shop-btn, #bee-shop-btn, #reset-btn, #box-shop-btn { background:none; box-shadow:none; }
+
+        .shop-overlay {
+            position:fixed; inset:0; background:rgba(60,40,40,.18);
+            backdrop-filter:blur(12px) saturate(1.5);
+            -webkit-backdrop-filter:blur(12px) saturate(1.5);
+            z-index:500; display:none; align-items:center; justify-content:center;
+            opacity:0; transition:opacity .22s;
+        }
+        .shop-overlay.open    { display:flex; }
+        .shop-overlay.visible { opacity:1; }
+
+        .shop-panel {
+            background:var(--white); border:2px solid var(--border); border-radius:28px;
+            width:560px; max-width:94vw; max-height:88vh; overflow:hidden;
+            display:flex; flex-direction:column;
+            box-shadow:0 24px 60px rgba(0,0,0,.30);
+            transform:translateY(18px) scale(.97);
+            transition:transform .26s cubic-bezier(.34,1.56,.64,1); position:relative;
+        }
+        .shop-overlay.visible .shop-panel { transform:translateY(0) scale(1); }
+
+        .shop-header {
+            background: rgba(255,255,255,0.55);
+            -webkit-backdrop-filter: blur(20px) saturate(2);
+            backdrop-filter: blur(20px) saturate(2);
+            border-radius:26px 26px 0 0; padding:26px 22px 28px;
+            display:flex; align-items:center; flex-shrink:0;
+            position:sticky; top:0; z-index:10;
+        }
+        .shop-title {
+            position:absolute !important; left:50%; transform:translateX(-50%);
+            pointer-events:none; font-size:clamp(34px,8vw,52px); color:#fff;
+            font-weight:700; letter-spacing:-0.5px; filter: url(#score-filter);
+            white-space:nowrap;
+        }
+        .shop-header-left  { margin-right:auto; }
+        .shop-header-right { margin-left:auto; }
+        .shop-score-badge {
+            background:var(--white); color:var(--pink); padding:7px 18px; border-radius:999px;
+            font-size:clamp(14px,2.9vw,15px); border:none; font-weight:700;
+            box-shadow:0 2px 8px rgba(0,0,0,.08); white-space:nowrap; flex-shrink:0;
+        }
+        .shop-close {
+            background:rgba(255,255,255,.6); border:none; color:var(--text-sub);
+            width:34px; height:34px; border-radius:50%; cursor:pointer; font-size:16px;
+            display:flex; align-items:center; justify-content:center;
+            transition:all .18s; font-family:inherit; flex-shrink:0;
+        }
+        .shop-close:hover { background:var(--white); color:var(--pink); transform:scale(1.1); }
+
+        .shop-body { overflow-y:auto; padding:20px 20px 24px; flex:1; }
+        .shop-body::-webkit-scrollbar { width:5px; }
+        .shop-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:99px; }
+
+        .shop-section-label { font-size:clamp(12px,2.4vw,13px); letter-spacing:1px; color:#aaa; margin:0 0 12px 2px; font-weight:300; }
+        .shop-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+        .shop-item {
+            background:var(--bg); border:2px solid var(--border); border-radius:18px;
+            padding:14px 14px; display:flex; flex-direction:column; align-items:flex-start; gap:0; transition:all .18s;
+        }
+        .shop-item:hover:not(.locked) { border-color:#ddd; box-shadow:var(--shadow); transform:translateY(-2px); }
+        .shop-item:active:not(.locked){ transform:translateY(0) scale(.98); }
+        .shop-item.locked { opacity:.4; }
+
+        .shop-item-emoji { width:100%; margin-bottom:8px; }
+        .shop-item-emoji img { width:100%; max-width:190px; height:190px; object-fit:contain; display:block; margin:0 auto; border-radius:12px; }
+        .shop-item-info  { width:100%; flex:1; text-align:left; margin-bottom:10px; }
+        .shop-item-name  { color:var(--text); font-size:clamp(18px,3.6vw,22px); font-weight:700; line-height:1.1; margin-bottom:4px; }
+        .shop-item-meta  { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+        .price-free { color:var(--green); font-size:clamp(12px,2.4vw,13px); font-weight:400; }
+        .price-paid { color:#b07800; font-size:clamp(12px,2.4vw,13px); font-weight:300; }
+        .shop-item-count { color:var(--text-sub); font-size:clamp(12px,2.4vw,13px); font-weight:300; }
+        .shop-item-info2 { color:#bbb; font-size:clamp(11px,2.2vw,12px); margin-top:2px; font-weight:300; }
+        .shop-item-clickval { color:#888; font-size:clamp(14px,2.8vw,16px); margin-top:3px; font-weight:400; }
+
+        .shop-buy-btn {
+            background:var(--blue); color:#fff; border:none; padding:10px 0; border-radius:999px;
+            cursor:pointer; font-family:inherit; font-size:clamp(13px,2.6vw,15px); font-weight:700;
+            white-space:nowrap; transition:all .18s; width:100%;
+            box-shadow:0 3px 12px rgba(91,159,255,.35); text-align:center;
+        }
+        .shop-buy-btn.free  { background:var(--green); box-shadow:0 3px 12px rgba(91,191,122,.35); }
+        .shop-buy-btn.bee-btn { background:var(--yellow); color:#5a3800; box-shadow:0 3px 12px rgba(255,184,48,.35); font-weight:700; }
+        .shop-buy-btn:hover:not(:disabled) { transform:scale(1.06) translateY(-1px); filter:brightness(1.05); }
+        .shop-buy-btn:active:not(:disabled){ transform:scale(.97); }
+        .shop-buy-btn:disabled { opacity:1; cursor:not-allowed; transform:none; background:#d8d8d8; box-shadow:none; color:#aaa; font-size:clamp(11px,2.2vw,13px); font-weight:400; }
+
+        .slot-buy-row {
+            background:var(--purple-lt); border:2px solid var(--purple); border-radius:var(--radius-sm);
+            padding:14px 16px; display:flex; align-items:center; gap:14px; transition:all .18s;
+        }
+        .slot-buy-row:hover { box-shadow:0 4px 16px rgba(165,123,255,.2); transform:translateY(-1px); }
+        .slot-buy-emoji { font-size:32px; width:48px; text-align:center; flex-shrink:0; }
+        .slot-buy-info  { flex:1; }
+        .slot-buy-name  { color:var(--text); font-size:clamp(17px,3.5vw,18px); margin-bottom:3px; font-weight:400; }
+        .slot-buy-meta  { display:flex; gap:8px; align-items:center; }
+        .slot-buy-price { color:var(--purple); font-size:clamp(13px,2.9vw,14px); font-weight:300; }
+        .slot-buy-count { color:var(--text-sub); font-size:clamp(13px,2.9vw,14px); font-weight:300; }
+        .slot-buy-btn {
+            background:var(--purple); color:#fff; border:none; padding:9px 17px; border-radius:999px;
+            cursor:pointer; font-family:inherit; font-size:clamp(14px,2.9vw,15px); font-weight:700;
+            white-space:nowrap; transition:all .18s; flex-shrink:0; min-width:72px;
+            box-shadow:0 3px 12px rgba(165,123,255,.4);
+        }
+        .slot-buy-btn:hover:not(:disabled) { transform:scale(1.07) translateY(-1px); filter:brightness(1.05); }
+        .slot-buy-btn:active:not(:disabled){ transform:scale(.97); }
+        .slot-buy-btn:disabled { opacity:.35; cursor:not-allowed; transform:none; background:var(--border); box-shadow:none; color:var(--text-sub); font-size:11px; }
+
+        .buy-particle { position:fixed; pointer-events:none; z-index:600; font-size:24px; animation:pFly .7s ease-out forwards; }
+        @keyframes pFly { 0%{opacity:1;transform:translate(0,0) scale(1)} 100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.1)} }
+
+        #loading-overlay { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:9999; flex-direction:column; gap:16px; color:var(--text-sub); transition:opacity .5s; }
+        #loading-overlay.fade { opacity:0; pointer-events:none; }
+        .loading-spinner { width:44px; height:44px; border:4px solid var(--border); border-top-color:var(--pink); border-radius:50%; animation:spin .8s linear infinite; }
+        @keyframes spin { to{transform:rotate(360deg)} }
+    </style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <filter id="score-filter" x="-10%" y="-10%" width="120%" height="140%">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="1" result="outline"/>
+      <feFlood flood-color="#1a1a1a" result="black"/>
+      <feComposite in="black" in2="outline" operator="in" result="stroke"/>
+      <feOffset in="stroke" dx="0" dy="2" result="shadow"/>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="stroke"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+</svg>
+
+<div id="loading-overlay"><div class="loading-spinner"></div><div style="font-size:16px;font-weight:400;">과일 가져오는 중 🍎</div></div>
+
+<div id="score-wrapper">
+    <div id="score-container"><span id="score">0</span></div>
+    <div id="popup-area" style="position:relative;width:100%;height:50px;display:flex;justify-content:center;"></div>
+</div>
+
+<div id="hold-ring">
+    <svg viewBox="0 0 60 60">
+        <circle class="track" cx="30" cy="30" r="28"/>
+        <circle class="prog"  cx="30" cy="30" r="28" id="hold-prog"/>
+    </svg>
+</div>
+
+<div id="sell-toast"></div>
+<div id="hold-hint">🖱️ 길게 누르면 판매</div>
+
+<div id="bottom-btns">
+    <button class="bottom-btn img-btn" id="box-shop-btn">
+        <img src="./FruitBox.png" alt="과일박스">
+    </button>
+    <button class="bottom-btn img-btn" id="fruit-shop-btn">
+        <img src="./FruitStore.PNG" alt="과일 상점">
+    </button>
+    <button class="bottom-btn img-btn" id="bee-shop-btn">
+        <img src="./BeeStore.PNG" alt="벌 상점">
+    </button>
+    <button class="bottom-btn img-btn" id="reset-btn">
+        <img src="./Reset.PNG" alt="초기화">
+    </button>
+</div>
+
+<!-- 과일 상점 -->
+<div class="shop-overlay" id="fruit-shop-overlay">
+    <div class="shop-panel">
+        <div class="shop-header">
+            <div class="shop-score-badge shop-header-left" id="fruit-shop-score">0점</div>
+            <div class="shop-title">과일상점</div>
+            <button class="shop-close shop-header-right" id="fruit-shop-close">✕</button>
+        </div>
+        <div class="shop-body">
+            <div class="shop-section-label">슬롯 확장</div>
+            <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:20px" id="slot-shop-grid"></div>
+            <div class="shop-section-label">구매 가능한 과일</div>
+            <div class="shop-grid" id="fruit-shop-grid"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 과일박스 상점 -->
+<div class="shop-overlay" id="box-shop-overlay">
+    <div class="shop-panel">
+        <div class="shop-header">
+            <div class="shop-score-badge shop-header-left" id="box-shop-score">0점</div>
+            <div class="shop-title">과일박스</div>
+            <button class="shop-close shop-header-right" id="box-shop-close">✕</button>
+        </div>
+        <div class="shop-body">
+            <div class="shop-section-label">5번 클릭해서 열면 랜덤 과일이 나와요!</div>
+            <div class="shop-grid" id="box-shop-grid"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 벌 상점 -->
+<div class="shop-overlay" id="bee-shop-overlay">
+    <div class="shop-panel">
+        <div class="shop-header">
+            <div class="shop-score-badge shop-header-left" id="bee-shop-score">0점</div>
+            <div class="shop-title">벌상점</div>
+            <button class="shop-close shop-header-right" id="bee-shop-close">✕</button>
+        </div>
+        <div class="shop-body">
+            <div class="shop-section-label">과일에 붙어 점수를 벌어요</div>
+            <div class="shop-section-label" style="margin-top:4px;">가장 높은 과일에 배치 · 과일 클릭값÷n 초당 수입</div>
+            <div class="shop-grid" id="bee-shop-grid"></div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+import * as THREE from 'https://esm.sh/three@0.160.0';
+import { GLTFLoader }    from 'https://esm.sh/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import * as TWEEN        from 'https://esm.sh/@tweenjs/tween.js@23.1.1';
+
+const FRUIT_DEFS = [
+    { key:'apple',      icon:'./Apple.png',      file:'./Apple.glb',      emoji:'🍎', name:'사과',     clickVal:1,  color:'#ff4d4d', buyPrice:0,     ms:1.0 },
+    { key:'watermelon', icon:'./Watermelon.png',  file:'./Watermelon.glb', emoji:'🍉', name:'수박',     clickVal:5,  color:'#28a745', buyPrice:150,   ms:1.0 },
+    { key:'orange',     icon:'./Orange.png',      file:'./Orange.glb',     emoji:'🍊', name:'오렌지',   clickVal:10, color:'#ffa500', buyPrice:900,   ms:1.0 },
+    { key:'blueberry',  icon:'./Blueberry.png',   file:'./Blueberry.glb',  emoji:'🫐', name:'블루베리', clickVal:20, color:'#4f5bd5', buyPrice:2200,  ms:1.0 },
+    { key:'avocado',    icon:'./Avocado.png',      file:'./Avocado.glb',    emoji:'🥑', name:'아보카도', clickVal:32, color:'#568203', buyPrice:6000,  ms:1.0 },
+    { key:'cherry',     icon:'./Cherry.png',       file:'./Cherry.glb',     emoji:'🍒', name:'체리',     clickVal:64, color:'#c0001a', buyPrice:30000, ms:1.0 },
+];
+const getSellVal = (def, item) => {
+    if (item && item._fromBox) return 0;
+    return def.key === 'apple' ? 1 : def.buyPrice;
+};
+
+const BEE_DEFS = [
+    { key:'bee',      file:'./Bee.glb',     emoji:'🐝', icon:'./Bee.png',     name:'꿀벌',   buyPrice:1500,  beeScale:0.4,  divisor:3, color:'#FFD700', orbitR:0.55, orbitSpeed:0.0022 },
+    { key:'queenBee', file:'./QeenBee.glb', emoji:'👑', icon:'./QeenBee.png', name:'여왕벌', buyPrice:5800,  beeScale:0.48, divisor:2, color:'#FF4500', orbitR:0.70, orbitSpeed:0.0018 },
+];
+
+const SAVE_KEY = 'fc_v15';
+let isResetting = false;
+
+function loadSave() { try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch { return {}; } }
+function writeSave() {
+    if (isResetting) return;
+    const d = { score, unlockedSlots };
+    for (const fd of FRUIT_DEFS) d['f_' + fd.key] = (pools[fd.key]?.list.length) || 0;
+    d.bees = beeInstances.map(b => ({ bk: b.bDef.key, fk: b.fruitKey, fi: b.fruitIdx }));
+    d.boxSlots = boxInstances.map(b => b.slot);
+    localStorage.setItem(SAVE_KEY, JSON.stringify(d));
+}
+
+const save  = loadSave();
+let   score = save.score || 0;
+const scoreEl = document.getElementById('score');
+scoreEl.innerText = score;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xffffff);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const aspect = window.innerWidth / window.innerHeight;
+const FRUS = 10;
+const camera = new THREE.OrthographicCamera(-FRUS*aspect/2, FRUS*aspect/2, FRUS/2, -FRUS/2, 0.1, 1000);
+camera.position.set(7, 7, 7);
+camera.lookAt(0, 0, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 1.3));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+dirLight.position.set(5, 10, 7);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width  = 2048;
+dirLight.shadow.mapSize.height = 2048;
+dirLight.shadow.bias = -0.001; dirLight.shadow.normalBias = 0.02; dirLight.shadow.radius = 12;
+dirLight.shadow.camera.near = 0.1; dirLight.shadow.camera.far = 50;
+dirLight.shadow.camera.left = -15; dirLight.shadow.camera.right = 15;
+dirLight.shadow.camera.top = 15; dirLight.shadow.camera.bottom = -15;
+scene.add(dirLight);
+
+const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.ShadowMaterial({ opacity:0.10 }));
+floorMesh.rotation.x = -Math.PI/2; floorMesh.receiveShadow = true; scene.add(floorMesh);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.enablePan = false;
+
+const COLS = 5, GAP = 1.9, MAX_SLOTS = 25;
+const gridSlots = new Array(MAX_SLOTS).fill(null);
+const SLOT_PRICES = [100,140,210,300,440,640,930,1350,1950,2830,4110,5960,8640,12530,18160,26330,38180,55370,80280,116410,168800,244750];
+let unlockedSlots = save.unlockedSlots || 3;
+function initLockedSlots() { for (let i=unlockedSlots;i<MAX_SLOTS;i++) gridSlots[i]='locked'; }
+initLockedSlots();
+function gridPos(i) { return { x:(i%COLS-2)*GAP, z:(Math.floor(i/COLS)-2)*GAP }; }
+function nextFreeSlot() { return gridSlots.findIndex(s=>s===null); }
+function slotPrice(n) { return SLOT_PRICES[n-4]; }
+function nextLockedSlot() { return unlockedSlots<MAX_SLOTS?unlockedSlots:-1; }
+
+const pools = {};
+let floorY = null;
+const loader = new GLTFLoader();
+
+function fixMesh(obj) {
+    obj.traverse(c => {
+        if (!c.isMesh) return;
+        c.castShadow = c.receiveShadow = true;
+        if (c.material?.map) { c.material.map.minFilter=THREE.LinearFilter; c.material.map.anisotropy=renderer.capabilities.getMaxAnisotropy(); c.material.map.needsUpdate=true; }
+    });
+}
+
+function place(def, slotIdx, animate, cb) {
+    loader.load(def.file, gltf => {
+        const model = gltf.scene; fixMesh(model);
+        const box = new THREE.Box3().setFromObject(model);
+        if (floorY===null) { floorY=box.min.y; floorMesh.position.y=floorY; }
+        const {x,z} = gridPos(slotIdx);
+        model.position.set(x, floorY-box.min.y, z);
+        model.scale.setScalar(animate?0:def.ms); scene.add(model);
+        if (animate) new TWEEN.Tween(model.scale).to({x:def.ms,y:def.ms,z:def.ms},650).easing(TWEEN.Easing.Elastic.Out).start();
+        if (!pools[def.key]) pools[def.key]={list:[]};
+        const instIdx=pools[def.key].list.length;
+        pools[def.key].list.push({model,slot:slotIdx});
+        gridSlots[slotIdx]={key:def.key,idx:instIdx};
+        if (cb) cb(instIdx); else { updateAllUI(); writeSave(); }
+    }, undefined, err=>{ console.error('GLB 실패:',def.file,err); if(cb) cb(null); });
+}
+
+function addFruit(def, animate, cb) {
+    const slot=nextFreeSlot(); if(slot===-1){if(cb)cb(null);return;}
+    gridSlots[slot]='reserved'; place(def,slot,animate,cb);
+}
+
+function removeFruitAt(key, idx, refund) {
+    const pool=pools[key]; if(!pool||idx>=pool.list.length) return false;
+    const {model,slot}=pool.list[idx];
+    const beesToRemove=beeInstances.filter(b=>b.fruitKey===key&&b.fruitIdx===idx);
+    for (const b of beesToRemove) {
+        clearInterval(b.intervalId); if(b._squishTimer) clearTimeout(b._squishTimer);
+        scene.remove(b.model); const bi=beeInstances.indexOf(b); if(bi!==-1) beeInstances.splice(bi,1);
+        if(refund){score+=b.bDef.buyPrice;scoreEl.innerText=score;createPopup(b.bDef.buyPrice,b.bDef.color);}
+    }
+    new TWEEN.Tween(model.scale).to({x:0,y:0,z:0},150).easing(TWEEN.Easing.Cubic.In).onComplete(()=>scene.remove(model)).start();
+    pool.list.splice(idx,1); gridSlots[slot]=null;
+    pool.list.forEach((item,i)=>{gridSlots[item.slot]={key,idx:i};});
+    beeInstances.filter(b=>b.fruitKey===key&&b.fruitIdx>idx).forEach(b=>{b.fruitIdx-=1;});
+    compactGrid(slot); updateAllUI(); writeSave(); return true;
+}
+
+function moveCameraTo(model) {
+    if(!model) return;
+    const tp=model.position.clone(), off=new THREE.Vector3().subVectors(camera.position,controls.target);
+    if(fTw) fTw.stop(); if(cTw) cTw.stop();
+    fTw=new TWEEN.Tween(controls.target).to({x:tp.x,y:tp.y,z:tp.z},420).easing(TWEEN.Easing.Quadratic.Out).start();
+    cTw=new TWEEN.Tween(camera.position).to({x:tp.x+off.x,y:tp.y+off.y,z:tp.z+off.z},420).easing(TWEEN.Easing.Quadratic.Out).start();
+}
+
+function compactGrid(trackSlot) {
+    const entries=[];
+    for (let s=0;s<gridSlots.length;s++) {
+        const g=gridSlots[s]; if(!g||g==='reserved'||g==='locked') continue;
+        if(g.key==='__box__'){const inst=boxInstances[g.idx];if(!inst)continue;entries.push({key:'__box__',inst,oldSlot:s});}
+        else{const p=pools[g.key];if(!p)continue;const item=p.list[g.idx];if(!item)continue;entries.push({key:g.key,item,oldSlot:s});}
+    }
+    for (let i=0;i<gridSlots.length;i++) gridSlots[i]=i>=unlockedSlots?'locked':null;
+    for (const k of Object.keys(pools)) pools[k].list=[];
+    const newBoxList=[];
+    entries.forEach(({key:k,item,inst,oldSlot},newSlot)=>{
+        if(k==='__box__'){
+            inst.slot=newSlot; gridSlots[newSlot]={key:'__box__',idx:newBoxList.length}; newBoxList.push(inst);
+            if(newSlot!==oldSlot){
+                const {x,z}=gridPos(newSlot),delay=newSlot*28,baseY=inst.model.position.y;
+                new TWEEN.Tween(inst.model.position).to({x,z},380).delay(delay).easing(TWEEN.Easing.Back.Out).start();
+                new TWEEN.Tween(inst.model.position).to({y:baseY-0.08},160).delay(delay).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(inst.model.position).to({y:baseY},220).easing(TWEEN.Easing.Quadratic.InOut)).start();
+                new TWEEN.Tween(inst.model.scale).to({x:1.15,y:0.82,z:1.15},140).delay(delay).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(inst.model.scale).to({x:1,y:1,z:1},320).easing(TWEEN.Easing.Elastic.Out)).start();
+            } return;
+        }
+        const p=pools[k],newIdx=p.list.length; p.list.push(item); item.slot=newSlot; gridSlots[newSlot]={key:k,idx:newIdx};
+        if(newSlot!==oldSlot){
+            const {x,z}=gridPos(newSlot),delay=newSlot*28,baseY=item.model.position.y,model=item.model;
+            new TWEEN.Tween(model.position).to({x,z},380).delay(delay).easing(TWEEN.Easing.Back.Out).start();
+            new TWEEN.Tween(model.position).to({y:baseY-0.08},160).delay(delay).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(model.position).to({y:baseY},220).easing(TWEEN.Easing.Quadratic.InOut)).start();
+            new TWEEN.Tween(model.scale).to({x:1.15,y:0.82,z:1.15},140).delay(delay).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(model.scale).to({x:1.0,y:1.0,z:1.0},320).easing(TWEEN.Easing.Elastic.Out)).start();
+        }
+    });
+    for (const bee of beeInstances){const p=pools[bee.fruitKey];if(!p)continue;const newIdx=p.list.findIndex(it=>it===bee._fruitItem);if(newIdx!==-1)bee.fruitIdx=newIdx;}
+    boxInstances.length=0; for(const b of newBoxList) boxInstances.push(b);
+    if(trackSlot!==undefined&&trackSlot>0){const g=gridSlots[trackSlot-1];if(g&&g!=='reserved'){const p=pools[g.key];const item=p?.list[g.idx];if(item)setTimeout(()=>moveCameraTo(item.model),80);}}
+}
+
+const beeInstances=[];
+function removeBeeInstance(b,doSave=true){const i=beeInstances.indexOf(b);if(i===-1)return;clearInterval(b.intervalId);scene.remove(b.model);beeInstances.splice(i,1);if(doSave){updateAllUI();writeSave();}}
+
+function spawnBeeOnFruit(bDef,fruitKey,fruitInstIdx,restore,startAngle=0){
+    loader.load(bDef.file,gltf=>{
+        const model=gltf.scene;fixMesh(model);scene.add(model);const s=bDef.beeScale;model.scale.setScalar(restore?s:0);
+        if(!restore)new TWEEN.Tween(model.scale).to({x:s,y:s,z:s},700).easing(TWEEN.Easing.Elastic.Out).start();
+        const _fruitItem=pools[fruitKey]?.list[fruitInstIdx]||null;
+        const bee={bDef,fruitKey,fruitIdx:fruitInstIdx,model,angle:startAngle,_fruitItem};
+        const fd=FRUIT_DEFS.find(f=>f.key===fruitKey),perSec=fd?Math.floor(fd.clickVal/bDef.divisor):0;
+        bee.intervalId=setInterval(()=>{if(!isResetting&&perSec>0){score+=perSec;scoreEl.innerText=score;writeSave();createPopup(perSec,bDef.color);checkBeeUnlocks();}},1000);
+        beeInstances.push(bee);updateAllUI();writeSave();
+    },undefined,err=>console.error('벌 GLB 실패:',bDef.file,err));
+}
+
+function getBestFruitSlot(){
+    const sorted=[...FRUIT_DEFS].sort((a,b)=>b.clickVal-a.clickVal);
+    for(const fd of sorted){const pool=pools[fd.key];if(!pool)continue;for(let i=0;i<pool.list.length;i++){if(!beeInstances.some(b=>b.fruitKey===fd.key&&b.fruitIdx===i))return{fruitKey:fd.key,fruitIdx:i};}}
+    return null;
+}
+function hasFreeFruitForBee(){return getBestFruitSlot()!==null;}
+
+function initGame(){
+    const toLoad=[];
+    for(const fd of FRUIT_DEFS){const n=save['f_'+fd.key]||0;for(let j=0;j<n;j++)toLoad.push(fd);}
+    if(toLoad.length===0){finishInit();return;}
+    let i=0;
+    function loadNext(){if(i>=toLoad.length){restoreBees();return;}addFruit(toLoad[i++],false,loadNext);}
+    loadNext();
+}
+
+function restoreBoxes(){
+    const saved=save.boxSlots||[];let i=0;
+    function next(){if(i>=saved.length)return;const slotIdx=saved[i++];if(gridSlots[slotIdx]===null)spawnBox(slotIdx,false,next);else next();}
+    next();
+}
+
+function restoreBees(){
+    const savedBees=save.bees||[];
+    restoreBoxes();
+    for(const{bk,fk,fi}of savedBees){const bDef=BEE_DEFS.find(b=>b.key===bk);const pool=pools[fk];if(bDef&&pool&&fi<pool.list.length)spawnBeeOnFruit(bDef,fk,fi,true,Math.random()*Math.PI*2);}
+    finishInit();
+}
+
+function finishInit(){
+    buildSlotShopUI();buildFruitShopUI();buildBeeShopUI();buildBoxShopUI();
+    const ov=document.getElementById('loading-overlay');
+    if(ov){ov.classList.add('fade');setTimeout(()=>ov.remove(),600);}
+    if(!save.hint){setTimeout(()=>{document.getElementById('hold-hint').classList.add('visible');setTimeout(()=>document.getElementById('hold-hint').classList.remove('visible'),3500);},2500);}
+}
+function checkBeeUnlocks(){updateAllUI();}
+
+initGame();
+
+// 15초 안전망
+setTimeout(()=>{const ov=document.getElementById('loading-overlay');if(ov){ov.classList.add('fade');setTimeout(()=>ov.remove(),600);}buildSlotShopUI();buildFruitShopUI();buildBeeShopUI();buildBoxShopUI();},15000);
+
+const popupArea=document.getElementById('popup-area');
+function createPopup(val,color){const d=document.createElement('div');d.className='click-popup';d.innerText=`+${val.toLocaleString()}`;d.style.color=color;d.style.left=`calc(50% + ${(Math.random()-.5)*160}px)`;popupArea.appendChild(d);setTimeout(()=>d.remove(),600);}
+
+let toastTmr;
+function showSellToast(msg){const t=document.getElementById('sell-toast');t.innerText=msg;t.className='show';clearTimeout(toastTmr);toastTmr=setTimeout(()=>{t.className='hide';setTimeout(()=>{t.className='';},380);},1800);}
+
+function showUnlockImg(src){const img=document.createElement('img');img.src=src;img.className='unlock-img';document.body.appendChild(img);setTimeout(()=>img.parentNode&&img.remove(),2000);}
+
+function spawnParticles(emoji,btnEl){if(!btnEl)return;const r=btnEl.getBoundingClientRect();for(let i=0;i<7;i++){const p=document.createElement('div');p.className='buy-particle';p.innerText=emoji;p.style.cssText=`left:${r.left+r.width/2}px;top:${r.top+r.height/2}px`;const ang=(i/7)*Math.PI*2,d=70+Math.random()*60;p.style.setProperty('--dx',Math.cos(ang)*d+'px');p.style.setProperty('--dy',Math.sin(ang)*d+'px');p.style.animationDelay=Math.random()*.08+'s';document.body.appendChild(p);setTimeout(()=>p.remove(),850);}}
+
+function buildSlotShopUI(){
+    const grid=document.getElementById('slot-shop-grid');if(!grid)return;grid.innerHTML='';
+    const nextIdx=nextLockedSlot();
+    if(nextIdx===-1){const div=document.createElement('div');div.className='slot-buy-row';div.innerHTML=`<div class="slot-buy-emoji">✅</div><div class="slot-buy-info"><div class="slot-buy-name">슬롯 최대 확장 완료!</div><div class="slot-buy-meta"><span class="slot-buy-count">25 / 25칸</span></div></div>`;grid.appendChild(div);return;}
+    const price=slotPrice(nextIdx+1);
+    const row=document.createElement('div');row.className='slot-buy-row';row.id='slot-buy-row';
+    row.innerHTML=`<div class="slot-buy-emoji">📦</div><div class="slot-buy-info"><div class="slot-buy-name">슬롯 확장</div><div class="slot-buy-meta"><span class="slot-buy-price">💰 ${price.toLocaleString()}점</span><span class="slot-buy-count" id="slot-count-display">${unlockedSlots} / ${MAX_SLOTS}칸</span></div></div><button class="slot-buy-btn" id="slot-buy-btn" onclick="window.__buySlot()">확장</button>`;
+    grid.appendChild(row);updateSlotShopUI();
+}
+function updateSlotShopUI(){
+    const nextIdx=nextLockedSlot(),countEl=document.getElementById('slot-count-display'),btnEl=document.getElementById('slot-buy-btn');
+    if(countEl)countEl.innerText=`${unlockedSlots} / ${MAX_SLOTS}칸`;
+    if(!btnEl)return;if(nextIdx===-1){buildSlotShopUI();return;}
+    const price=slotPrice(nextIdx+1);btnEl.disabled=score<price;btnEl.innerText=score<price?'잔액부족':'확장';
+}
+window.__buySlot=function(){
+    const nextIdx=nextLockedSlot();if(nextIdx===-1)return;const price=slotPrice(nextIdx+1);if(score<price)return;
+    score-=price;scoreEl.innerText=score;gridSlots[nextIdx]=null;unlockedSlots++;writeSave();buildSlotShopUI();updateAllUI();spawnParticles('📦',document.getElementById('slot-buy-btn'));
+};
+
+function buildFruitShopUI(){
+    const grid=document.getElementById('fruit-shop-grid');grid.innerHTML='';
+    for(const fd of FRUIT_DEFS){
+        const isFree=fd.buyPrice===0,card=document.createElement('div');card.className='shop-item';card.id=`fsi-${fd.key}`;
+        card.innerHTML=`<div class="shop-item-emoji">${fd.icon?`<img src="${fd.icon}" alt="${fd.name}">`:`<span style="font-size:72px;line-height:140px;display:block;text-align:center;">${fd.emoji}</span>`}</div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${fd.name}</div><div class="shop-item-clickval">클릭 +${fd.clickVal}</div></div><button class="shop-buy-btn${isFree?' free':''}" id="fsb-${fd.key}" onclick="window.__buyFruit('${fd.key}')">${isFree?'무료 획득':fd.buyPrice.toLocaleString()}</button>`;
+        grid.appendChild(card);
+    }
+    updateAllUI();
+}
+function updateFruitShopUI(){
+    document.getElementById('fruit-shop-score').innerText=`${score.toLocaleString()}점`;
+    const full=gridSlots.every(s=>s!==null);
+    for(const fd of FRUIT_DEFS){
+        const bEl=document.getElementById(`fsb-${fd.key}`),rEl=document.getElementById(`fsi-${fd.key}`);if(!bEl||!rEl)continue;
+        const isFree=fd.buyPrice===0,label=isFree?'무료 획득':fd.buyPrice.toLocaleString();
+        if(full){bEl.disabled=true;bEl.innerText='꽉참';bEl.className='shop-buy-btn';}
+        else if(score<fd.buyPrice){bEl.disabled=true;bEl.innerText=label;bEl.className='shop-buy-btn';}
+        else{bEl.disabled=false;bEl.innerText=label;bEl.className=`shop-buy-btn${isFree?' free':''}`;}
+    }
+}
+window.__buyFruit=function(key){
+    const fd=FRUIT_DEFS.find(d=>d.key===key);if(!fd||score<fd.buyPrice||nextFreeSlot()===-1)return;
+    score-=fd.buyPrice;scoreEl.innerText=score;writeSave();updateAllUI();
+    addFruit(fd,true,()=>{updateAllUI();spawnParticles(fd.emoji,document.getElementById(`fsb-${key}`));});
+};
+
+function buildBeeShopUI(){
+    const grid=document.getElementById('bee-shop-grid');grid.innerHTML='';
+    for(const bd of BEE_DEFS){
+        const card=document.createElement('div');card.className='shop-item';card.id=`bsi-${bd.key}`;
+        card.innerHTML=`<div class="shop-item-emoji">${bd.icon?`<img src="${bd.icon}" alt="${bd.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span style="font-size:72px;line-height:190px;display:none;text-align:center;width:100%">${bd.emoji}</span>`:`<span style="font-size:72px;line-height:190px;display:block;text-align:center;">${bd.emoji}</span>`}</div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${bd.name}</div><div class="shop-item-clickval">초당 ÷${bd.divisor}</div></div><button class="shop-buy-btn bee-btn" id="bsb-${bd.key}" onclick="window.__buyBee('${bd.key}')">${bd.buyPrice.toLocaleString()}</button>`;
+        grid.appendChild(card);
+    }
+    updateAllUI();
+}
+function updateBeeShopUI(){
+    document.getElementById('bee-shop-score').innerText=`${score.toLocaleString()}점`;
+    const hasFruit=Object.values(pools).some(p=>p.list.length>0);
+    for(const bd of BEE_DEFS){
+        const bEl=document.getElementById(`bsb-${bd.key}`),rEl=document.getElementById(`bsi-${bd.key}`);if(!bEl||!rEl)continue;
+        const priceLabel=bd.buyPrice.toLocaleString();
+        if(!hasFruit){bEl.disabled=true;bEl.innerText='과일 없음';bEl.className='shop-buy-btn';}
+        else if(!hasFreeFruitForBee()){bEl.disabled=true;bEl.innerText='슬롯 꽉참';bEl.className='shop-buy-btn';}
+        else if(score<bd.buyPrice){bEl.disabled=true;bEl.innerText=priceLabel;bEl.className='shop-buy-btn';}
+        else{bEl.disabled=false;bEl.innerText=priceLabel;bEl.className='shop-buy-btn bee-btn';}
+    }
+}
+window.__buyBee=function(key){
+    const bd=BEE_DEFS.find(b=>b.key===key);if(!bd||score<bd.buyPrice)return;
+    const slot=getBestFruitSlot();if(!slot)return;
+    score-=bd.buyPrice;scoreEl.innerText=score;writeSave();updateAllUI();
+    spawnBeeOnFruit(bd,slot.fruitKey,slot.fruitIdx,false,0);spawnParticles(bd.emoji,document.getElementById(`bsb-${key}`));
+};
+
+const BOX_PRICE=1500;
+const BOX_REWARDS=[{key:'orange',weight:45},{key:'blueberry',weight:30},{key:'avocado',weight:18},{key:'cherry',weight:7}];
+const boxInstances=[];
+
+function rollBoxReward(){let rand=Math.random()*100;for(const r of BOX_REWARDS){rand-=r.weight;if(rand<=0)return FRUIT_DEFS.find(f=>f.key===r.key);}return FRUIT_DEFS.find(f=>f.key==='orange');}
+
+function spawnBox(slotIdx,animate,cb){
+    loader.load('./RandomBox.glb',gltf=>{
+        const model=gltf.scene;fixMesh(model);
+        const box3=new THREE.Box3().setFromObject(model);const{x,z}=gridPos(slotIdx);
+        model.position.set(x,floorY-box3.min.y,z);model.scale.setScalar(animate?0:1.0);scene.add(model);
+        if(animate)new TWEEN.Tween(model.scale).to({x:1.0,y:1.0,z:1.0},600).easing(TWEEN.Easing.Elastic.Out).start();
+        const inst={model,slot:slotIdx,clicks:0};boxInstances.push(inst);gridSlots[slotIdx]={key:'__box__',idx:boxInstances.length-1};
+        updateBoxShopUI();writeSave();if(cb)cb();
+    },undefined,err=>console.error('BoxGLB 실패',err));
+}
+
+function clickBox(inst){
+    inst.clicks++;moveCameraTo(inst.model);
+    const s=1.0;
+    new TWEEN.Tween(inst.model.scale).to({x:1.25,y:0.72,z:1.25},80).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(inst.model.scale).to({x:0.88,y:1.18,z:0.88},100).easing(TWEEN.Easing.Quadratic.InOut).chain(new TWEEN.Tween(inst.model.scale).to({x:s,y:s,z:s},260).easing(TWEEN.Easing.Elastic.Out))).start();
+    createPopup(inst.clicks+'/5','#ff6b8a');
+    if(inst.clicks>=5&&!inst._opening){inst._opening=true;setTimeout(()=>openBox(inst),350);}
+}
+
+function openBox(inst){
+    const slotIdx=inst.slot;moveCameraTo(inst.model);const rewardDef=rollBoxReward();
+    const bi=boxInstances.indexOf(inst);if(bi!==-1)boxInstances.splice(bi,1);
+    gridSlots[slotIdx]=null;boxInstances.forEach((b,i)=>{gridSlots[b.slot]={key:'__box__',idx:i};});
+    new TWEEN.Tween(inst.model.scale).to({x:1.5,y:1.5,z:1.5},120).easing(TWEEN.Easing.Quadratic.Out).chain(
+        new TWEEN.Tween(inst.model.scale).to({x:0,y:0,z:0},200).easing(TWEEN.Easing.Quadratic.In).onComplete(()=>{
+            scene.remove(inst.model);gridSlots[slotIdx]='reserved';
+            if(!pools[rewardDef.key])pools[rewardDef.key]={list:[]};
+            place(rewardDef,slotIdx,true,(newInstIdx)=>{
+                const p=pools[rewardDef.key];if(p&&newInstIdx!=null&&p.list[newInstIdx])p.list[newInstIdx]._fromBox=true;
+                createPopup('✨ '+rewardDef.name+'!',rewardDef.color);showSellToast('🎁 '+rewardDef.name+' 획득!');updateAllUI();writeSave();
+            });
+        })
+    ).start();
+}
+
+function buildBoxShopUI(){
+    const grid=document.getElementById('box-shop-grid');if(!grid)return;grid.innerHTML='';
+    const card=document.createElement('div');card.className='shop-item';card.id='box-shop-item';card.style.position='relative';
+    card.innerHTML=`
+        <button onclick="window.__toggleBoxInfo(event)" style="position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;background:#bbb;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.12);">i</button>
+        <div id="box-info-popup" style="display:none;position:absolute;top:38px;right:8px;background:var(--white);border:2px solid var(--border);border-radius:14px;padding:12px 16px;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:180px;">
+            <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;">📦 뽑기 확률</div>
+            <div style="font-size:12px;color:#666;line-height:1.9;">오렌지 <span style="float:right;font-weight:700;color:var(--text);">45%</span><br>블루베리 <span style="float:right;font-weight:700;color:var(--text);">30%</span><br>아보카도 <span style="float:right;font-weight:700;color:var(--text);">18%</span><br>체리 <span style="float:right;font-weight:700;color:var(--text);">7%</span></div>
+        </div>
+        <div class="shop-item-emoji"><img src="./RandomBox.png" alt="과일박스" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div>
+        <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">과일박스</div><div class="shop-item-clickval">오렌지~체리 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">⚠️ 판매 시 0점</div></div>
+        <button class="shop-buy-btn" id="box-buy-btn" style="background:linear-gradient(135deg,#ff6b8a,#ff4757);box-shadow:0 3px 12px rgba(255,71,87,.35);width:100%;" onclick="window.__buyBox()">${BOX_PRICE.toLocaleString()}</button>`;
+    grid.appendChild(card);
+    const empty=document.createElement('div');empty.className='shop-item';empty.style.cssText='opacity:.35;pointer-events:none;justify-content:center;align-items:center;min-height:200px;';empty.innerHTML=`<div style="font-size:40px;color:#ccc;">＋</div><div style="color:#ccc;font-size:13px;margin-top:8px;">준비 중</div>`;
+    grid.appendChild(empty);updateBoxShopUI();
+}
+function updateBoxShopUI(){
+    const disp=document.getElementById('box-shop-score');if(disp)disp.innerText=`${score.toLocaleString()}점`;
+    const btn=document.getElementById('box-buy-btn');if(!btn)return;
+    const full=nextFreeSlot()===-1;
+    if(full){btn.disabled=true;btn.innerText='슬롯 꽉참';btn.style.background='';btn.style.boxShadow='';}
+    else if(score<BOX_PRICE){btn.disabled=true;btn.innerText=BOX_PRICE.toLocaleString();btn.style.background='';btn.style.boxShadow='';}
+    else{btn.disabled=false;btn.innerText=BOX_PRICE.toLocaleString();btn.style.background='linear-gradient(135deg,#ff6b8a,#ff4757)';btn.style.boxShadow='0 3px 12px rgba(255,71,87,.35)';}
+}
+window.__toggleBoxInfo=function(e){
+    e.stopPropagation();const popup=document.getElementById('box-info-popup');if(!popup)return;
+    popup.style.display=popup.style.display==='none'?'block':'none';
+    if(popup.style.display==='block'){const close=(ev)=>{if(!popup.contains(ev.target)){popup.style.display='none';document.removeEventListener('pointerdown',close);}};setTimeout(()=>document.addEventListener('pointerdown',close),10);}
+};
+window.__buyBox=function(){
+    if(score<BOX_PRICE||nextFreeSlot()===-1)return;const slot=nextFreeSlot();if(slot===-1)return;
+    gridSlots[slot]='reserved';score-=BOX_PRICE;scoreEl.innerText=score;writeSave();updateAllUI();spawnBox(slot,true,null);closeShop('box-shop-overlay');
+};
+
+function updateAllUI(){scoreEl.innerText=score;updateSlotShopUI();updateFruitShopUI();updateBeeShopUI();updateBoxShopUI();}
+
+function openShop(id){
+    const ov=document.getElementById(id);ov.classList.add('open');requestAnimationFrame(()=>requestAnimationFrame(()=>ov.classList.add('visible')));updateAllUI();
+    const body=ov.querySelector('.shop-body'),header=ov.querySelector('.shop-header');
+    if(body&&header){body._scrollHandler&&body.removeEventListener('scroll',body._scrollHandler);body._scrollHandler=()=>{header.classList.toggle('scrolled',body.scrollTop>4);};body.addEventListener('scroll',body._scrollHandler,{passive:true});header.classList.remove('scrolled');body.scrollTop=0;}
+}
+function closeShop(id){const ov=document.getElementById(id);ov.classList.remove('visible');setTimeout(()=>ov.classList.remove('open'),260);}
+
+document.getElementById('fruit-shop-btn').addEventListener('click',()=>openShop('fruit-shop-overlay'));
+document.getElementById('fruit-shop-close').addEventListener('click',()=>closeShop('fruit-shop-overlay'));
+document.getElementById('fruit-shop-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('fruit-shop-overlay'))closeShop('fruit-shop-overlay');});
+document.getElementById('box-shop-btn').addEventListener('click',()=>openShop('box-shop-overlay'));
+document.getElementById('box-shop-close').addEventListener('click',()=>closeShop('box-shop-overlay'));
+document.getElementById('box-shop-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('box-shop-overlay'))closeShop('box-shop-overlay');});
+document.getElementById('bee-shop-btn').addEventListener('click',()=>openShop('bee-shop-overlay'));
+document.getElementById('bee-shop-close').addEventListener('click',()=>closeShop('bee-shop-overlay'));
+document.getElementById('bee-shop-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('bee-shop-overlay'))closeShop('bee-shop-overlay');});
+document.getElementById('reset-btn').addEventListener('click',()=>{if(confirm('모든 데이터를 초기화할까요?')){isResetting=true;localStorage.clear();location.reload();}});
+
+const anyShopOpen=()=>
+    document.getElementById('fruit-shop-overlay').classList.contains('open')||
+    document.getElementById('bee-shop-overlay').classList.contains('open')||
+    document.getElementById('box-shop-overlay').classList.contains('open');
+
+const HOLD_MS=800,CIRC=175.9;
+const holdRing=document.getElementById('hold-ring'),holdProg=document.getElementById('hold-prog');
+let hold=null,holdRAF=null;
+function startHold(key,idx,cx,cy){cancelHold();hold={key,idx,t0:performance.now(),cx,cy};holdRing.style.cssText=`display:block;left:${cx}px;top:${cy}px`;holdProg.style.strokeDashoffset=CIRC;tickHold();}
+function tickHold(){if(!hold)return;const p=Math.min((performance.now()-hold.t0)/HOLD_MS,1);holdProg.style.strokeDashoffset=CIRC*(1-p);if(p>=1){doSell(hold.key,hold.idx);cancelHold();return;}holdRAF=requestAnimationFrame(tickHold);}
+function cancelHold(){if(holdRAF){cancelAnimationFrame(holdRAF);holdRAF=null;}hold=null;holdRing.style.display='none';holdProg.style.strokeDashoffset=CIRC;}
+function doSell(key,idx){
+    const fd=FRUIT_DEFS.find(d=>d.key===key);if(!fd)return;
+    const item=pools[key]?.list[idx];const fruitGain=getSellVal(fd,item);
+    const beeGain=beeInstances.filter(b=>b.fruitKey===key&&b.fruitIdx===idx).reduce((s,b)=>s+b.bDef.buyPrice,0);
+    const total=fruitGain+beeGain;
+    if(removeFruitAt(key,idx,true)){
+        score+=fruitGain;scoreEl.innerText=score;writeSave();
+        showSellToast(fruitGain===0?`💰 ${fd.name} 판매! +${total.toLocaleString()}점 (과일 0점)`:`💰 ${fd.name} 판매! +${total.toLocaleString()}점`);
+        createPopup(total>0?total:'0',fd.color);updateAllUI();
+    }
+}
+
+const ray=new THREE.Raycaster(),mp=new THREE.Vector2();
+let fTw,cTw;
+function findFruitByMesh(obj){
+    for(let i=0;i<boxInstances.length;i++){let cur=obj;while(cur){if(cur===boxInstances[i].model)return{isBox:true,boxInst:boxInstances[i]};cur=cur.parent;}}
+    for(const fd of FRUIT_DEFS){const pool=pools[fd.key];if(!pool)continue;for(let i=0;i<pool.list.length;i++){let cur=obj;while(cur){if(cur===pool.list[i].model)return{fd,idx:i};cur=cur.parent;}}}
+    return null;
+}
+function hitFruit(cx,cy){mp.x=(cx/window.innerWidth)*2-1;mp.y=-(cy/window.innerHeight)*2+1;ray.setFromCamera(mp,camera);for(const h of ray.intersectObjects(scene.children,true)){const r=findFruitByMesh(h.object);if(r)return r;}return null;}
+
+renderer.domElement.addEventListener('pointerdown',e=>{
+    if(!e.isPrimary||anyShopOpen())return;const hit=hitFruit(e.clientX,e.clientY);
+    if(hit){if(hit.isBox){clickBox(hit.boxInst);controls.enabled=false;}else{startHold(hit.fd.key,hit.idx,e.clientX,e.clientY);controls.enabled=false;}}
+});
+renderer.domElement.addEventListener('pointerup',e=>{
+    controls.enabled=true;if(!e.isPrimary||!hold)return;
+    const elapsed=performance.now()-hold.t0;const{key,idx}=hold;cancelHold();
+    if(elapsed<HOLD_MS){
+        const fd=FRUIT_DEFS.find(d=>d.key===key);const pool=pools[key];if(!fd||!pool||idx>=pool.list.length)return;
+        const model=pool.list[idx].model;const s=fd.ms;
+        new TWEEN.Tween(model.scale).to({x:s*1.3,y:s*.7,z:s*1.3},75).chain(new TWEEN.Tween(model.scale).to({x:s,y:s,z:s},380).easing(TWEEN.Easing.Elastic.Out)).start();
+        moveCameraTo(model);score+=fd.clickVal;scoreEl.innerText=score;writeSave();createPopup(fd.clickVal,fd.color);updateAllUI();resetIdle(key,idx);
+    }
+});
+renderer.domElement.addEventListener('pointermove',e=>{if(!hold)return;if((e.clientX-hold.cx)**2+(e.clientY-hold.cy)**2>18**2){cancelHold();controls.enabled=true;}});
+renderer.domElement.addEventListener('pointercancel',()=>{cancelHold();controls.enabled=true;});
+
+function initBeeRandom(bee){bee._rMult=0.82+Math.random()*0.36;bee._sMult=0.75+Math.random()*0.5;bee._hPhase=Math.random()*Math.PI*2;bee._hAmp=0.08+Math.random()*0.18;bee._tilt=0.65+Math.random()*0.7;bee._wPhase=Math.random()*Math.PI*2;bee._wAmp=0.03+Math.random()*0.05;scheduleBeeSquish(bee);}
+function scheduleBeeSquish(bee){const delay=5000+Math.random()*7000;bee._squishTimer=setTimeout(()=>{if(!bee.model)return;const s=bee.bDef.beeScale;new TWEEN.Tween(bee.model.scale).to({x:s*1.06,y:s*0.91,z:s*1.06},100).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(bee.model.scale).to({x:s*0.96,y:s*1.05,z:s*0.96},120).easing(TWEEN.Easing.Quadratic.InOut).chain(new TWEEN.Tween(bee.model.scale).to({x:s,y:s,z:s},200).easing(TWEEN.Easing.Elastic.Out))).start();scheduleBeeSquish(bee);},delay);}
+const _origPush=beeInstances.push.bind(beeInstances);beeInstances.push=function(...args){for(const b of args)initBeeRandom(b);return _origPush(...args);};
+
+const idleState={},IDLE_MIN=4000,IDLE_MAX=9000;
+function getFruitIdleKey(key,idx){return key+'_'+idx;}
+function scheduleIdle(key,idx){const k=getFruitIdleKey(key,idx);if(!idleState[k])idleState[k]={playing:false};idleState[k].nextIdleT=performance.now()+IDLE_MIN+Math.random()*(IDLE_MAX-IDLE_MIN);}
+function resetIdle(key,idx){const k=getFruitIdleKey(key,idx);if(idleState[k])idleState[k].nextIdleT=performance.now()+IDLE_MIN+Math.random()*(IDLE_MAX-IDLE_MIN);}
+function playIdleAnim(model,scale){if(!model)return;const s=scale||1;const seq=[{scale:{x:s*0.92,y:s*1.08,z:s*0.92},dur:120},{scale:{x:s*1.08,y:s*0.93,z:s*1.08},dur:140},{scale:{x:s*0.95,y:s*1.05,z:s*0.95},dur:110},{scale:{x:s,y:s,z:s},dur:180}];let tw=new TWEEN.Tween(model.scale).to(seq[0].scale,seq[0].dur).easing(TWEEN.Easing.Quadratic.InOut);let cur=tw;for(let i=1;i<seq.length;i++){const next=new TWEEN.Tween(model.scale).to(seq[i].scale,seq[i].dur).easing(TWEEN.Easing.Quadratic.InOut);cur.chain(next);cur=next;}tw.start();}
+
+let lastT=0;
+function animate(t){
+    requestAnimationFrame(animate);TWEEN.update(t);const dt=Math.min(t-lastT,50);lastT=t;
+    for(const bee of beeInstances){
+        const pool=pools[bee.fruitKey];if(!pool||bee.fruitIdx>=pool.list.length)continue;
+        const center=pool.list[bee.fruitIdx].model.position;if(!bee._rMult)initBeeRandom(bee);
+        const speed=bee.bDef.orbitSpeed*bee._sMult;bee.angle+=speed*dt;
+        const r=bee.bDef.orbitR*bee._rMult;
+        bee.model.position.set(center.x+Math.cos(bee.angle)*r,center.y+Math.sin(t*0.0035+bee._hPhase)*bee._hAmp+Math.sin(t*0.0091+bee._wPhase)*bee._wAmp+1.2,center.z+Math.sin(bee.angle)*r*bee._tilt);
+        bee.model.rotation.y=-bee.angle;bee.model.rotation.z=Math.sin(bee.angle)*0.12;
+    }
+    const now=t;
+    for(const fd of FRUIT_DEFS){const pool=pools[fd.key];if(!pool)continue;for(let i=0;i<pool.list.length;i++){const k=getFruitIdleKey(fd.key,i);if(!idleState[k]){scheduleIdle(fd.key,i);continue;}const st=idleState[k];if(!st.playing&&now>=st.nextIdleT){st.playing=true;playIdleAnim(pool.list[i].model,fd.ms);setTimeout(()=>{st.playing=false;scheduleIdle(fd.key,i);},600);}}}
+    controls.update();renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener('resize',()=>{const nA=window.innerWidth/window.innerHeight;camera.left=-FRUS*nA/2;camera.right=FRUS*nA/2;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight);});
+document.addEventListener('contextmenu',e=>e.preventDefault());
+document.addEventListener('selectstart',e=>e.preventDefault());
+document.addEventListener('touchstart',e=>{if(e.touches.length>1)e.preventDefault();},{passive:false});
+</script>
+</body>
+</html>
