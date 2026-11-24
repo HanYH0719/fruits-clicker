@@ -1006,6 +1006,11 @@ function place(def, slotIdx, animate, cb) {
             ? gltf.scene.clone()
             : gltf.scene;
         fixMesh(model);
+        if (def.key === 'watermelon') {
+            model.traverse(mesh => {
+                if (mesh.isMesh) getWatermelonGeometryTemplate(mesh.geometry);
+            });
+        }
         const box = new THREE.Box3().setFromObject(model);
         if (floorY===null) { floorY=box.min.y; floorMesh.position.y=floorY; }
         const {x,z} = gridPos(slotIdx);
@@ -2128,13 +2133,16 @@ if (tossPlatform) {
     if (!SAVE_KEY) showSellToast('사용자 정보를 확인하지 못해 이번 플레이는 저장되지 않아요.');
 }
 
-const WATERMELON_PRESS_MS = 230;
-const WATERMELON_RELEASE_DELAY_MS = 45;
-const WATERMELON_RECOVERY_MS = 850;
+const WATERMELON_PRESS_MS = 78;
+const WATERMELON_RECOVERY_MS = 460;
+const watermelonGeometryTemplates = new WeakMap();
 const watermelonSurfaces = new WeakMap();
 const activeWatermelonSurfaces = new Set();
 
-function makeWatermelonGeometry(source) {
+function getWatermelonGeometryTemplate(source) {
+    const template = watermelonGeometryTemplates.get(source);
+    if (template) return template;
+
     // The optimized model has a few long edges across flat faces.
     // Split them in place so the surface can bend at a point between its original vertices.
     const geometry = source.clone();
@@ -2189,6 +2197,7 @@ function makeWatermelonGeometry(source) {
         }
         geometry.setIndex(triangles);
     }
+    watermelonGeometryTemplates.set(source, geometry);
     return geometry;
 }
 
@@ -2209,7 +2218,7 @@ function pressWatermelon(model, hit) {
         model.traverse(mesh => {
             if (!mesh.isMesh) return;
             const source = mesh.geometry;
-            const geometry = makeWatermelonGeometry(source);
+            const geometry = getWatermelonGeometryTemplate(source).clone();
             const position = geometry.getAttribute('position').setUsage(THREE.DynamicDrawUsage);
             geometry.boundingBox?.expandByScalar(0.20);
             if (!geometry.boundingSphere) geometry.computeBoundingSphere();
@@ -2232,7 +2241,7 @@ function pressWatermelon(model, hit) {
             if (radius >= 1) continue;
 
             // Let the depression taper smoothly over a broad patch.
-            const depression = 0.20 * (1 - radius * radius * (3 - 2 * radius));
+            const depression = 0.155 * (1 - radius * radius * (3 - 2 * radius));
             offset.copy(normal).multiplyScalar(-depression).applyMatrix3(toMeshDirection);
             offsets.push(i * 3, offset.x, offset.y, offset.z);
         }
@@ -2244,6 +2253,7 @@ function pressWatermelon(model, hit) {
 
     const dent = { pressedAt: performance.now(), releasedAt: null, strength: 0, applied: 0, patches };
     surface.dents.add(dent);
+    surface.latestPress = dent;
     activeWatermelonSurfaces.add(surface);
     return dent;
 }
@@ -2258,7 +2268,7 @@ function updateWatermelonDents(time) {
                 dent.strength = 1 - (1 - progress) ** 2;
             } else {
                 const progress = Math.min(age / WATERMELON_RECOVERY_MS, 1);
-                dent.strength = 1 - progress * progress * (3 - 2 * progress);
+                dent.strength = (1 - progress) ** 2.5;
             }
             compression += dent.strength;
         }
@@ -2285,11 +2295,19 @@ function updateWatermelonDents(time) {
                 surface.dents.delete(dent);
             }
         }
-        const squash = Math.min(1, compression);
-        const width = 1 + 0.055 * squash;
-        surface.cushion.scale.set(width, 1 - 0.10 * squash, width);
-        surface.cushion.position.y = -0.05 * squash;
+        // Restart the whole-fruit squash on every tap, even while an older dent is recovering.
+        const press = surface.latestPress;
+        const age = press.releasedAt === null ? -1 : time - press.releasedAt;
+        const squash = age < 0
+            ? 0.22 + 0.78 * press.strength
+            : Math.exp(-15 * age / 1000) * (Math.cos(age / 50) + 0.4 * Math.sin(age / 50));
+        const width = 1 + 0.15 * squash;
+        const height = 1 - 0.23 * squash;
+        surface.cushion.scale.set(width, height, width);
+        surface.cushion.position.y = (height - 1) * 0.5;
         if (surface.dents.size === 0) {
+            surface.cushion.scale.setScalar(1);
+            surface.cushion.position.y = 0;
             // Reset exactly to the source positions even after overlapping presses.
             for (const { mesh, source, rest, position } of surface.parts) {
                 position.copyArray(rest.array);
@@ -2331,7 +2349,7 @@ function tickHold(){
 function cancelHold(){
     if(holdRAF){cancelAnimationFrame(holdRAF);holdRAF=null;}
     if (hold?.dent) {
-        const fullPress = hold.dent.pressedAt + WATERMELON_PRESS_MS + WATERMELON_RELEASE_DELAY_MS;
+        const fullPress = hold.dent.pressedAt + WATERMELON_PRESS_MS;
         hold.dent.releasedAt = Math.max(performance.now(), fullPress);
     }
     hold=null;holdRing.style.display='none';holdProg.style.strokeDashoffset=CIRC;
