@@ -678,6 +678,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader }    from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import * as TWEEN        from '@tweenjs/tween.js';
 
@@ -852,7 +853,7 @@ const BEE_DEFS = [
 
 const SAVE_KEY = tossPlatform ? tossPlatform.saveKey : 'fc_v16';
 const SUGAR_COATING_PRICE = 250;
-const SUGAR_PRESS_RESPONSE = { depth: 0.91, radius: 1.16, spread: 0.35, motion: 0.44, rebound: 0.25 };
+const SUGAR_PRESS_RESPONSE = { depth: 1.19, idleDepth: 0.91, radius: 1.16, spread: 0.35, motion: 0.44, rebound: 0.25 };
 const sugarCoatings = new WeakMap();
 let selectingSugarTarget = false;
 let _uiTimer = null;
@@ -2618,13 +2619,14 @@ function locateRestDent(hit, part, center, normal) {
     THREE.Triangle.getNormal(v0, v1, v2, normal).applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(part.toGroup));
 }
 
-function pressFruitDent(model, key, hit, time = performance.now()) {
+function pressFruitDent(model, key, hit, time = performance.now(), contactPress = false) {
     if (!hit?.face) return;
     const profile = FRUIT_DENT_PROFILES[key];
     const { recoveryMs, peakHoldMs = 0 } = profile;
     const coated = sugarCoatings.has(model);
     const radius = profile.radius * (coated ? SUGAR_PRESS_RESPONSE.radius : 1);
-    const depth = profile.depth * (coated ? SUGAR_PRESS_RESPONSE.depth : 1);
+    const depthScale = contactPress ? SUGAR_PRESS_RESPONSE.depth : SUGAR_PRESS_RESPONSE.idleDepth;
+    const depth = profile.depth * (coated ? depthScale : 1);
     const surface = getFruitDentSurface(model, key);
     const center = surface.group.worldToLocal(hit.point.clone());
     const worldNormal = hit.face.normal.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld));
@@ -2784,9 +2786,98 @@ function removeFruitModel(model) {
 }
 
 const sugarSurfaceMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0xfffdf8, opacity: 0.30, transparent: true, depthWrite: false,
-    roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.16, flatShading: true,
+    color: 0xfffdf8, opacity: 0.24, transparent: true, depthWrite: false,
+    roughness: 0.19, ior: 1.49, clearcoat: 1, clearcoatRoughness: 0.078, flatShading: true,
+    envMapIntensity: 0.82,
 });
+
+function makeSugarGrainTexture() {
+    const size = 128;
+    const pixels = new Uint8Array(size * size * 4);
+    let seed = 0x47c762ac;
+    const next = () => {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        return seed / 4294967296;
+    };
+    for (let i = 0; i < 330; i++) {
+        const x = Math.floor(next() * size), y = Math.floor(next() * size);
+        const angle = next() * Math.PI;
+        const cos = Math.cos(angle), sin = Math.sin(angle);
+        const wide = 0.65 + next() * 1.65;
+        const narrow = wide * (0.48 + next() * 0.32);
+        const height = 115 + next() * 140;
+        for (let dz = -3; dz <= 3; dz++) {
+            for (let dx = -3; dx <= 3; dx++) {
+                const distance = Math.abs(dx * cos + dz * sin) / wide + Math.abs(dz * cos - dx * sin) / narrow;
+                if (distance > 1) continue;
+                const index = ((y + dz + size) % size) * size + (x + dx + size) % size;
+                pixels[index * 4] = Math.max(pixels[index * 4], (1 - distance * 0.75) * height);
+            }
+        }
+    }
+    const texture = new THREE.DataTexture(pixels, size, size);
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.generateMipmaps = true;
+    texture.needsUpdate = true;
+    return texture;
+}
+
+function prepareSugarMaterial() {
+    if (sugarSurfaceMaterial.envMap) return;
+    const room = new RoomEnvironment();
+    const reflectionLight = new THREE.Mesh(new THREE.PlaneGeometry(7, 2.8), new THREE.MeshBasicMaterial());
+    reflectionLight.material.color.setScalar(14);
+    reflectionLight.position.set(-6, 14, -10);
+    reflectionLight.lookAt(0, 0, 0);
+    room.add(reflectionLight);
+    const reflections = new THREE.PMREMGenerator(renderer);
+    sugarSurfaceMaterial.envMap = reflections.fromScene(room, 0.035).texture;
+    room.dispose();
+    reflections.dispose();
+
+    const grains = makeSugarGrainTexture();
+    sugarSurfaceMaterial.onBeforeCompile = shader => {
+        shader.uniforms.sugarGrains = { value: grains };
+        shader.vertexShader = `attribute vec3 sugarRestPosition;\nvarying vec3 vSugarPosition;\n${shader.vertexShader}`
+            .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSugarPosition = sugarRestPosition;');
+        shader.fragmentShader = `uniform sampler2D sugarGrains;\nvarying vec3 vSugarPosition;\n${shader.fragmentShader}`
+            .replace('#include <color_fragment>', `#include <color_fragment>
+                // Project the grains on three planes so they follow every side of the fruit.
+                vec3 sugarNormal = abs(normalize(cross(dFdx(vSugarPosition), dFdy(vSugarPosition))));
+                vec3 sugarBlend = pow(sugarNormal, vec3(4.0));
+                sugarBlend /= max(dot(sugarBlend, vec3(1.0)), 0.0001);
+                vec3 sugarSample = vSugarPosition * 1.06;
+                float grain = dot(sugarBlend, vec3(
+                    texture2D(sugarGrains, sugarSample.yz).r,
+                    texture2D(sugarGrains, sugarSample.xz).r,
+                    texture2D(sugarGrains, sugarSample.xy).r));
+                diffuseColor.a = mix(diffuseColor.a, 0.78, smoothstep(0.13, 0.78, grain));
+            `)
+            .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+                roughnessFactor *= mix(0.76, 1.92, smoothstep(0.10, 0.62, grain));
+            `)
+            .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+                vec3 sugarDX = normalize(dFdx(-vViewPosition));
+                vec3 sugarDY = normalize(dFdy(-vViewPosition));
+                vec3 sugarTX = cross(sugarDY, normal);
+                vec3 sugarTY = cross(normal, sugarDX);
+                float sugarDet = dot(sugarDX, sugarTX);
+                vec3 sugarGradient = dFdx(grain) * sugarTX + dFdy(grain) * sugarTY;
+                normal = normalize(max(abs(sugarDet), 0.09) * normal - sign(sugarDet) * 0.18 * sugarGradient);
+            `)
+            .replace('#include <opaque_fragment>', `
+                // Bright highlights are more visible than the translucent syrup between them.
+                vec3 sugarReflection = totalSpecular + clearcoatSpecularDirect + clearcoatSpecularIndirect;
+                float sugarGloss = smoothstep(0.11, 0.78, dot(sugarReflection, vec3(0.2126, 0.7152, 0.0722)));
+                diffuseColor.a = mix(diffuseColor.a, 0.62, sugarGloss);
+                #include <opaque_fragment>
+            `);
+    };
+    sugarSurfaceMaterial.needsUpdate = true;
+}
+
 const sugarChipMaterial = new THREE.MeshStandardMaterial({ color: 0xfff9e9, roughness: 0.32 });
 const sugarChipGeometry = new THREE.OctahedronGeometry(1, 0);
 const sugarBursts = [];
@@ -2898,6 +2989,7 @@ function coatFruitWithSugar(model, key, broken = []) {
     const surface = getFruitDentSurface(model, key);
     const skin = surface.parts.filter(({ source }) => source.attributes.position.count >= 3000);
     if (!skin.length) return false;
+    prepareSugarMaterial();
     disposeSugarCoating(model);
 
     const points = [], cells = [];
@@ -2919,7 +3011,9 @@ function coatFruitWithSugar(model, key, broken = []) {
 
     const geometry = new THREE.BufferGeometry();
     const position = new THREE.Float32BufferAttribute(points, 3).setUsage(THREE.DynamicDrawUsage);
+    const rest = new THREE.Float32BufferAttribute(points, 3);
     geometry.setAttribute('position', position);
+    geometry.setAttribute('sugarRestPosition', rest);
     geometry.setIndex(cells.flatMap(cell => cell.indices));
     geometry.computeBoundingSphere();
     const mesh = new THREE.Mesh(geometry, sugarSurfaceMaterial);
@@ -2928,7 +3022,7 @@ function coatFruitWithSugar(model, key, broken = []) {
     surface.group.add(mesh);
 
     const coating = {
-        mesh, position, rest: position.array.slice(), cells,
+        mesh, position, rest: rest.array, cells,
         broken: new Set(broken.filter(id => Number.isInteger(id) && id >= 0 && id < cells.length)),
         cracking: new Set(),
     };
@@ -3173,7 +3267,7 @@ renderer.domElement.addEventListener('pointerdown',e=>{
         const model = pools[key].list[hit.idx].model;
         const time = performance.now();
         if (key !== 'watermelon') hold.fruitPress = pressFruit(model, key, hit.intersection, time);
-        hold.dent = pressFruitDent(model, key, hit.intersection, time);
+        hold.dent = pressFruitDent(model, key, hit.intersection, time, true);
         if (hold.dent) crackSugarCoating(model, hold.dent, time);
     }
 });
