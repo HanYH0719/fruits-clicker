@@ -852,6 +852,7 @@ const BEE_DEFS = [
 
 const SAVE_KEY = tossPlatform ? tossPlatform.saveKey : 'fc_v16';
 const SUGAR_COATING_PRICE = 250;
+const SUGAR_PRESS_RESPONSE = { depth: 0.91, radius: 1.16, spread: 0.35, motion: 0.44, rebound: 0.25 };
 const sugarCoatings = new WeakMap();
 let selectingSugarTarget = false;
 let _uiTimer = null;
@@ -2423,6 +2424,7 @@ function pressFruit(model, key, hit, time = performance.now()) {
         surface,
         profile: FRUIT_PRESS_PROFILES[key],
         pressMs: FRUIT_PRESS_PROFILES[key].pressMs,
+        coated: sugarCoatings.has(model),
         directionX: Math.sin(angle),
         directionZ: Math.cos(angle),
         pressedAt: time,
@@ -2434,7 +2436,14 @@ function pressFruit(model, key, hit, time = performance.now()) {
 
 function applyFruitPressPose(press, from, to, progress) {
     const { group, bottom } = press.surface;
-    const mix = (index) => THREE.MathUtils.lerp(from[index], to[index], progress);
+    const mix = (index) => {
+        const value = THREE.MathUtils.lerp(from[index], to[index], progress);
+        if (!press.coated) return value;
+
+        const rest = FRUIT_REST_POSE[index];
+        const isRebound = index === 4 || (index === 1 && value > rest);
+        return THREE.MathUtils.lerp(rest, value, isRebound ? SUGAR_PRESS_RESPONSE.rebound : SUGAR_PRESS_RESPONSE.motion);
+    };
     const height = mix(1);
     const tilt = mix(3);
     group.scale.set(mix(0), height, mix(2));
@@ -2611,12 +2620,16 @@ function locateRestDent(hit, part, center, normal) {
 
 function pressFruitDent(model, key, hit, time = performance.now()) {
     if (!hit?.face) return;
-    const { radius, depth, recoveryMs, peakHoldMs = 0 } = FRUIT_DENT_PROFILES[key];
+    const profile = FRUIT_DENT_PROFILES[key];
+    const { recoveryMs, peakHoldMs = 0 } = profile;
+    const coated = sugarCoatings.has(model);
+    const radius = profile.radius * (coated ? SUGAR_PRESS_RESPONSE.radius : 1);
+    const depth = profile.depth * (coated ? SUGAR_PRESS_RESPONSE.depth : 1);
     const surface = getFruitDentSurface(model, key);
     const center = surface.group.worldToLocal(hit.point.clone());
     const worldNormal = hit.face.normal.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld));
     const normal = surface.group.worldToLocal(hit.point.clone().add(worldNormal)).sub(center).normalize();
-    if (peakHoldMs) {
+    if (peakHoldMs || coated) {
         const hitPart = surface.parts.find(part => part.mesh === hit.object);
         if (hitPart?.position && hitPart.geometry === hit.object.geometry) locateRestDent(hit, hitPart, center, normal);
     }
@@ -2659,6 +2672,9 @@ function pressFruitDent(model, key, hit, time = performance.now()) {
         applied: 0,
         center,
         normal,
+        coated,
+        radius,
+        depth,
         patches,
     };
     surface.dents.add(dent);
@@ -2743,8 +2759,11 @@ function updateWatermelonBounce(surface, time) {
     const squash = surface.dents.size === 0 ? 0 : age < 0
         ? 0.22 + 0.78 * press.strength
         : Math.exp(-15 * age / 1000) * (Math.cos(age / 50) + 0.4 * Math.sin(age / 50));
-    const width = 1 + 0.15 * squash;
-    const height = 1 - 0.23 * squash;
+    const motion = press.coated
+        ? squash * (squash < 0 ? SUGAR_PRESS_RESPONSE.rebound : SUGAR_PRESS_RESPONSE.motion)
+        : squash;
+    const width = 1 + 0.15 * motion;
+    const height = 1 - 0.23 * motion;
     surface.group.scale.set(width, height, width);
     surface.group.position.y = (height - 1) * 0.5;
 }
@@ -2931,26 +2950,17 @@ function disposeSugarCoating(model) {
     sugarCoatings.delete(model);
 }
 
-function crackSugarCoating(model, key, dent, time) {
+function crackSugarCoating(model, dent, time) {
     const coating = sugarCoatings.get(model);
     if (!coating) return;
-    const { center, normal } = dent;
+    const { center, normal, radius, depth } = dent;
+    const spread = SUGAR_PRESS_RESPONSE.spread;
     const local = coating.cells.map((cell, id) => ({ id, distance: cell.center.distanceTo(center) }))
-        .filter(({ distance }) => distance < 0.28)
+        .filter(({ distance }) => distance < spread)
         .sort((a, b) => a.distance - b.distance)
-        .slice(0, 8);
+        .slice(0, 12);
     if (!local.length || local[0].distance > 0.19) return;
 
-    const { radius, depth } = FRUIT_DENT_PROFILES[key];
-    const coatedDepthMultiplier = 1.60;
-    // Push the skin underneath in with the coating so it cannot cover the recessed tiles.
-    for (const patch of dent.patches) {
-        for (let i = 0; i < patch.offsets.length; i += 4) {
-            patch.offsets[i + 1] *= coatedDepthMultiplier;
-            patch.offsets[i + 2] *= coatedDepthMultiplier;
-            patch.offsets[i + 3] *= coatedDepthMultiplier;
-        }
-    }
     const offsets = [];
     const fresh = [];
     for (const { id, distance } of local) {
@@ -2959,8 +2969,8 @@ function crackSugarCoating(model, key, dent, time) {
             coating.cracking.add(id);
             fresh.push(id);
         }
-        const central = 1 - distance / 0.28;
-        const cellDepth = depth * coatedDepthMultiplier * (0.70 + central * 0.18 + (id % 3) * 0.035);
+        const central = 1 - distance / spread;
+        const cellDepth = depth * (0.70 + central * 0.18 + (id % 3) * 0.035);
         for (const index of cell.vertices) {
             const i = index * 3;
             const r = Math.hypot(coating.rest[i] - center.x, coating.rest[i + 1] - center.y,
@@ -3164,7 +3174,7 @@ renderer.domElement.addEventListener('pointerdown',e=>{
         const time = performance.now();
         if (key !== 'watermelon') hold.fruitPress = pressFruit(model, key, hit.intersection, time);
         hold.dent = pressFruitDent(model, key, hit.intersection, time);
-        if (hold.dent) crackSugarCoating(model, key, hold.dent, time);
+        if (hold.dent) crackSugarCoating(model, hold.dent, time);
     }
 });
 renderer.domElement.addEventListener('pointerup',e=>{
