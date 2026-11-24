@@ -700,7 +700,7 @@ function _resumeAudioCtx() {
 }
 
 // 배열에서 랜덤 선택 후 재생
-function _playRandom(urls, volume = 1.0) {
+function _playRandom(urls, volume = 1.0, rate = 1.0) {
     _resumeAudioCtx();
     const url = urls[Math.floor(Math.random() * urls.length)];
     _loadAudio(url).then(buf => {
@@ -709,6 +709,7 @@ function _playRandom(urls, volume = 1.0) {
         const gain = _audioCtx.createGain();
         gain.gain.value = volume;
         src.buffer = buf;
+        src.playbackRate.value = rate;
         src.connect(gain);
         gain.connect(_audioCtx.destination);
         src.start(0);
@@ -727,7 +728,9 @@ let _bgmOn        = _settings.bgmOn      !== false;   // 기본 켬
 let _bgmVolume    = Math.min(Math.max(Number(_settings.bgmVolume ?? 0.6), 0), 1);
 
 /** 과일 클릭 시 재생 (Click1~4 랜덤) */
-function playFruitClick() { if (_fruitSoundOn) _playRandom(_fruitSoundUrls, 0.7); }
+function playFruitClick(key) {
+    if (_fruitSoundOn) _playRandom(_fruitSoundUrls, 0.7, FRUIT_PRESS_PROFILES[key]?.soundRate ?? 1);
+}
 
 /** UI 버튼 클릭 시 재생 (UIClick1~3 랜덤) */
 function playUIClick()    { if (_uiSoundOn) _playRandom(_uiSoundUrls, 0.6); }
@@ -1001,8 +1004,8 @@ function fixMesh(obj) {
 
 function place(def, slotIdx, animate, cb) {
     loader.load(def.file, gltf => {
-        // Keep the cached template independent of each watermelon's deformable mesh.
-        const model = def.key === 'watermelon' && gltf.scene === _gltfCache[def.file]?.scene
+        // Keep the cached template independent of each fruit's animated pose.
+        const model = gltf.scene === _gltfCache[def.file]?.scene
             ? gltf.scene.clone()
             : gltf.scene;
         fixMesh(model);
@@ -1012,6 +1015,7 @@ function place(def, slotIdx, animate, cb) {
             });
         }
         const box = new THREE.Box3().setFromObject(model);
+        if (def.key !== 'watermelon') prepareFruitPress(model, box);
         if (floorY===null) { floorY=box.min.y; floorMesh.position.y=floorY; }
         const {x,z} = gridPos(slotIdx);
         model.position.set(x, floorY-box.min.y, z);
@@ -2133,6 +2137,171 @@ if (tossPlatform) {
     if (!SAVE_KEY) showSellToast('사용자 정보를 확인하지 못해 이번 플레이는 저장되지 않아요.');
 }
 
+// A pose contains width, height, depth, tilt toward the touch, lift, and twist.
+const FRUIT_REST_POSE = [1, 1, 1, 0, 0, 0];
+const FRUIT_PRESS_PROFILES = {
+    apple: {
+        pressMs: 70, soundRate: 1,
+        down: [1.28, 0.72, 1.28, 0.015, 0, 0],
+        recovery: [
+            [92, [0.94, 1.10, 0.94, -0.012, 0.025, 0]],
+            [173, [1.035, 0.955, 1.035, 0, 0, 0]],
+            [330, FRUIT_REST_POSE],
+        ],
+    },
+    orange: {
+        pressMs: 64, soundRate: 1.10,
+        down: [1.22, 0.76, 1.22, 0.055, 0, 0],
+        recovery: [
+            [96, [0.90, 1.15, 0.90, -0.035, 0.105, 0.045]],
+            [197, [1.10, 0.88, 1.10, 0.012, 0, -0.015]],
+            [355, FRUIT_REST_POSE],
+        ],
+    },
+    blueberry: {
+        pressMs: 58, soundRate: 1.26,
+        down: [1.16, 0.81, 1.18, 0.14, 0, -0.045],
+        recovery: [
+            [63, [0.96, 1.08, 0.98, -0.18, 0.035, 0.10]],
+            [125, [1.05, 0.96, 1.02, 0.12, 0, -0.06]],
+            [194, [0.98, 1.025, 1, -0.065, 0.012, 0.025]],
+            [290, FRUIT_REST_POSE],
+        ],
+    },
+    avocado: {
+        pressMs: 114, soundRate: 0.83,
+        down: [1.17, 0.74, 1.24, 0.15, 0, 0.055],
+        recovery: [
+            [146, [1.085, 0.89, 1.105, 0.09, 0, 0.025]],
+            [298, [1.01, 0.99, 1.015, -0.027, 0, -0.012]],
+            [475, FRUIT_REST_POSE],
+        ],
+    },
+    cherry: {
+        pressMs: 57, soundRate: 1.32,
+        down: [1.13, 0.83, 1.12, 0.125, 0, 0.065],
+        recovery: [
+            [63, [0.96, 1.09, 0.94, -0.095, 0.075, -0.05]],
+            [127, [1.10, 0.88, 1.08, 0.075, 0, 0.04]],
+            [192, [0.98, 1.045, 0.98, -0.055, 0.045, -0.025]],
+            [254, [1.04, 0.95, 1.04, 0.025, 0, 0.01]],
+            [343, FRUIT_REST_POSE],
+        ],
+    },
+    pineapple: {
+        pressMs: 62, soundRate: 0.93,
+        down: [1.09, 0.87, 1.07, 0.08, 0, 0.21],
+        recovery: [
+            [98, [0.985, 1.035, 0.985, -0.045, 0.02, -0.15]],
+            [183, [1.015, 0.985, 1.015, 0.027, 0, 0.075]],
+            [316, FRUIT_REST_POSE],
+        ],
+    },
+    lemon: {
+        pressMs: 66, soundRate: 1.18,
+        down: [1.30, 0.78, 0.95, 0.13, 0, -0.11],
+        recovery: [
+            [77, [0.94, 1.075, 1.13, -0.08, 0.032, 0.12]],
+            [158, [1.085, 0.96, 0.99, 0.045, 0, -0.045]],
+            [303, FRUIT_REST_POSE],
+        ],
+    },
+    coconut: {
+        pressMs: 52, soundRate: 0.72,
+        down: [1.055, 0.91, 1.045, 0.048, 0, 0.045],
+        recovery: [
+            [70, [0.99, 1.025, 0.99, -0.10, 0.115, -0.032]],
+            [155, [1.04, 0.94, 1.035, 0.046, 0, 0.015]],
+            [247, FRUIT_REST_POSE],
+        ],
+    },
+    kiwi: {
+        pressMs: 84, soundRate: 0.96,
+        down: [1.24, 0.68, 1.21, 0.072, 0, 0.042],
+        recovery: [
+            [118, [0.92, 1.11, 0.95, -0.105, 0.031, -0.07]],
+            [202, [1.10, 0.91, 1.045, 0.07, 0, 0.041]],
+            [286, [0.98, 1.04, 0.985, -0.03, 0.01, -0.016]],
+            [430, FRUIT_REST_POSE],
+        ],
+    },
+    strawberry: {
+        pressMs: 92, soundRate: 1.06,
+        down: [1.30, 0.64, 1.19, 0.095, 0, -0.07],
+        recovery: [
+            [115, [1.065, 0.91, 1.06, 0.026, 0, -0.024]],
+            [227, [0.965, 1.065, 0.985, -0.065, 0.023, 0.035]],
+            [322, [1.025, 0.97, 1.014, 0.03, 0, -0.012]],
+            [450, FRUIT_REST_POSE],
+        ],
+    },
+};
+const fruitPressSurfaces = new WeakMap();
+const activeFruitPresses = new Map();
+
+function prepareFruitPress(model, box) {
+    const group = new THREE.Group();
+    group.add(...model.children.slice());
+    model.add(group);
+    fruitPressSurfaces.set(model, { group, bottom: box.min.y, center: box.getCenter(new THREE.Vector3()) });
+}
+
+function pressFruit(model, key, hit) {
+    const surface = fruitPressSurfaces.get(model);
+    const contact = surface.group.worldToLocal(hit.point.clone()).sub(surface.center);
+    const length = Math.hypot(contact.x, contact.z);
+    const press = {
+        surface,
+        profile: FRUIT_PRESS_PROFILES[key],
+        directionX: length > 0.04 ? contact.x / length : 0,
+        directionZ: length > 0.04 ? contact.z / length : 1,
+        pressedAt: performance.now(),
+        releasedAt: null,
+    };
+    activeFruitPresses.set(model, press);
+    return press;
+}
+
+function applyFruitPressPose(press, from, to, progress) {
+    const { group, bottom } = press.surface;
+    const mix = (index) => THREE.MathUtils.lerp(from[index], to[index], progress);
+    const height = mix(1);
+    const tilt = mix(3);
+    group.scale.set(mix(0), height, mix(2));
+    group.rotation.set(tilt * press.directionZ, mix(5), -tilt * press.directionX);
+    group.position.y = bottom * (1 - height) + mix(4) + Math.abs(tilt) * 0.12;
+}
+
+function updateFruitPresses(time) {
+    for (const [model, press] of activeFruitPresses) {
+        const { profile, pressedAt, releasedAt } = press;
+        if (releasedAt === null || time < releasedAt) {
+            const progress = THREE.MathUtils.clamp((time - pressedAt) / profile.pressMs, 0, 1);
+            applyFruitPressPose(press, FRUIT_REST_POSE, profile.down, 1 - 0.76 * (1 - progress) ** 2);
+            continue;
+        }
+
+        const age = time - releasedAt;
+        if (age >= profile.recovery.at(-1)[0]) {
+            applyFruitPressPose(press, FRUIT_REST_POSE, FRUIT_REST_POSE, 1);
+            activeFruitPresses.delete(model);
+            continue;
+        }
+        let from = profile.down;
+        let start = 0;
+        for (const [end, to] of profile.recovery) {
+            if (age < end) {
+                const progress = (age - start) / (end - start);
+                const eased = start === 0 ? 1 - (1 - progress) ** 3 : progress * progress * (3 - 2 * progress);
+                applyFruitPressPose(press, from, to, eased);
+                break;
+            }
+            start = end;
+            from = to;
+        }
+    }
+}
+
 const WATERMELON_PRESS_MS = 78;
 const WATERMELON_RECOVERY_MS = 460;
 const watermelonGeometryTemplates = new WeakMap();
@@ -2320,6 +2489,7 @@ function updateWatermelonDents(time) {
 }
 
 function removeFruitModel(model) {
+    activeFruitPresses.delete(model);
     const surface = watermelonSurfaces.get(model);
     if (surface) {
         activeWatermelonSurfaces.delete(surface);
@@ -2341,16 +2511,20 @@ function tickHold(){
     const elapsed = performance.now() - hold.t0;
     const progress = Math.min(elapsed / HOLD_MS, 1);
     // Keep the short tap clear while still showing progress for a deliberate sale.
-    if (hold.key === 'watermelon') holdRing.style.visibility = elapsed < 320 ? 'hidden' : 'visible';
+    if (hold.key === 'watermelon' || FRUIT_PRESS_PROFILES[hold.key]) {
+        const indicatorDelay = hold.key === 'watermelon' ? 320 : 200;
+        holdRing.style.visibility = elapsed < indicatorDelay ? 'hidden' : 'visible';
+    }
     holdProg.style.strokeDashoffset = CIRC * (1 - progress);
     if(progress>=1){doSell(hold.key,hold.idx);cancelHold();return;}
     holdRAF=requestAnimationFrame(tickHold);
 }
 function cancelHold(){
     if(holdRAF){cancelAnimationFrame(holdRAF);holdRAF=null;}
-    if (hold?.dent) {
-        const fullPress = hold.dent.pressedAt + WATERMELON_PRESS_MS;
-        hold.dent.releasedAt = Math.max(performance.now(), fullPress);
+    const press = hold?.fruitPress ?? hold?.dent;
+    if (press) {
+        const fullPress = press.pressedAt + (press.profile?.pressMs ?? WATERMELON_PRESS_MS);
+        press.releasedAt = Math.max(performance.now(), fullPress);
     }
     hold=null;holdRing.style.display='none';holdProg.style.strokeDashoffset=CIRC;
 }
@@ -2413,8 +2587,11 @@ renderer.domElement.addEventListener('pointerdown',e=>{
         const {key} = hit.fd;
         startHold(key,hit.idx,e.clientX,e.clientY);
         controls.enabled=false;
+        const model = pools[key].list[hit.idx].model;
         if (key === 'watermelon') {
-            hold.dent = pressWatermelon(pools[key].list[hit.idx].model, hit.intersection);
+            hold.dent = pressWatermelon(model, hit.intersection);
+        } else {
+            hold.fruitPress = pressFruit(model, key, hit.intersection);
         }
     }}
 });
@@ -2432,13 +2609,10 @@ renderer.domElement.addEventListener('pointerup',e=>{
             return;
         }
         const fd=FRUIT_DEFS.find(d=>d.key===key);const pool=pools[key];if(!fd||!pool||idx>=pool.list.length)return;
-        const model=pool.list[idx].model;const s=fd.ms;
-        if (key !== 'watermelon') {
-            new TWEEN.Tween(model.scale).to({x:s*1.3,y:s*.7,z:s*1.3},75).chain(new TWEEN.Tween(model.scale).to({x:s,y:s,z:s},380).easing(TWEEN.Easing.Elastic.Out)).start();
-        }
+        const model=pool.list[idx].model;
         moveCameraTo(model);
         const _gain=Math.floor(fd.clickVal*CLICK_SCORE_MULTI());score+=_gain;scoreEl.innerText=fmtN(score);
-        playFruitClick(); // 🔊 과일 클릭음
+        playFruitClick(key);
         // 비료 또잉 애니메이션
         if(_manureModel&&_manureMulti>1&&!_manureModel._tweenActive){
             _manureModel._tweenActive=true;const ms=1.0;
@@ -2468,6 +2642,7 @@ let lastT=0,_lastScoreUpdate=0,_frameCount=0;
 function animate(t=performance.now()){
     requestAnimationFrame(animate);
     TWEEN.update(t);
+    updateFruitPresses(t);
     updateWatermelonDents(t);
     const dt=Math.min(t-lastT,50);lastT=t;_frameCount++;
     if(t-_lastScoreUpdate>150){scoreEl.innerText=fmtN(score);_lastScoreUpdate=t;}
@@ -2489,7 +2664,26 @@ function animate(t=performance.now()){
         bee.model.rotation.y=Math.atan2(nx-bx,nz-bz);
     }
     const now=t;
-    if(_frameCount%idleSkip===0)for(const fd of FRUIT_DEFS){const pool=pools[fd.key];if(!pool||fd.key==='watermelon')continue;for(let i=0;i<pool.list.length;i++){const k=getFruitIdleKey(fd.key,i);if(!idleState[k]){scheduleIdle(fd.key,i);continue;}const st=idleState[k];if(!st.playing&&now>=st.nextIdleT){st.playing=true;playIdleAnim(pool.list[i].model,fd.ms);setTimeout(()=>{st.playing=false;scheduleIdle(fd.key,i);},600);}}}
+    if (_frameCount % idleSkip === 0) {
+        for (const fd of FRUIT_DEFS) {
+            const pool = pools[fd.key];
+            if (!pool || fd.key === 'watermelon') continue;
+            for (const [i, { model }] of pool.list.entries()) {
+                if (activeFruitPresses.has(model)) continue;
+                const key = getFruitIdleKey(fd.key, i);
+                if (!idleState[key]) {
+                    scheduleIdle(fd.key, i);
+                    continue;
+                }
+                const idle = idleState[key];
+                if (!idle.playing && now >= idle.nextIdleT) {
+                    idle.playing = true;
+                    playIdleAnim(model, fd.ms);
+                    setTimeout(() => { idle.playing = false; scheduleIdle(fd.key, i); }, 600);
+                }
+            }
+        }
+    }
     controls.update();renderer.render(scene,camera);
 }
 animate();
