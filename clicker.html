@@ -1009,18 +1009,21 @@ function place(def, slotIdx, animate, cb) {
             ? gltf.scene.clone()
             : gltf.scene;
         fixMesh(model);
-        if (def.key === 'watermelon') {
-            model.traverse(mesh => {
-                if (mesh.isMesh) getWatermelonGeometryTemplate(mesh.geometry);
-            });
-        }
         const box = new THREE.Box3().setFromObject(model);
-        if (def.key !== 'watermelon') prepareFruitPress(model, box);
+        prepareFruitPress(model, box);
         if (floorY===null) { floorY=box.min.y; floorMesh.position.y=floorY; }
         const {x,z} = gridPos(slotIdx);
         model.position.set(x, floorY-box.min.y, z);
         model.rotation.y = Math.PI;
         model.scale.setScalar(animate?0:def.ms); scene.add(model);
+        const sourceGeometries = new Set();
+        model.traverse(mesh => {
+            if (mesh.isMesh) sourceGeometries.add(mesh.geometry);
+        });
+        setTimeout(() => {
+            if (model.parent !== scene) return;
+            sourceGeometries.forEach(getFruitDentGeometryTemplate);
+        }, 0);
         if (animate) { playShowup(); new TWEEN.Tween(model.scale).to({x:def.ms,y:def.ms,z:def.ms},650).easing(TWEEN.Easing.Elastic.Out).start(); }
         if (!pools[def.key]) pools[def.key]={list:[]};
         const instIdx=pools[def.key].list.length;
@@ -2261,6 +2264,7 @@ function pressFruit(model, key, hit, time = performance.now()) {
     const press = {
         surface,
         profile: FRUIT_PRESS_PROFILES[key],
+        pressMs: FRUIT_PRESS_PROFILES[key].pressMs,
         directionX: Math.sin(angle),
         directionZ: Math.cos(angle),
         pressedAt: time,
@@ -2312,18 +2316,29 @@ function updateFruitPresses(time) {
 }
 
 const WATERMELON_PRESS_MS = 78;
-const WATERMELON_RECOVERY_MS = 460;
-const watermelonGeometryTemplates = new WeakMap();
-const watermelonSurfaces = new WeakMap();
-const activeWatermelonSurfaces = new Set();
+const FRUIT_DENT_PROFILES = {
+    apple:      { radius: 0.33, depth: 0.055, recoveryMs: 280 },
+    watermelon: { radius: 0.62, depth: 0.155, recoveryMs: 460 },
+    orange:     { radius: 0.40, depth: 0.088, recoveryMs: 325 },
+    blueberry:  { radius: 0.30, depth: 0.057, recoveryMs: 260 },
+    avocado:    { radius: 0.45, depth: 0.107, recoveryMs: 475 },
+    cherry:     { radius: 0.27, depth: 0.044, recoveryMs: 265 },
+    pineapple:  { radius: 0.30, depth: 0.039, recoveryMs: 230 },
+    lemon:      { radius: 0.36, depth: 0.070, recoveryMs: 300 },
+    coconut:    { radius: 0.26, depth: 0.027, recoveryMs: 195 },
+    kiwi:       { radius: 0.38, depth: 0.080, recoveryMs: 415 },
+    strawberry: { radius: 0.44, depth: 0.113, recoveryMs: 440 },
+};
+const fruitDentGeometryTemplates = new WeakMap();
+const fruitDentSurfaces = new WeakMap();
+const activeFruitDentSurfaces = new Set();
 
-function getWatermelonGeometryTemplate(source) {
-    const template = watermelonGeometryTemplates.get(source);
+function getFruitDentGeometryTemplate(source) {
+    const template = fruitDentGeometryTemplates.get(source);
     if (template) return template;
 
     // The optimized model has a few long edges across flat faces.
     // Split them in place so the surface can bend at a point between its original vertices.
-    const geometry = source.clone();
     const attributes = Object.entries(source.attributes).map(([name, attribute]) => ({
         name, attribute, values: Array.from(attribute.array),
     }));
@@ -2367,6 +2382,7 @@ function getWatermelonGeometryTemplate(source) {
         pending.push(a, midpoint, c, midpoint, b, c);
     }
 
+    const geometry = midpoints.size ? source.clone() : source;
     if (midpoints.size) {
         for (const { name, attribute, values } of attributes) {
             geometry.setAttribute(name, new THREE.BufferAttribute(
@@ -2375,53 +2391,76 @@ function getWatermelonGeometryTemplate(source) {
         }
         geometry.setIndex(triangles);
     }
-    watermelonGeometryTemplates.set(source, geometry);
+    fruitDentGeometryTemplates.set(source, geometry);
     return geometry;
 }
 
-function pressWatermelon(model, hit, time = performance.now()) {
-    if (!hit.face) return;
-    let surface = watermelonSurfaces.get(model);
-    const space = surface?.cushion ?? model;
-    const center = space.worldToLocal(hit.point.clone());
-    const worldNormal = hit.face.normal.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld));
-    const normal = space.worldToLocal(hit.point.clone().add(worldNormal)).sub(center).normalize();
+function getFruitDentSurface(model, key) {
+    const cached = fruitDentSurfaces.get(model);
+    if (cached) return cached;
 
-    if (!surface) {
-        const cushion = new THREE.Group();
-        cushion.add(...model.children.slice());
-        model.add(cushion);
-        surface = { cushion, parts: [], dents: new Set() };
-        const worldToModel = model.matrixWorld.clone().invert();
-        model.traverse(mesh => {
-            if (!mesh.isMesh) return;
-            const source = mesh.geometry;
-            const geometry = getWatermelonGeometryTemplate(source).clone();
-            const position = geometry.getAttribute('position').setUsage(THREE.DynamicDrawUsage);
-            geometry.boundingBox?.expandByScalar(0.20);
-            if (!geometry.boundingSphere) geometry.computeBoundingSphere();
-            geometry.boundingSphere.radius += 0.20;
-            const toModel = new THREE.Matrix4().multiplyMatrices(worldToModel, mesh.matrixWorld);
-            const toMeshDirection = new THREE.Matrix3().setFromMatrix4(toModel).invert();
-            surface.parts.push({ mesh, source, geometry, position, rest: position.clone(), toModel, toMeshDirection });
+    const { group } = fruitPressSurfaces.get(model);
+    group.updateWorldMatrix(true, true);
+    const worldToGroup = group.matrixWorld.clone().invert();
+    const surface = { key, group, parts: [], dents: new Set() };
+    group.traverse(mesh => {
+        if (!mesh.isMesh) return;
+        const source = mesh.geometry;
+        const toGroup = new THREE.Matrix4().multiplyMatrices(worldToGroup, mesh.matrixWorld);
+        surface.parts.push({
+            mesh, source, toGroup,
+            bounds: source.boundingBox.clone().applyMatrix4(toGroup),
+            toMeshDirection: new THREE.Matrix3().setFromMatrix4(toGroup).invert(),
         });
-        watermelonSurfaces.set(model, surface);
-    }
+    });
+    fruitDentSurfaces.set(model, surface);
+    return surface;
+}
 
+function prepareDentPart(part) {
+    const template = getFruitDentGeometryTemplate(part.source);
+    const geometry = template.clone();
+    const position = geometry.getAttribute('position').setUsage(THREE.DynamicDrawUsage);
+    geometry.boundingBox.expandByScalar(0.20);
+    if (!geometry.boundingSphere) geometry.computeBoundingSphere();
+    geometry.boundingSphere.radius += 0.20;
+
+    const rest = template.getAttribute('position');
+    const restInGroup = new Float32Array(rest.count * 3);
     const vertex = new THREE.Vector3();
-    const offset = new THREE.Vector3();
-    const patches = [];
-    for (const { mesh, geometry, rest, position, toModel, toMeshDirection } of surface.parts) {
-        const offsets = [];
-        for (let i = 0; i < rest.count; i++) {
-            vertex.fromBufferAttribute(rest, i).applyMatrix4(toModel).sub(center);
-            const radius = vertex.length() / 0.62;
-            if (radius >= 1) continue;
+    for (let i = 0; i < rest.count; i++) {
+        vertex.fromBufferAttribute(rest, i).applyMatrix4(part.toGroup).toArray(restInGroup, i * 3);
+    }
+    Object.assign(part, { geometry, position, rest, restInGroup });
+}
 
-            // Let the depression taper smoothly over a broad patch.
-            const depression = 0.155 * (1 - radius * radius * (3 - 2 * radius));
-            offset.copy(normal).multiplyScalar(-depression).applyMatrix3(toMeshDirection);
-            offsets.push(i * 3, offset.x, offset.y, offset.z);
+function pressFruitDent(model, key, hit, time = performance.now()) {
+    if (!hit?.face) return;
+    const { radius, depth, recoveryMs } = FRUIT_DENT_PROFILES[key];
+    const surface = getFruitDentSurface(model, key);
+    const center = surface.group.worldToLocal(hit.point.clone());
+    const worldNormal = hit.face.normal.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld));
+    const normal = surface.group.worldToLocal(hit.point.clone().add(worldNormal)).sub(center).normalize();
+    const radiusSquared = radius * radius;
+    const patches = [];
+
+    for (const part of surface.parts) {
+        if (part.bounds.distanceToPoint(center) >= radius) continue;
+        if (!part.geometry) prepareDentPart(part);
+
+        const { mesh, geometry, restInGroup, position, toMeshDirection } = part;
+        const direction = normal.clone().applyMatrix3(toMeshDirection);
+        const offsets = [];
+        for (let i = 0; i < restInGroup.length; i += 3) {
+            const distanceSquared = (restInGroup[i] - center.x) ** 2
+                + (restInGroup[i + 1] - center.y) ** 2
+                + (restInGroup[i + 2] - center.z) ** 2;
+            if (distanceSquared >= radiusSquared) continue;
+
+            // Fade the indentation out smoothly before reaching the rest of the fruit.
+            const r = Math.sqrt(distanceSquared) / radius;
+            const displacement = -depth * (1 - r * r * (3 - 2 * r));
+            offsets.push(i, direction.x * displacement, direction.y * displacement, direction.z * displacement);
         }
         if (offsets.length) {
             mesh.geometry = geometry;
@@ -2429,24 +2468,32 @@ function pressWatermelon(model, hit, time = performance.now()) {
         }
     }
 
-    const dent = { pressedAt: time, releasedAt: null, strength: 0, applied: 0, patches };
+    const dent = {
+        pressedAt: time,
+        releasedAt: null,
+        pressMs: FRUIT_PRESS_PROFILES[key]?.pressMs ?? WATERMELON_PRESS_MS,
+        recoveryMs,
+        strength: 0,
+        applied: 0,
+        patches,
+    };
     surface.dents.add(dent);
     surface.latestPress = dent;
-    activeWatermelonSurfaces.add(surface);
+    activeFruitDentSurfaces.add(surface);
     return dent;
 }
 
-function updateWatermelonDents(time) {
-    for (const surface of activeWatermelonSurfaces) {
+function updateFruitDents(time) {
+    for (const surface of activeFruitDentSurfaces) {
         let compression = 0;
         for (const dent of surface.dents) {
             const age = dent.releasedAt === null ? -1 : time - dent.releasedAt;
             if (age < 0) {
-                const progress = THREE.MathUtils.clamp((time - dent.pressedAt) / WATERMELON_PRESS_MS, 0, 1);
+                const progress = THREE.MathUtils.clamp((time - dent.pressedAt) / dent.pressMs, 0, 1);
                 dent.strength = 1 - (1 - progress) ** 2;
                 if (dent.autoRelease && progress === 1) releaseFruitPress(dent, time);
             } else {
-                const progress = Math.min(age / WATERMELON_RECOVERY_MS, 1);
+                const progress = Math.min(age / dent.recoveryMs, 1);
                 dent.strength = (1 - progress) ** 2.5;
             }
             compression += dent.strength;
@@ -2470,42 +2517,45 @@ function updateWatermelonDents(time) {
                 }
             }
             dent.applied = applied;
-            if (dent.releasedAt !== null && time - dent.releasedAt >= WATERMELON_RECOVERY_MS) {
+            if (dent.releasedAt !== null && time - dent.releasedAt >= dent.recoveryMs) {
                 surface.dents.delete(dent);
             }
         }
-        // Restart the whole-fruit squash on every tap, even while an older dent is recovering.
-        const press = surface.latestPress;
-        const age = press.releasedAt === null ? -1 : time - press.releasedAt;
-        const squash = age < 0
-            ? 0.22 + 0.78 * press.strength
-            : Math.exp(-15 * age / 1000) * (Math.cos(age / 50) + 0.4 * Math.sin(age / 50));
-        const width = 1 + 0.15 * squash;
-        const height = 1 - 0.23 * squash;
-        surface.cushion.scale.set(width, height, width);
-        surface.cushion.position.y = (height - 1) * 0.5;
+        if (surface.key === 'watermelon') updateWatermelonBounce(surface, time);
         if (surface.dents.size === 0) {
-            surface.cushion.scale.setScalar(1);
-            surface.cushion.position.y = 0;
-            // Reset exactly to the source positions even after overlapping presses.
+            // Return to the original low-poly mesh and reset the working copy exactly.
             for (const { mesh, source, rest, position } of surface.parts) {
+                if (!position) continue;
                 position.copyArray(rest.array);
                 position.needsUpdate = true;
                 mesh.geometry = source;
             }
-            activeWatermelonSurfaces.delete(surface);
+            surface.latestPress = null;
+            activeFruitDentSurfaces.delete(surface);
         }
     }
 }
 
+function updateWatermelonBounce(surface, time) {
+    const press = surface.latestPress;
+    const age = press.releasedAt === null ? -1 : time - press.releasedAt;
+    const squash = surface.dents.size === 0 ? 0 : age < 0
+        ? 0.22 + 0.78 * press.strength
+        : Math.exp(-15 * age / 1000) * (Math.cos(age / 50) + 0.4 * Math.sin(age / 50));
+    const width = 1 + 0.15 * squash;
+    const height = 1 - 0.23 * squash;
+    surface.group.scale.set(width, height, width);
+    surface.group.position.y = (height - 1) * 0.5;
+}
+
 function removeFruitModel(model) {
     activeFruitPresses.delete(model);
-    const surface = watermelonSurfaces.get(model);
+    const surface = fruitDentSurfaces.get(model);
     if (surface) {
-        activeWatermelonSurfaces.delete(surface);
-        watermelonSurfaces.delete(model);
+        activeFruitDentSurfaces.delete(surface);
+        fruitDentSurfaces.delete(model);
         for (const { mesh, source, geometry } of surface.parts) {
-            geometry.dispose();
+            geometry?.dispose();
             mesh.geometry = source;
         }
     }
@@ -2531,13 +2581,15 @@ function tickHold(){
 }
 function cancelHold(){
     if(holdRAF){cancelAnimationFrame(holdRAF);holdRAF=null;}
-    releaseFruitPress(hold?.fruitPress ?? hold?.dent, performance.now());
+    const time = performance.now();
+    releaseFruitPress(hold?.fruitPress, time);
+    releaseFruitPress(hold?.dent, time);
     hold=null;holdRing.style.display='none';holdProg.style.strokeDashoffset=CIRC;
 }
 
 function releaseFruitPress(press, time) {
     if (!press) return;
-    const fullPress = press.pressedAt + (press.profile?.pressMs ?? WATERMELON_PRESS_MS);
+    const fullPress = press.pressedAt + press.pressMs;
     press.releasedAt = Math.max(time, fullPress);
 }
 function doSell(key,idx){
@@ -2600,11 +2652,9 @@ renderer.domElement.addEventListener('pointerdown',e=>{
         startHold(key,hit.idx,e.clientX,e.clientY);
         controls.enabled=false;
         const model = pools[key].list[hit.idx].model;
-        if (key === 'watermelon') {
-            hold.dent = pressWatermelon(model, hit.intersection);
-        } else {
-            hold.fruitPress = pressFruit(model, key, hit.intersection);
-        }
+        const time = performance.now();
+        if (key !== 'watermelon') hold.fruitPress = pressFruit(model, key, hit.intersection, time);
+        hold.dent = pressFruitDent(model, key, hit.intersection, time);
     }}
 });
 renderer.domElement.addEventListener('pointerup',e=>{
@@ -2734,23 +2784,20 @@ function updateFruitIdle(time) {
     for (const { key } of FRUIT_DEFS) {
         for (const { model } of pools[key]?.list ?? []) {
             if (time < fruitIdleTimes.get(model) || model.scale.x < 0.9) continue;
-            if (activeFruitPresses.has(model) || activeWatermelonSurfaces.has(watermelonSurfaces.get(model))) continue;
+            if (activeFruitPresses.has(model) || activeFruitDentSurfaces.has(fruitDentSurfaces.get(model))) continue;
 
             scheduleFruitIdle(model, time);
-            if (key !== 'watermelon') {
-                // Render the compressed pose at least once before a spontaneous rebound.
-                pressFruit(model, key, null, time).autoRelease = true;
-                continue;
-            }
-
             model.updateWorldMatrix(true, true);
-            const target = model.localToWorld(new THREE.Vector3(
-                (Math.random() - 0.5) * 0.5, Math.random() * 0.28, (Math.random() - 0.5) * 0.5,
-            ));
+            const center = fruitPressSurfaces.get(model).center;
+            const target = new THREE.Vector3((Math.random() - 0.5) * 0.42, 0, (Math.random() - 0.5) * 0.42);
+            target.add(center);
+            model.localToWorld(target);
             const origin = camera.position.clone();
             idleRay.set(origin, target.sub(origin).normalize());
             const [hit] = idleRay.intersectObject(model, true);
-            if (hit?.face) pressWatermelon(model, hit, time).autoRelease = true;
+            // Show one fully compressed frame before releasing the automatic press.
+            if (key !== 'watermelon') pressFruit(model, key, hit, time).autoRelease = true;
+            if (hit?.face) pressFruitDent(model, key, hit, time).autoRelease = true;
         }
     }
 }
@@ -2760,7 +2807,7 @@ function animate(t=performance.now()){
     requestAnimationFrame(animate);
     TWEEN.update(t);
     updateFruitPresses(t);
-    updateWatermelonDents(t);
+    updateFruitDents(t);
     const dt=Math.min(t-lastT,50);lastT=t;_frameCount++;
     if(t-_lastScoreUpdate>150){scoreEl.innerText=fmtN(score);_lastScoreUpdate=t;}
     for (const bee of beeInstances) updateBeeFlight(bee, t, dt);
