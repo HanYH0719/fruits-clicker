@@ -2718,11 +2718,6 @@ function updateFruitDents(time) {
             }
         }
         if (surface.key === 'watermelon') updateWatermelonBounce(surface, time);
-        const coating = sugarCoatings.get(surface.model);
-        if (coating) {
-            const sugarDent = surface.latestPress.coating === coating ? surface.latestPress.applied : 0;
-            coating.lines.material.opacity = SUGAR_CRACK_REST_OPACITY + 0.30 * sugarDent;
-        }
         if (surface.dents.size === 0) {
             // Return to the original low-poly mesh and reset the working copy exactly.
             for (const { mesh, source, rest, position } of surface.parts) {
@@ -2731,6 +2726,7 @@ function updateFruitDents(time) {
                 position.needsUpdate = true;
                 mesh.geometry = source;
             }
+            const coating = sugarCoatings.get(surface.model);
             if (coating) {
                 coating.position.copyArray(coating.rest);
                 coating.position.needsUpdate = true;
@@ -2770,11 +2766,7 @@ function removeFruitModel(model) {
 
 const sugarSurfaceMaterial = new THREE.MeshPhysicalMaterial({
     color: 0xfffdf8, opacity: 0.30, transparent: true, depthWrite: false,
-    roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.16,
-});
-const SUGAR_CRACK_REST_OPACITY = 0.23;
-const sugarCrackMaterial = new THREE.LineBasicMaterial({
-    color: 0xfff9e9, transparent: true, opacity: SUGAR_CRACK_REST_OPACITY, depthWrite: false,
+    roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.16, flatShading: true,
 });
 const sugarChipMaterial = new THREE.MeshStandardMaterial({ color: 0xfff9e9, roughness: 0.32 });
 const sugarChipGeometry = new THREE.OctahedronGeometry(1, 0);
@@ -2859,7 +2851,7 @@ function buildSugarCells(part) {
         seeds.push(candidates[furthest]);
     }
 
-    const cells = seeds.map(center => ({ center, triangles: [], edges: new Map() }));
+    const cells = seeds.map(center => ({ center, triangles: [] }));
     for (const [index, sample] of samples.entries()) {
         let nearest = 0;
         let distance = Infinity;
@@ -2902,15 +2894,7 @@ function coatFruitWithSugar(model, key, broken = []) {
                 }
                 return ids.get(index);
             });
-            for (let index = 0; index < indices.length; index += 3) {
-                const [a, b, c] = [indices[index], indices[index + 1], indices[index + 2]];
-                for (const [from, to] of [[a,b], [b,c], [c,a]]) {
-                    const edge = Math.min(from, to) + ':' + Math.max(from, to);
-                    if (cell.edges.has(edge)) cell.edges.delete(edge);
-                    else cell.edges.set(edge, [from, to]);
-                }
-            }
-            cells.push({ center: cell.center, indices, vertices: [...ids.values()], edges: [...cell.edges.values()] });
+            cells.push({ center: cell.center, indices, vertices: [...ids.values()] });
         }
     }
 
@@ -2918,46 +2902,19 @@ function coatFruitWithSugar(model, key, broken = []) {
     const position = new THREE.Float32BufferAttribute(points, 3).setUsage(THREE.DynamicDrawUsage);
     geometry.setAttribute('position', position);
     geometry.setIndex(cells.flatMap(cell => cell.indices));
-    geometry.computeVertexNormals();
     geometry.computeBoundingSphere();
     const mesh = new THREE.Mesh(geometry, sugarSurfaceMaterial);
     mesh.raycast = () => {};
     mesh.renderOrder = 2;
     surface.group.add(mesh);
 
-    // The crack lines use the shell's vertices, so they bend and recover with the coating.
-    const outline = new THREE.BufferGeometry();
-    outline.setAttribute('position', position);
-    const edgeCount = cells.reduce((count, cell) => count + cell.edges.length, 0);
-    const IndexArray = geometry.index.array.constructor;
-    outline.setIndex(new THREE.BufferAttribute(new IndexArray(edgeCount * 2), 1).setUsage(THREE.DynamicDrawUsage));
-    const lines = new THREE.LineSegments(outline, sugarCrackMaterial.clone());
-    lines.frustumCulled = false;
-    lines.renderOrder = 3;
-    lines.raycast = () => {};
-    mesh.add(lines);
-
     const coating = {
-        mesh, lines, position, rest: position.array.slice(), cells,
+        mesh, position, rest: position.array.slice(), cells,
         broken: new Set(broken.filter(id => Number.isInteger(id) && id >= 0 && id < cells.length)),
         cracking: new Set(),
     };
     sugarCoatings.set(model, coating);
-    refreshSugarCracks(coating);
     return true;
-}
-
-function refreshSugarCracks(coating) {
-    const index = coating.lines.geometry.index;
-    let length = 0;
-    for (const id of coating.broken) {
-        for (const [a, b] of coating.cells[id].edges) {
-            index.array[length++] = a;
-            index.array[length++] = b;
-        }
-    }
-    index.needsUpdate = true;
-    coating.lines.geometry.setDrawRange(0, length);
 }
 
 function disposeSugarCoating(model) {
@@ -2970,8 +2927,6 @@ function disposeSugarCoating(model) {
         dent.patches = dent.patches.filter(patch => patch.position !== coating.position);
     }
     coating.mesh.removeFromParent();
-    coating.lines.geometry.dispose();
-    coating.lines.material.dispose();
     coating.mesh.geometry.dispose();
     sugarCoatings.delete(model);
 }
@@ -2987,15 +2942,25 @@ function crackSugarCoating(model, key, dent, time) {
     if (!local.length || local[0].distance > 0.19) return;
 
     const { radius, depth } = FRUIT_DENT_PROFILES[key];
+    const coatedDepthMultiplier = 1.60;
+    // Push the skin underneath in with the coating so it cannot cover the recessed tiles.
+    for (const patch of dent.patches) {
+        for (let i = 0; i < patch.offsets.length; i += 4) {
+            patch.offsets[i + 1] *= coatedDepthMultiplier;
+            patch.offsets[i + 2] *= coatedDepthMultiplier;
+            patch.offsets[i + 3] *= coatedDepthMultiplier;
+        }
+    }
     const offsets = [];
     const fresh = [];
-    for (const { id } of local) {
+    for (const { id, distance } of local) {
         const cell = coating.cells[id];
         if (!coating.broken.has(id) && !coating.cracking.has(id)) {
             coating.cracking.add(id);
             fresh.push(id);
         }
-        const cellDepth = depth * (0.78 + (id % 3) * 0.038);
+        const central = 1 - distance / 0.28;
+        const cellDepth = depth * coatedDepthMultiplier * (0.70 + central * 0.18 + (id % 3) * 0.035);
         for (const index of cell.vertices) {
             const i = index * 3;
             const r = Math.hypot(coating.rest[i] - center.x, coating.rest[i + 1] - center.y,
@@ -3008,7 +2973,6 @@ function crackSugarCoating(model, key, dent, time) {
     }
     // Keep the jagged patch visible after a short tap, then restore the fruit and shell together.
     dent.patches.push({ position: coating.position, offsets });
-    dent.coating = coating;
     dent.peakHoldMs = Math.max(dent.peakHoldMs, 100);
     dent.recoveryMs = Math.max(dent.recoveryMs, 350);
     if (!fresh.length) return;
@@ -3025,8 +2989,6 @@ function markSugarCracks(burst, time) {
         coating.cracking.delete(id);
         coating.broken.add(id);
     }
-    refreshSugarCracks(coating);
-
     const shell = coating.mesh;
     shell.updateWorldMatrix(true, false);
     const outgoing = normal.clone().transformDirection(shell.matrixWorld);
