@@ -84,6 +84,9 @@
         }
         #sell-toast.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
         #sell-toast.hide { opacity:0; transform:translate(-50%,-60%) scale(.9); transition:all .3s ease-in; }
+        #sell-toast[data-anchor="bottom"] {
+            top:auto; bottom:calc(86px + var(--toss-safe-bottom, env(safe-area-inset-bottom, 0px)));
+        }
 
         #hold-hint {
             position:fixed; bottom:90px; left:50%; transform:translateX(-50%);
@@ -1150,19 +1153,8 @@ function spawnBeeOnFruit(bDef,fruitKey,fruitInstIdx,restore,startAngle=0){
         bee.intervalId=setInterval(()=>{
             if(!isResetting&&perSec>0){
                 score+=Math.floor(perSec*BEE_SCORE_MULTI());
-                // 비료 또잉
-                if(_manureModel&&_manureMulti>1&&!_manureModel._tweenActive){
-                    _manureModel._tweenActive=true;const ms=1.0;
-                    new TWEEN.Tween(_manureModel.scale).to({x:ms*1.08,y:ms*.92,z:ms*1.08},120).easing(TWEEN.Easing.Sinusoidal.Out)
-                    .chain(new TWEEN.Tween(_manureModel.scale).to({x:ms*.97,y:ms*1.03,z:ms*.97},140).easing(TWEEN.Easing.Sinusoidal.InOut)
-                    .chain(new TWEEN.Tween(_manureModel.scale).to({x:ms,y:ms,z:ms},300).easing(TWEEN.Easing.Elastic.Out).onComplete(()=>{if(_manureModel)_manureModel._tweenActive=false;}))).start();
-                }
-                if(_flowerModel&&_flowerMulti>1&&!_flowerModel._tweenActive){
-                    _flowerModel._tweenActive=true;const fs=1.0;
-                    new TWEEN.Tween(_flowerModel.scale).to({x:fs*1.08,y:fs*.92,z:fs*1.08},120).easing(TWEEN.Easing.Sinusoidal.Out)
-                    .chain(new TWEEN.Tween(_flowerModel.scale).to({x:fs*.97,y:fs*1.03,z:fs*.97},140).easing(TWEEN.Easing.Sinusoidal.InOut)
-                    .chain(new TWEEN.Tween(_flowerModel.scale).to({x:fs,y:fs,z:fs},300).easing(TWEEN.Easing.Elastic.Out).onComplete(()=>{if(_flowerModel)_flowerModel._tweenActive=false;}))).start();
-                }
+                if (_manureMulti > 1) playEffectItemMotion(_manureModel, 'boost');
+                if (_flowerMulti > 1) playEffectItemMotion(_flowerModel, 'boost');
                 scoreEl.innerText=fmtN(score);
                 const _fs=document.getElementById('fruit-shop-score');
                 const _bs=document.getElementById('bee-shop-score');
@@ -1318,7 +1310,7 @@ function createPopup(val,color){
 }
 
 let toastTmr;
-function showSellToast(msg){const t=document.getElementById('sell-toast');t.innerText=msg;t.className='show';clearTimeout(toastTmr);toastTmr=setTimeout(()=>{t.className='hide';setTimeout(()=>{t.className='';},380);},1800);}
+function showSellToast(msg, anchor='center'){const t=document.getElementById('sell-toast');t.dataset.anchor=anchor;t.innerText=msg;t.className='show';clearTimeout(toastTmr);toastTmr=setTimeout(()=>{t.className='hide';setTimeout(()=>{t.className='';},380);},1800);}
 function showUnlockImg(src){const img=document.createElement('img');img.src=src;img.className='unlock-img';document.body.appendChild(img);setTimeout(()=>img.parentNode&&img.remove(),2000);}
 function spawnParticles(emoji,btnEl){if(!btnEl)return;const r=btnEl.getBoundingClientRect();for(let i=0;i<7;i++){const p=document.createElement('div');p.className='buy-particle';p.innerText=emoji;p.style.cssText=`left:${r.left+r.width/2}px;top:${r.top+r.height/2}px`;const ang=(i/7)*Math.PI*2,d=70+Math.random()*60;p.style.setProperty('--dx',Math.cos(ang)*d+'px');p.style.setProperty('--dy',Math.sin(ang)*d+'px');p.style.animationDelay=Math.random()*.08+'s';document.body.appendChild(p);setTimeout(()=>p.remove(),850);}}
 
@@ -1461,49 +1453,188 @@ function _startItemCooldown(type) {
     _ensureItemCooldownTimer();
 }
 
-function _removeEffectItem(model, slot, afterRemove) {
-    new TWEEN.Tween(model.scale).to({x:0,y:0,z:0}, 200).easing(TWEEN.Easing.Cubic.In).onComplete(() => {
+// Effect-item motion stays on an inner group so it can play during placement or removal.
+const EFFECT_REST_POSE = [1, 1, 0, 0, 0];
+// Poses describe spread, height, lean, lift, and the petal or sprout hinge angle.
+const EFFECT_ITEM_MOTIONS = {
+    flower: {
+        spawn: [[100, [0.96, 0.98, 0.09, 0, 0.30]], [245, [1.03, 1.05, -0.07, 0.022, -0.27]],
+            [500, EFFECT_REST_POSE]],
+        tap: [[66, [0.985, 0.97, 0.17, 0, 0.26]], [170, [1.022, 1.04, -0.11, 0.014, -0.28]],
+            [281, [1, 0.995, 0.048, 0, 0.09]], [480, EFFECT_REST_POSE]],
+        boost: [[97, [1.015, 1.04, -0.069, 0.018, -0.24]], [352, EFFECT_REST_POSE]],
+        exit: [[200, [0.91, 0.94, -0.13, 0, 0.38]]],
+    },
+    manure: {
+        spawn: [[123, [1.10, 0.79, 0.039, 0, 0.24]], [235, [0.985, 1.05, -0.035, 0.04, -0.20]],
+            [380, EFFECT_REST_POSE]],
+        tap: [[71, [1.18, 0.74, 0.039, 0, 0.14]], [166, [0.975, 1.07, -0.048, 0.044, -0.25]],
+            [267, [1.055, 0.92, 0.025, 0, 0.13]], [438, EFFECT_REST_POSE]],
+        boost: [[74, [1.078, 0.895, 0.025, 0, 0.16]], [154, [0.984, 1.026, -0.026, 0.012, -0.17]],
+            [318, EFFECT_REST_POSE]],
+        exit: [[190, [1.08, 0.72, 0.055, 0, 0.19]]],
+    },
+};
+const effectItemRigs = new WeakMap();
+
+function prepareEffectItem(model, type, box) {
+    const body = new THREE.Group();
+    body.add(...model.children.slice());
+    model.add(body);
+    const rig = { type, body, bottom: box.min.y, pose: EFFECT_REST_POSE.slice(), petals: [] };
+    const meshes = [];
+    body.traverse(node => { if (node.isMesh) meshes.push(node); });
+
+    if (type === 'flower') {
+        const face = meshes.find(mesh => mesh.name.startsWith('쿼드_구체'));
+        if (face) {
+            const center = body.worldToLocal(new THREE.Box3().setFromObject(face).getCenter(new THREE.Vector3()));
+            const normal = new THREE.Vector3(0, 0.43, 0.90).normalize();
+            for (const mesh of meshes.filter(part => part.name.startsWith('튜브_튜브_1'))) {
+                const middle = body.worldToLocal(new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3()));
+                const radial = middle.sub(center);
+                radial.addScaledVector(normal, -radial.dot(normal)).normalize();
+                const pivot = new THREE.Group();
+                pivot.position.copy(center).addScaledVector(radial, 0.12);
+                body.add(pivot);
+                pivot.attach(mesh);
+                rig.petals.push({ pivot, axis: radial.cross(normal).normalize() });
+            }
+        }
+    } else {
+        const joint = new THREE.Group();
+        joint.position.set(0.203, 0.49, -0.154);
+        body.add(joint);
+        for (const mesh of meshes) {
+            if (mesh.name.startsWith('튜브_튜브_튜브_튜브') || mesh.name.startsWith('원통_원통_원통_원통')) {
+                joint.attach(mesh);
+            }
+        }
+        rig.sprout = joint;
+    }
+    effectItemRigs.set(model, rig);
+}
+
+function playEffectItemMotion(model, kind) {
+    const rig = effectItemRigs.get(model);
+    if (!rig || rig.exiting || (kind === 'boost' && rig.motion)) return;
+    rig.motion = {
+        kind,
+        startedAt: performance.now(),
+        from: rig.pose.slice(),
+        frames: EFFECT_ITEM_MOTIONS[rig.type][kind],
+    };
+}
+
+function updateEffectItemMotion(model, time) {
+    const rig = effectItemRigs.get(model);
+    if (!rig?.motion || model.parent !== scene) return;
+    const { from, frames, startedAt } = rig.motion;
+    const age = Math.max(0, time - startedAt);
+    let previous = from, start = 0;
+    for (const [end, next] of frames) {
+        if (age < end) {
+            const t = (age - start) / (end - start);
+            const eased = start === 0 ? 1 - (1 - t) ** 2 : t * t * (3 - 2 * t);
+            for (let i = 0; i < next.length; i++) rig.pose[i] = THREE.MathUtils.lerp(previous[i], next[i], eased);
+            break;
+        }
+        start = end;
+        previous = next;
+    }
+    if (age >= frames.at(-1)[0]) {
+        rig.pose = frames.at(-1)[1].slice();
+        rig.motion = null;
+    }
+
+    const [width, height, lean, lift, detail] = rig.pose;
+    const pitch = lean * (rig.type === 'flower' ? 0.45 : 0.24);
+    rig.body.scale.set(width, height, width);
+    rig.body.rotation.set(pitch, 0, lean);
+    rig.body.position.set(
+        rig.bottom * height * Math.sin(lean),
+        rig.bottom * (1 - height) + lift,
+        -rig.bottom * height * Math.sin(pitch),
+    );
+    for (const [index, { pivot, axis }] of rig.petals.entries()) {
+        pivot.quaternion.setFromAxisAngle(axis, detail * (0.90 + index % 3 * 0.09));
+    }
+    if (rig.sprout) {
+        rig.sprout.rotation.x = -detail * 0.48;
+        rig.sprout.rotation.z = detail;
+    }
+}
+
+function removeEffectItem(type) {
+    const model = type === 'flower' ? _flowerModel : _manureModel;
+    const rig = effectItemRigs.get(model);
+    if (!rig || rig.exiting) return;
+    playEffectItemMotion(model, 'exit');
+    rig.exiting = true;
+    new TWEEN.Tween(model.scale).to({x:0,y:0,z:0}, 220).easing(TWEEN.Easing.Cubic.In).onComplete(() => {
         scene.remove(model);
-        if (afterRemove) afterRemove(slot);
+        const current = type === 'flower' ? _flowerModel : _manureModel;
+        if (current !== model) return;
+        const slot = type === 'flower' ? _flowerSlot : _manureSlot;
+        if (type === 'flower') {
+            _flowerModel = null;
+            _flowerSlot = -1;
+        } else {
+            _manureModel = null;
+            _manureSlot = -1;
+        }
+        if (slot >= 0) {
+            gridSlots[slot] = null;
+            compactGrid(slot);
+        }
+        updateAllUI();
+        writeSave();
     }).start();
 }
 
-function spawnFlower(slotIdx, animate) {
-    loader.load('./Flower.glb', gltf => {
-        const model = gltf.scene; fixMesh(model);
+function spawnEffectItem(type, slot) {
+    const isFlower = type === 'flower';
+    const file = isFlower ? './Flower.glb' : './Manure.glb';
+    loader.load(file, gltf => {
+        const model = gltf.scene === _gltfCache[file]?.scene ? gltf.scene.clone() : gltf.scene;
+        fixMesh(model);
         const box = new THREE.Box3().setFromObject(model);
-        const {x,z} = gridPos(slotIdx);
-        model.position.set(x, (floorY||0) - box.min.y, z);
+        prepareEffectItem(model, type, box);
+        const {x, z} = gridPos(slot);
+        model.position.set(x, (floorY || 0) - box.min.y, z);
         model.rotation.y = Math.PI;
-        model.scale.setScalar(animate ? 0 : 1.0); scene.add(model);
-        if (animate) { playShowup(); new TWEEN.Tween(model.scale).to({x:1,y:1,z:1}, 600).easing(TWEEN.Easing.Elastic.Out).start(); }
-        _flowerModel = model;
-        _flowerSlot = slotIdx;
-        gridSlots[slotIdx] = { key:'__flower__', idx:0 };
-        activateFlower();
-    });
-}
+        model.scale.setScalar(0);
+        scene.add(model);
+        playShowup();
+        new TWEEN.Tween(model.scale).to({x:1,y:1,z:1}, isFlower ? 340 : 305).easing(TWEEN.Easing.Back.Out).start();
+        playEffectItemMotion(model, 'spawn');
 
-function spawnManure(slotIdx, animate) {
-    loader.load('./Manure.glb', gltf => {
-        const model = gltf.scene; fixMesh(model);
-        const box = new THREE.Box3().setFromObject(model);
-        const {x,z} = gridPos(slotIdx);
-        model.position.set(x, (floorY||0) - box.min.y, z);
-        model.rotation.y = Math.PI;
-        model.scale.setScalar(animate ? 0 : 1.0); scene.add(model);
-        if (animate) { playShowup(); new TWEEN.Tween(model.scale).to({x:1,y:1,z:1}, 600).easing(TWEEN.Easing.Elastic.Out).start(); }
-        _manureModel = model;
-        _manureSlot = slotIdx;
-        gridSlots[slotIdx] = { key:'__manure__', idx:0 };
-        activateManure();
+        gridSlots[slot] = { key: isFlower ? '__flower__' : '__manure__', idx: 0 };
+        if (isFlower) {
+            _flowerModel = model;
+            _flowerSlot = slot;
+            activateFlower();
+        } else {
+            _manureModel = model;
+            _manureSlot = slot;
+            activateManure();
+        }
+    }, undefined, error => {
+        if (gridSlots[slot] === 'reserved') gridSlots[slot] = null;
+        score += isFlower ? FLOWER_PRICE : MANURE_PRICE;
+        if (isFlower) _flowerCooldownEndTime = 0;
+        else _manureCooldownEndTime = 0;
+        console.error('효과 아이템 GLB 실패:', file, error);
+        showSellToast('아이템을 불러오지 못했어요. 다시 눌러 주세요.');
+        writeSave();
+        updateAllUIImmediate();
     });
 }
 
 function activateFlower() {
     _flowerMulti = 2;
     _flowerEndTime = performance.now() + FLOWER_DURATION;
-    showSellToast('꽃 사용! 15초간 벌 수입 ×2배!');
+    showSellToast('꽃 사용! 15초간 벌 수입 ×2배!', 'bottom');
     updateFlowerTimerUI();
     if (_flowerTimer) clearInterval(_flowerTimer);
     _flowerTimer = setInterval(() => {
@@ -1512,16 +1643,7 @@ function activateFlower() {
         if (remain <= 0) {
             clearInterval(_flowerTimer); _flowerTimer = null;
             _flowerMulti = 1;
-            if (_flowerModel) {
-                const model = _flowerModel;
-                const slot = _flowerSlot;
-                _removeEffectItem(model, slot, oldSlot => {
-                    _flowerModel = null;
-                    if (oldSlot >= 0) { gridSlots[oldSlot] = null; compactGrid(oldSlot); }
-                    _flowerSlot = -1;
-                    updateAllUI(); writeSave();
-                });
-            }
+            removeEffectItem('flower');
             updateFlowerTimerUI();
         }
     }, 200);
@@ -1530,7 +1652,7 @@ function activateFlower() {
 function activateManure() {
     _manureMulti = 2;
     _manureEndTime = performance.now() + MANURE_DURATION;
-    showSellToast('비료 사용! 15초간 ×2배!');
+    showSellToast('비료 사용! 15초간 ×2배!', 'bottom');
     updateManureTimerUI();
     if (_manureTimer) clearInterval(_manureTimer);
     _manureTimer = setInterval(() => {
@@ -1539,16 +1661,7 @@ function activateManure() {
         if (remain <= 0) {
             clearInterval(_manureTimer); _manureTimer = null;
             _manureMulti = 1;
-            if (_manureModel) {
-                const model = _manureModel;
-                const slot = _manureSlot;
-                _removeEffectItem(model, slot, oldSlot => {
-                    _manureModel = null;
-                    if (oldSlot >= 0) { gridSlots[oldSlot] = null; compactGrid(oldSlot); }
-                    _manureSlot = -1;
-                    updateAllUI(); writeSave();
-                });
-            }
+            removeEffectItem('manure');
             updateManureTimerUI();
         }
     }, 200);
@@ -1653,7 +1766,7 @@ window.__buyFlower = function() {
     _startItemCooldown('flower');
     gridSlots[slot] = 'reserved';
     score -= FLOWER_PRICE; scoreEl.innerText = fmtN(score); writeSave(); updateAllUI();
-    spawnFlower(slot, true);
+    spawnEffectItem('flower', slot);
     closeShop('bee-shop-overlay');
 };
 
@@ -1664,7 +1777,7 @@ window.__buyManure = function() {
     _startItemCooldown('manure');
     gridSlots[slot] = 'reserved';
     score -= MANURE_PRICE; scoreEl.innerText = fmtN(score); writeSave(); updateAllUI();
-    spawnManure(slot, true);
+    spawnEffectItem('manure', slot);
     closeShop('bee-shop-overlay');
 };
 
@@ -2206,12 +2319,13 @@ const FRUIT_PRESS_PROFILES = {
         ],
     },
     lemon: {
-        pressMs: 66, soundRate: 1.18,
-        down: [1.30, 0.78, 0.95, 0.13, 0, -0.11],
+        pressMs: 74, soundRate: 1.18,
+        down: [1.23, 0.73, 1.23, 0.064, 0, -0.035],
         recovery: [
-            [77, [0.94, 1.075, 1.13, -0.08, 0.032, 0.12]],
-            [158, [1.085, 0.96, 0.99, 0.045, 0, -0.045]],
-            [303, FRUIT_REST_POSE],
+            [96, [0.94, 1.105, 0.94, -0.075, 0.030, 0.055]],
+            [176, [1.075, 0.929, 1.075, 0.040, 0, -0.030]],
+            [252, [0.985, 1.025, 0.985, -0.022, 0.009, 0.012]],
+            [370, FRUIT_REST_POSE],
         ],
     },
     coconut: {
@@ -2324,7 +2438,7 @@ const FRUIT_DENT_PROFILES = {
     avocado:    { radius: 0.45, depth: 0.107, recoveryMs: 475 },
     cherry:     { radius: 0.27, depth: 0.044, recoveryMs: 265 },
     pineapple:  { radius: 0.30, depth: 0.039, recoveryMs: 230 },
-    lemon:      { radius: 0.36, depth: 0.070, recoveryMs: 300 },
+    lemon:      { radius: 0.38, depth: 0.070, recoveryMs: 365 },
     coconut:    { radius: 0.26, depth: 0.027, recoveryMs: 195 },
     kiwi:       { radius: 0.38, depth: 0.080, recoveryMs: 415 },
     strawberry: { radius: 0.44, depth: 0.113, recoveryMs: 440 },
@@ -2571,7 +2685,7 @@ function tickHold(){
     const elapsed = performance.now() - hold.t0;
     const progress = Math.min(elapsed / HOLD_MS, 1);
     // Keep the short tap clear while still showing progress for a deliberate sale.
-    if (hold.key === 'watermelon' || FRUIT_PRESS_PROFILES[hold.key]) {
+    if (hold.key === 'watermelon' || FRUIT_PRESS_PROFILES[hold.key] || hold.key === '__flower__' || hold.key === '__manure__') {
         const indicatorDelay = hold.key === 'watermelon' ? 320 : 200;
         holdRing.style.visibility = elapsed < indicatorDelay ? 'hidden' : 'visible';
     }
@@ -2599,11 +2713,7 @@ function doSell(key,idx){
         if(_manureTimer){clearInterval(_manureTimer);_manureTimer=null;}
         _manureMulti=1; updateManureTimerUI();
         playShowup();
-        new TWEEN.Tween(_manureModel.scale).to({x:0,y:0,z:0},150).easing(TWEEN.Easing.Cubic.In).onComplete(()=>{
-            scene.remove(_manureModel);_manureModel=null;
-            if(_manureSlot>=0){gridSlots[_manureSlot]=null;compactGrid(_manureSlot);_manureSlot=-1;}
-            updateAllUI();writeSave();
-        }).start();
+        removeEffectItem('manure');
         showSellToast('비료 판매! +0점');
         return;
     }
@@ -2612,11 +2722,7 @@ function doSell(key,idx){
         if(_flowerTimer){clearInterval(_flowerTimer);_flowerTimer=null;}
         _flowerMulti=1; updateFlowerTimerUI();
         playShowup();
-        new TWEEN.Tween(_flowerModel.scale).to({x:0,y:0,z:0},150).easing(TWEEN.Easing.Cubic.In).onComplete(()=>{
-            scene.remove(_flowerModel);_flowerModel=null;
-            if(_flowerSlot>=0){gridSlots[_flowerSlot]=null;compactGrid(_flowerSlot);_flowerSlot=-1;}
-            updateAllUI();writeSave();
-        }).start();
+        removeEffectItem('flower');
         showSellToast('꽃 판매! +0점');
         return;
     }
@@ -2636,8 +2742,8 @@ const ray=new THREE.Raycaster(),mp=new THREE.Vector2();
 let fTw,cTw;
 function findFruitByMesh(obj){
     // 효과 아이템 체크
-    if(_manureModel){let cur=obj;while(cur){if(cur===_manureModel)return{isManure:true};cur=cur.parent;}}
-    if(_flowerModel){let cur=obj;while(cur){if(cur===_flowerModel)return{isFlower:true};cur=cur.parent;}}
+    if(_manureModel&&!effectItemRigs.get(_manureModel)?.exiting){let cur=obj;while(cur){if(cur===_manureModel)return{isManure:true};cur=cur.parent;}}
+    if(_flowerModel&&!effectItemRigs.get(_flowerModel)?.exiting){let cur=obj;while(cur){if(cur===_flowerModel)return{isFlower:true};cur=cur.parent;}}
     for(let i=0;i<boxInstances.length;i++){let cur=obj;while(cur){if(cur===boxInstances[i].model)return{isBox:true,boxInst:boxInstances[i]};cur=cur.parent;}}
     for(let i=0;i<plusBoxInstances.length;i++){let cur=obj;while(cur){if(cur===plusBoxInstances[i].model)return{isPlusBox:true,boxInst:plusBoxInstances[i]};cur=cur.parent;}}
     for(const fd of FRUIT_DEFS){const pool=pools[fd.key];if(!pool)continue;for(let i=0;i<pool.list.length;i++){let cur=obj;while(cur){if(cur===pool.list[i].model)return{fd,idx:i};cur=cur.parent;}}}
@@ -2646,28 +2752,36 @@ function findFruitByMesh(obj){
 function hitFruit(cx,cy){mp.x=(cx/window.innerWidth)*2-1;mp.y=-(cy/window.innerHeight)*2+1;ray.setFromCamera(mp,camera);for(const h of ray.intersectObjects(scene.children,true)){const r=findFruitByMesh(h.object);if(r)return {...r, intersection:h};}return null;}
 
 renderer.domElement.addEventListener('pointerdown',e=>{
-    if(!e.isPrimary||anyShopOpen())return;const hit=hitFruit(e.clientX,e.clientY);
-    if(hit){if(hit.isManure){startHold('__manure__',0,e.clientX,e.clientY);controls.enabled=false;}else if(hit.isFlower){startHold('__flower__',0,e.clientX,e.clientY);controls.enabled=false;}else if(hit.isBox){clickBox(hit.boxInst);controls.enabled=false;}else if(hit.isPlusBox){clickPlusBox(hit.boxInst);controls.enabled=false;}else{
-        const {key} = hit.fd;
-        startHold(key,hit.idx,e.clientX,e.clientY);
-        controls.enabled=false;
+    if (!e.isPrimary || anyShopOpen()) return;
+    const hit = hitFruit(e.clientX, e.clientY);
+    if (!hit) return;
+    controls.enabled = false;
+    if (hit.isManure || hit.isFlower) {
+        startHold(hit.isFlower ? '__flower__' : '__manure__', 0, e.clientX, e.clientY);
+        playEffectItemMotion(hit.isFlower ? _flowerModel : _manureModel, 'tap');
+    } else if (hit.isBox) {
+        clickBox(hit.boxInst);
+    } else if (hit.isPlusBox) {
+        clickPlusBox(hit.boxInst);
+    } else {
+        const { key } = hit.fd;
+        startHold(key, hit.idx, e.clientX, e.clientY);
         const model = pools[key].list[hit.idx].model;
         const time = performance.now();
         if (key !== 'watermelon') hold.fruitPress = pressFruit(model, key, hit.intersection, time);
         hold.dent = pressFruitDent(model, key, hit.intersection, time);
-    }}
+    }
 });
 renderer.domElement.addEventListener('pointerup',e=>{
     controls.enabled=true;if(!e.isPrimary||!hold)return;
     const elapsed=performance.now()-hold.t0;const{key,idx}=hold;cancelHold();
     if(elapsed<HOLD_MS){
-        // 효과 아이템 짧은 클릭: squish만, 점수 없음
-        if(key==='__manure__'){
-            if(_manureModel){ const s=1.0; new TWEEN.Tween(_manureModel.scale).to({x:s*1.3,y:s*.7,z:s*1.3},75).chain(new TWEEN.Tween(_manureModel.scale).to({x:s,y:s,z:s},380).easing(TWEEN.Easing.Elastic.Out)).start(); moveCameraTo(_manureModel); playFruitClick(); }
-            return;
-        }
-        if(key==='__flower__'){
-            if(_flowerModel){ const s=1.0; new TWEEN.Tween(_flowerModel.scale).to({x:s*1.3,y:s*.7,z:s*1.3},75).chain(new TWEEN.Tween(_flowerModel.scale).to({x:s,y:s,z:s},380).easing(TWEEN.Easing.Elastic.Out)).start(); moveCameraTo(_flowerModel); playFruitClick(); }
+        if (key === '__manure__' || key === '__flower__') {
+            const model = key === '__flower__' ? _flowerModel : _manureModel;
+            if (model) {
+                moveCameraTo(model);
+                playFruitClick();
+            }
             return;
         }
         const fd=FRUIT_DEFS.find(d=>d.key===key);const pool=pools[key];if(!fd||!pool||idx>=pool.list.length)return;
@@ -2675,13 +2789,7 @@ renderer.domElement.addEventListener('pointerup',e=>{
         moveCameraTo(model);
         const _gain=Math.floor(fd.clickVal*CLICK_SCORE_MULTI());score+=_gain;scoreEl.innerText=fmtN(score);
         playFruitClick(key);
-        // 비료 또잉 애니메이션
-        if(_manureModel&&_manureMulti>1&&!_manureModel._tweenActive){
-            _manureModel._tweenActive=true;const ms=1.0;
-            new TWEEN.Tween(_manureModel.scale).to({x:ms*1.12,y:ms*.88,z:ms*1.12},100).easing(TWEEN.Easing.Sinusoidal.Out)
-            .chain(new TWEEN.Tween(_manureModel.scale).to({x:ms*.96,y:ms*1.04,z:ms*.96},120).easing(TWEEN.Easing.Sinusoidal.InOut)
-            .chain(new TWEEN.Tween(_manureModel.scale).to({x:ms,y:ms,z:ms},320).easing(TWEEN.Easing.Elastic.Out).onComplete(()=>{if(_manureModel)_manureModel._tweenActive=false;}))).start();
-        }
+        if (_manureMulti > 1) playEffectItemMotion(_manureModel, 'boost');
         writeSave();createPopup(_gain,fd.color);if(anyShopOpen())updateAllUIImmediate();scheduleFruitIdle(model);
     }
 });
@@ -2806,6 +2914,8 @@ let lastT=0,_lastScoreUpdate=0,_frameCount=0;
 function animate(t=performance.now()){
     requestAnimationFrame(animate);
     TWEEN.update(t);
+    updateEffectItemMotion(_flowerModel, t);
+    updateEffectItemMotion(_manureModel, t);
     updateFruitPresses(t);
     updateFruitDents(t);
     const dt=Math.min(t-lastT,50);lastT=t;_frameCount++;
