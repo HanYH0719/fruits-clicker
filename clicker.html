@@ -1026,6 +1026,7 @@ function place(def, slotIdx, animate, cb) {
         const instIdx=pools[def.key].list.length;
         pools[def.key].list.push({model,slot:slotIdx});
         gridSlots[slotIdx]={key:def.key,idx:instIdx};
+        scheduleFruitIdle(model);
         if (cb) cb(instIdx); else { updateAllUI(); writeSave(); }
     }, undefined, err=>{
         if (gridSlots[slotIdx] === 'reserved') gridSlots[slotIdx] = null;
@@ -1044,7 +1045,7 @@ function removeFruitAt(key, idx, refund) {
     const {model,slot}=pool.list[idx];
     const beesToRemove=beeInstances.filter(b=>b.fruitKey===key&&b.fruitIdx===idx);
     for (const b of beesToRemove) {
-        clearInterval(b.intervalId); if(b._squishTimer) clearTimeout(b._squishTimer);
+        clearInterval(b.intervalId);
         scene.remove(b.model); const bi=beeInstances.indexOf(b); if(bi!==-1) beeInstances.splice(bi,1);
         if(refund){score+=b.bDef.buyPrice;scoreEl.innerText=fmtN(score);createPopup(b.bDef.buyPrice,b.bDef.color);}
     }
@@ -1134,10 +1135,14 @@ function removeBeeInstance(b,doSave=true){const i=beeInstances.indexOf(b);if(i==
 
 function spawnBeeOnFruit(bDef,fruitKey,fruitInstIdx,restore,startAngle=0){
     loader.load(bDef.file,gltf=>{
-        const model=gltf.scene;fixMesh(model);scene.add(model);const s=bDef.beeScale;model.scale.setScalar(restore?s:0);
+        const model = gltf.scene === _gltfCache[bDef.file]?.scene ? gltf.scene.clone() : gltf.scene;
+        fixMesh(model);
+        scene.add(model);
+        const flight = prepareBeeFlight(model, bDef.key);
+        const s=bDef.beeScale;model.scale.setScalar(restore?s:0);
         if(!restore){ playBeeSound(); new TWEEN.Tween(model.scale).to({x:s,y:s,z:s},700).easing(TWEEN.Easing.Elastic.Out).start(); }
         const _fruitItem=pools[fruitKey]?.list[fruitInstIdx]||null;
-        const bee={bDef,fruitKey,fruitIdx:fruitInstIdx,model,angle:startAngle,_fruitItem};
+        const bee={bDef,fruitKey,fruitIdx:fruitInstIdx,model,angle:startAngle,_fruitItem,flight};
         const fd=FRUIT_DEFS.find(f=>f.key===fruitKey),perSec=fd?Math.floor(fd.clickVal/bDef.divisor):0;
         bee.intervalId=setInterval(()=>{
             if(!isResetting&&perSec>0){
@@ -1926,7 +1931,7 @@ function playRebirthAnimation() {
 }
 
 function finishRebirth(bucket, resolve) {
-    for(const b of [...beeInstances]){clearInterval(b.intervalId);if(b._squishTimer)clearTimeout(b._squishTimer);scene.remove(b.model);}
+    for(const b of beeInstances){clearInterval(b.intervalId);scene.remove(b.model);}
     beeInstances.length=0;
     new TWEEN.Tween(bucket.scale).to({x:3.2,y:3.2,z:3.2},150).easing(TWEEN.Easing.Quadratic.Out).chain(
         new TWEEN.Tween(bucket.scale).to({x:0,y:0,z:0},300).easing(TWEEN.Easing.Back.In).onComplete(()=>{
@@ -1934,7 +1939,7 @@ function finishRebirth(bucket, resolve) {
             rebirthCount++;score=0;unlockedSlots=3;
             for(const k of Object.keys(pools))pools[k].list=[];
             for(let i=0;i<MAX_SLOTS;i++)gridSlots[i]=i>=unlockedSlots?'locked':null;
-            boxInstances.length=0;plusBoxInstances.length=0;Object.keys(idleState).forEach(k=>delete idleState[k]);
+            boxInstances.length=0;plusBoxInstances.length=0;
             // 효과 아이템 정리
             if(_manureTimer){clearInterval(_manureTimer);_manureTimer=null;}_manureMulti=1;
             if(_manureModel){scene.remove(_manureModel);_manureModel=null;}_manureSlot=-1;
@@ -2160,11 +2165,11 @@ const FRUIT_PRESS_PROFILES = {
     },
     blueberry: {
         pressMs: 58, soundRate: 1.26,
-        down: [1.16, 0.81, 1.18, 0.14, 0, -0.045],
+        down: [1.135, 0.84, 1.15, 0.115, 0, -0.035],
         recovery: [
-            [63, [0.96, 1.08, 0.98, -0.18, 0.035, 0.10]],
-            [125, [1.05, 0.96, 1.02, 0.12, 0, -0.06]],
-            [194, [0.98, 1.025, 1, -0.065, 0.012, 0.025]],
+            [63, [0.967, 1.065, 0.984, -0.145, 0.029, 0.082]],
+            [125, [1.04, 0.967, 1.016, 0.10, 0, -0.05]],
+            [194, [0.984, 1.020, 1, -0.053, 0.010, 0.021]],
             [290, FRUIT_REST_POSE],
         ],
     },
@@ -2179,12 +2184,12 @@ const FRUIT_PRESS_PROFILES = {
     },
     cherry: {
         pressMs: 57, soundRate: 1.32,
-        down: [1.13, 0.83, 1.12, 0.125, 0, 0.065],
+        down: [1.11, 0.86, 1.10, 0.105, 0, 0.055],
         recovery: [
-            [63, [0.96, 1.09, 0.94, -0.095, 0.075, -0.05]],
-            [127, [1.10, 0.88, 1.08, 0.075, 0, 0.04]],
-            [192, [0.98, 1.045, 0.98, -0.055, 0.045, -0.025]],
-            [254, [1.04, 0.95, 1.04, 0.025, 0, 0.01]],
+            [63, [0.967, 1.075, 0.95, -0.08, 0.063, -0.042]],
+            [127, [1.083, 0.90, 1.067, 0.063, 0, 0.033]],
+            [192, [0.983, 1.038, 0.983, -0.046, 0.038, -0.021]],
+            [254, [1.033, 0.958, 1.033, 0.021, 0, 0.008]],
             [343, FRUIT_REST_POSE],
         ],
     },
@@ -2246,16 +2251,19 @@ function prepareFruitPress(model, box) {
     fruitPressSurfaces.set(model, { group, bottom: box.min.y, center: box.getCenter(new THREE.Vector3()) });
 }
 
-function pressFruit(model, key, hit) {
+function pressFruit(model, key, hit, time = performance.now()) {
     const surface = fruitPressSurfaces.get(model);
-    const contact = surface.group.worldToLocal(hit.point.clone()).sub(surface.center);
-    const length = Math.hypot(contact.x, contact.z);
+    let angle = Math.random() * Math.PI * 2;
+    if (hit) {
+        const contact = surface.group.worldToLocal(hit.point.clone()).sub(surface.center);
+        if (Math.hypot(contact.x, contact.z) > 0.04) angle = Math.atan2(contact.x, contact.z);
+    }
     const press = {
         surface,
         profile: FRUIT_PRESS_PROFILES[key],
-        directionX: length > 0.04 ? contact.x / length : 0,
-        directionZ: length > 0.04 ? contact.z / length : 1,
-        pressedAt: performance.now(),
+        directionX: Math.sin(angle),
+        directionZ: Math.cos(angle),
+        pressedAt: time,
         releasedAt: null,
     };
     activeFruitPresses.set(model, press);
@@ -2278,6 +2286,7 @@ function updateFruitPresses(time) {
         if (releasedAt === null || time < releasedAt) {
             const progress = THREE.MathUtils.clamp((time - pressedAt) / profile.pressMs, 0, 1);
             applyFruitPressPose(press, FRUIT_REST_POSE, profile.down, 1 - 0.76 * (1 - progress) ** 2);
+            if (press.autoRelease && progress === 1) releaseFruitPress(press, time);
             continue;
         }
 
@@ -2370,7 +2379,7 @@ function getWatermelonGeometryTemplate(source) {
     return geometry;
 }
 
-function pressWatermelon(model, hit) {
+function pressWatermelon(model, hit, time = performance.now()) {
     if (!hit.face) return;
     let surface = watermelonSurfaces.get(model);
     const space = surface?.cushion ?? model;
@@ -2420,7 +2429,7 @@ function pressWatermelon(model, hit) {
         }
     }
 
-    const dent = { pressedAt: performance.now(), releasedAt: null, strength: 0, applied: 0, patches };
+    const dent = { pressedAt: time, releasedAt: null, strength: 0, applied: 0, patches };
     surface.dents.add(dent);
     surface.latestPress = dent;
     activeWatermelonSurfaces.add(surface);
@@ -2435,6 +2444,7 @@ function updateWatermelonDents(time) {
             if (age < 0) {
                 const progress = THREE.MathUtils.clamp((time - dent.pressedAt) / WATERMELON_PRESS_MS, 0, 1);
                 dent.strength = 1 - (1 - progress) ** 2;
+                if (dent.autoRelease && progress === 1) releaseFruitPress(dent, time);
             } else {
                 const progress = Math.min(age / WATERMELON_RECOVERY_MS, 1);
                 dent.strength = (1 - progress) ** 2.5;
@@ -2521,12 +2531,14 @@ function tickHold(){
 }
 function cancelHold(){
     if(holdRAF){cancelAnimationFrame(holdRAF);holdRAF=null;}
-    const press = hold?.fruitPress ?? hold?.dent;
-    if (press) {
-        const fullPress = press.pressedAt + (press.profile?.pressMs ?? WATERMELON_PRESS_MS);
-        press.releasedAt = Math.max(performance.now(), fullPress);
-    }
+    releaseFruitPress(hold?.fruitPress ?? hold?.dent, performance.now());
     hold=null;holdRing.style.display='none';holdProg.style.strokeDashoffset=CIRC;
+}
+
+function releaseFruitPress(press, time) {
+    if (!press) return;
+    const fullPress = press.pressedAt + (press.profile?.pressMs ?? WATERMELON_PRESS_MS);
+    press.releasedAt = Math.max(time, fullPress);
 }
 function doSell(key,idx){
     // 효과 아이템 판매: 0원, 효과 즉시 종료
@@ -2620,23 +2632,128 @@ renderer.domElement.addEventListener('pointerup',e=>{
             .chain(new TWEEN.Tween(_manureModel.scale).to({x:ms*.96,y:ms*1.04,z:ms*.96},120).easing(TWEEN.Easing.Sinusoidal.InOut)
             .chain(new TWEEN.Tween(_manureModel.scale).to({x:ms,y:ms,z:ms},320).easing(TWEEN.Easing.Elastic.Out).onComplete(()=>{if(_manureModel)_manureModel._tweenActive=false;}))).start();
         }
-        writeSave();createPopup(_gain,fd.color);if(anyShopOpen())updateAllUIImmediate();resetIdle(key,idx);
+        writeSave();createPopup(_gain,fd.color);if(anyShopOpen())updateAllUIImmediate();scheduleFruitIdle(model);
     }
 });
 renderer.domElement.addEventListener('pointermove',e=>{if(!hold)return;if((e.clientX-hold.cx)**2+(e.clientY-hold.cy)**2>18**2){cancelHold();controls.enabled=true;}});
 renderer.domElement.addEventListener('pointercancel',()=>{cancelHold();controls.enabled=true;});
 window.addEventListener('blur',()=>{cancelHold();controls.enabled=true;});
 
-function initBeeRandom(bee){bee._rMult=0.82+Math.random()*0.36;bee._sMult=0.75+Math.random()*0.5;bee._hPhase=Math.random()*Math.PI*2;bee._hAmp=0.08+Math.random()*0.18;bee._tilt=0.65+Math.random()*0.7;bee._wPhase=Math.random()*Math.PI*2;bee._wAmp=0.03+Math.random()*0.05;scheduleBeeSquish(bee);}
-function scheduleBeeSquish(bee){
-    const delay=5000+Math.random()*7000;bee._squishTimer=setTimeout(()=>{if(!bee.model)return;const s=bee.bDef.beeScale;new TWEEN.Tween(bee.model.scale).to({x:s*1.06,y:s*0.91,z:s*1.06},100).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(bee.model.scale).to({x:s*0.96,y:s*1.05,z:s*0.96},120).easing(TWEEN.Easing.Quadratic.InOut).chain(new TWEEN.Tween(bee.model.scale).to({x:s,y:s,z:s},200).easing(TWEEN.Easing.Elastic.Out))).start();scheduleBeeSquish(bee);},delay);}
-const _origPush=beeInstances.push.bind(beeInstances);beeInstances.push=function(...args){for(const b of args)initBeeRandom(b);return _origPush(...args);};
+// Each bee gets its own flight rhythm. Queens bank more slowly and fly wider arcs.
+const BEE_FLIGHT_STYLES = {
+    bee: [
+        { radius: 1.05, speed: 1.18, ellipse: 0.82, height: 1.13, bob: 0.07, lift: 0.12,
+            sweep: 0.12, bank: 0.22, rhythm: 3.5, surge: 0.31, flutter: 9.4, squash: 0.07 },
+        { radius: 0.90, speed: 0.89, ellipse: 0.73, height: 1.22, bob: 0.19, lift: 0.10,
+            sweep: 0.07, bank: 0.11, rhythm: 2.65, surge: 0.12, flutter: 10.7, squash: 0.11 },
+        { radius: 1.20, speed: 1.06, ellipse: 0.68, height: 1.20, bob: 0.10, lift: 0.05,
+            sweep: 0.24, bank: 0.30, rhythm: 1.95, surge: 0.23, flutter: 8.1, squash: 0.05 },
+    ],
+    queenBee: [
+        { radius: 1.13, speed: 0.85, ellipse: 0.86, height: 1.29, bob: 0.09, lift: 0.11,
+            sweep: 0.12, bank: 0.13, rhythm: 1.75, surge: 0.14, flutter: 6.3, squash: 0.05 },
+        { radius: 0.98, speed: 1.04, ellipse: 0.73, height: 1.26, bob: 0.14, lift: 0.18,
+            sweep: 0.19, bank: 0.19, rhythm: 2.35, surge: 0.20, flutter: 7.4, squash: 0.07 },
+    ],
+};
+const nextBeeFlightStyle = { bee: 0, queenBee: 0 };
 
-const idleState={},IDLE_MIN=4000,IDLE_MAX=9000;
-function getFruitIdleKey(key,idx){return key+'_'+idx;}
-function scheduleIdle(key,idx){const k=getFruitIdleKey(key,idx);if(!idleState[k])idleState[k]={playing:false};idleState[k].nextIdleT=performance.now()+IDLE_MIN+Math.random()*(IDLE_MAX-IDLE_MIN);}
-function resetIdle(key,idx){const k=getFruitIdleKey(key,idx);if(idleState[k])idleState[k].nextIdleT=performance.now()+IDLE_MIN+Math.random()*(IDLE_MAX-IDLE_MIN);}
-function playIdleAnim(model,scale){if(!model)return;const s=scale||1;const seq=[{scale:{x:s*0.92,y:s*1.08,z:s*0.92},dur:120},{scale:{x:s*1.08,y:s*0.93,z:s*1.08},dur:140},{scale:{x:s*0.95,y:s*1.05,z:s*0.95},dur:110},{scale:{x:s,y:s,z:s},dur:180}];let tw=new TWEEN.Tween(model.scale).to(seq[0].scale,seq[0].dur).easing(TWEEN.Easing.Quadratic.InOut);let cur=tw;for(let i=1;i<seq.length;i++){const next=new TWEEN.Tween(model.scale).to(seq[i].scale,seq[i].dur).easing(TWEEN.Easing.Quadratic.InOut);cur.chain(next);cur=next;}tw.start();}
+function prepareBeeFlight(model, key) {
+    const styles = BEE_FLIGHT_STYLES[key];
+    const style = styles[nextBeeFlightStyle[key]++ % styles.length];
+    const body = new THREE.Group();
+    body.add(...model.children.slice());
+    model.add(body);
+
+    const wings = [];
+    body.traverse(mesh => {
+        if (!mesh.isMesh || !mesh.name.startsWith('원통_원통')) return;
+        const { min, max } = mesh.geometry.boundingBox;
+        // The blue wings share these bounds. The queen's crown is a wider mesh.
+        if (Math.max(Math.abs(min.x), Math.abs(max.x)) < 0.2) wings.push(mesh);
+    });
+
+    const hinges = wings.map(wing => {
+        const bounds = wing.geometry.boundingBox;
+        const side = Math.sign(bounds.min.x + bounds.max.x);
+        const root = new THREE.Vector3(side * 0.039, 0.363, -0.004);
+        const pivot = new THREE.Group();
+        pivot.position.copy(body.worldToLocal(wing.localToWorld(root)));
+        body.add(pivot);
+        pivot.attach(wing);
+        return { pivot, side: Math.sign(pivot.position.x) };
+    });
+
+    return {
+        body, hinges, style,
+        phase: Math.random() * Math.PI * 2,
+        offset: Math.random() * Math.PI * 2,
+        variation: 0.92 + Math.random() * 0.16,
+    };
+}
+
+function updateBeeFlight(bee, time, delta) {
+    const fruit = pools[bee.fruitKey]?.list[bee.fruitIdx];
+    if (!fruit) return;
+    const { body, hinges, style, phase, offset, variation } = bee.flight;
+    const seconds = time / 1000;
+    const wave = seconds * style.rhythm + phase;
+    const beat = Math.sin(wave);
+    const burst = Math.max(0, Math.sin(wave + offset)) ** 4;
+    bee.angle += bee.bDef.orbitSpeed * style.speed * variation * (1 + style.surge * beat) * delta;
+
+    const center = fruit.model.position;
+    const { angle } = bee;
+    const radius = bee.bDef.orbitR * style.radius * variation * (1 + style.sweep * Math.sin(wave + offset));
+    bee.model.position.set(
+        center.x + Math.cos(angle) * radius,
+        center.y + style.height + style.bob * beat + style.lift * burst + 0.026 * Math.sin(seconds * 7 + offset),
+        center.z + Math.sin(angle) * radius * style.ellipse,
+    );
+    const yaw = Math.atan2(-Math.sin(angle), Math.cos(angle) * style.ellipse);
+    bee.model.rotation.set(-0.09 * Math.cos(wave), yaw, style.bank * (0.35 + 0.65 * beat), 'YXZ');
+
+    const squash = style.squash * burst;
+    body.scale.set(1 + 0.55 * squash, 1 - squash, 1 + 0.35 * squash);
+    const wingPhase = seconds * style.flutter * variation * Math.PI * 2 + offset + 0.35 * beat;
+    for (const { pivot, side } of hinges) {
+        const cycle = wingPhase + 0.33 * side;
+        pivot.rotation.z = -side * (0.24 + (0.39 + burst * 0.07) * Math.sin(cycle));
+        pivot.rotation.x = 0.095 * Math.cos(cycle);
+    }
+}
+
+const fruitIdleTimes = new WeakMap();
+const idleRay = new THREE.Raycaster();
+
+function scheduleFruitIdle(model, time = performance.now()) {
+    fruitIdleTimes.set(model, time + 4000 + Math.random() * 5000);
+}
+
+function updateFruitIdle(time) {
+    for (const { key } of FRUIT_DEFS) {
+        for (const { model } of pools[key]?.list ?? []) {
+            if (time < fruitIdleTimes.get(model) || model.scale.x < 0.9) continue;
+            if (activeFruitPresses.has(model) || activeWatermelonSurfaces.has(watermelonSurfaces.get(model))) continue;
+
+            scheduleFruitIdle(model, time);
+            if (key !== 'watermelon') {
+                // Render the compressed pose at least once before a spontaneous rebound.
+                pressFruit(model, key, null, time).autoRelease = true;
+                continue;
+            }
+
+            model.updateWorldMatrix(true, true);
+            const target = model.localToWorld(new THREE.Vector3(
+                (Math.random() - 0.5) * 0.5, Math.random() * 0.28, (Math.random() - 0.5) * 0.5,
+            ));
+            const origin = camera.position.clone();
+            idleRay.set(origin, target.sub(origin).normalize());
+            const [hit] = idleRay.intersectObject(model, true);
+            if (hit?.face) pressWatermelon(model, hit, time).autoRelease = true;
+        }
+    }
+}
 
 let lastT=0,_lastScoreUpdate=0,_frameCount=0;
 function animate(t=performance.now()){
@@ -2646,44 +2763,8 @@ function animate(t=performance.now()){
     updateWatermelonDents(t);
     const dt=Math.min(t-lastT,50);lastT=t;_frameCount++;
     if(t-_lastScoreUpdate>150){scoreEl.innerText=fmtN(score);_lastScoreUpdate=t;}
-    const beeSkip=2,idleSkip=4;
-    const doUpdateBees=(_frameCount%beeSkip===0);
-    for(const bee of beeInstances){
-        if(!doUpdateBees)continue;
-        const pool=pools[bee.fruitKey];if(!pool||bee.fruitIdx>=pool.list.length)continue;
-        const center=pool.list[bee.fruitIdx].model.position;if(!bee._rMult)initBeeRandom(bee);
-        const speed=bee.bDef.orbitSpeed*bee._sMult;bee.angle+=speed*(dt*beeSkip);
-        const r=bee.bDef.orbitR*bee._rMult;
-        const bx=center.x+Math.cos(bee.angle)*r;
-        const bz=center.z+Math.sin(bee.angle)*r*bee._tilt;
-        const by=center.y+Math.sin(t*0.0035+bee._hPhase)*bee._hAmp+Math.sin(t*0.0091+bee._wPhase)*bee._wAmp+1.2;
-        bee.model.position.set(bx,by,bz);
-        const nextAngle=bee.angle+0.05;
-        const nx=center.x+Math.cos(nextAngle)*r;
-        const nz=center.z+Math.sin(nextAngle)*r*bee._tilt;
-        bee.model.rotation.y=Math.atan2(nx-bx,nz-bz);
-    }
-    const now=t;
-    if (_frameCount % idleSkip === 0) {
-        for (const fd of FRUIT_DEFS) {
-            const pool = pools[fd.key];
-            if (!pool || fd.key === 'watermelon') continue;
-            for (const [i, { model }] of pool.list.entries()) {
-                if (activeFruitPresses.has(model)) continue;
-                const key = getFruitIdleKey(fd.key, i);
-                if (!idleState[key]) {
-                    scheduleIdle(fd.key, i);
-                    continue;
-                }
-                const idle = idleState[key];
-                if (!idle.playing && now >= idle.nextIdleT) {
-                    idle.playing = true;
-                    playIdleAnim(model, fd.ms);
-                    setTimeout(() => { idle.playing = false; scheduleIdle(fd.key, i); }, 600);
-                }
-            }
-        }
-    }
+    for (const bee of beeInstances) updateBeeFlight(bee, t, dt);
+    if (_frameCount % 4 === 0) updateFruitIdle(t);
     controls.update();renderer.render(scene,camera);
 }
 animate();
