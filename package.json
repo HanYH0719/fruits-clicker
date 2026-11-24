@@ -1,0 +1,17 @@
+{
+  "name": "fruit-clicker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:web": "node apps-in-toss/build.mjs",
+    "build": "npm run build:web && ait build"
+  },
+  "dependencies": {
+    "@apps-in-toss/web-framework": "3.11.0",
+    "@tweenjs/tween.js": "23.1.1",
+    "three": "0.160.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

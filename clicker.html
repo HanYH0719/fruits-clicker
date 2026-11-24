@@ -45,7 +45,7 @@
         * { box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
         body { margin:0; overflow:hidden; background:var(--bg); font-family:'Cafe24PROSlim','Apple SD Gothic Neo',sans-serif; font-weight:400; touch-action:none; color:var(--text); }
 
-        #score-wrapper { position:absolute; top:40px; width:100%; display:flex; flex-direction:column; align-items:center; pointer-events:none; z-index:10; }
+        #score-wrapper { position:absolute; top:calc(40px + var(--toss-safe-top, env(safe-area-inset-top, 0px))); width:100%; display:flex; flex-direction:column; align-items:center; pointer-events:none; z-index:10; }
         #score-container { font-size:clamp(66px,11.8vw,94px); font-weight:700; }
         #score {
             font-size:clamp(66px,11.8vw,94px); font-weight:700; color:#ffffff;
@@ -79,7 +79,8 @@
             border-radius:999px; border:2.5px solid var(--pink-lt);
             box-shadow:var(--shadow-lg);
             z-index:1100; pointer-events:none; opacity:0;
-            transition:all .25s cubic-bezier(.34,1.56,.64,1); white-space:nowrap;
+            transition:all .25s cubic-bezier(.34,1.56,.64,1);
+            width:max-content; max-width:calc(100% - 32px); text-align:center;
         }
         #sell-toast.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
         #sell-toast.hide { opacity:0; transform:translate(-50%,-60%) scale(.9); transition:all .3s ease-in; }
@@ -94,7 +95,7 @@
         #hold-hint.visible { opacity:1; }
 
         #settings-btn {
-            position:fixed; top:16px; left:16px; z-index:100;
+            position:fixed; top:calc(16px + var(--toss-safe-top, env(safe-area-inset-top, 0px))); left:calc(16px + var(--toss-safe-left, env(safe-area-inset-left, 0px))); z-index:100;
             background:none; border:none; padding:0; cursor:pointer;
             transition:all .18s; filter:drop-shadow(0 2px 6px rgba(0,0,0,.15));
             -webkit-tap-highlight-color:transparent;
@@ -212,7 +213,7 @@
         .settings-code-btn:hover { transform:scale(1.04) translateY(-1px); filter:brightness(1.05); }
         .settings-code-btn:active { transform:scale(.88); filter:brightness(.92); transition:all .06s; }
 
-        #bottom-btns { position:fixed; bottom:20px; right:16px; display:flex; gap:8px; z-index:100; align-items:flex-end; }
+        #bottom-btns { position:fixed; bottom:calc(20px + var(--toss-safe-bottom, env(safe-area-inset-bottom, 0px))); right:calc(16px + var(--toss-safe-right, env(safe-area-inset-right, 0px))); display:flex; gap:8px; z-index:100; align-items:flex-end; }
         .bottom-btn {
             background: none; border: none; padding: 0; cursor: pointer;
             transition: all .18s; filter: drop-shadow(0 2px 6px rgba(0,0,0,.15));
@@ -443,7 +444,7 @@
     </svg>
 </div>
 
-<div id="sell-toast"></div>
+<div id="sell-toast" role="status"></div>
 <div id="hold-hint">🖱️ 길게 누르면 판매</div>
 
 <!-- 설정 버튼 -->
@@ -460,6 +461,7 @@
             <button class="shop-close shop-header-right" id="settings-close">✕</button>
         </div>
         <div class="settings-body">
+            <!-- debug-code:start -->
             <div style="display:flex;flex-direction:column;gap:8px;">
                 <div class="settings-label">코드 입력</div>
                 <input type="text" class="settings-code-input" id="settings-code" placeholder="코드를 입력하세요">
@@ -467,6 +469,7 @@
             </div>
 
             <div style="height:1px;background:var(--border);"></div>
+            <!-- debug-code:end -->
 
             <div class="settings-row">
                 <span class="settings-label">과일 클릭음</span>
@@ -653,6 +656,8 @@ import { GLTFLoader }    from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import * as TWEEN        from '@tweenjs/tween.js';
 
+const tossPlatform = null;
+
 // ═══════════════════════════════════════════════════════════
 //  🔊 사운드 시스템
 // ═══════════════════════════════════════════════════════════
@@ -691,7 +696,7 @@ async function _loadAudio(url) {
 
 // 모바일 자동재생 정책 대응: 첫 터치 시 컨텍스트 resume
 function _resumeAudioCtx() {
-    if (_audioCtx.state === 'suspended') _audioCtx.resume();
+    if (!document.hidden && _audioCtx.state !== 'running') _audioCtx.resume().catch(() => {});
 }
 
 // 배열에서 랜덤 선택 후 재생
@@ -699,7 +704,7 @@ function _playRandom(urls, volume = 1.0) {
     _resumeAudioCtx();
     const url = urls[Math.floor(Math.random() * urls.length)];
     _loadAudio(url).then(buf => {
-        if (!buf) return;
+        if (!buf || document.hidden) return;
         const src  = _audioCtx.createBufferSource();
         const gain = _audioCtx.createGain();
         gain.gain.value = volume;
@@ -728,10 +733,10 @@ function playFruitClick() { if (_fruitSoundOn) _playRandom(_fruitSoundUrls, 0.7)
 function playUIClick()    { if (_uiSoundOn) _playRandom(_uiSoundUrls, 0.6); }
 
 /** 과일·박스 등장/사라질 때 재생 */
-function playShowup()     { _playRandom(['./Showup.m4a'], 0.75); }
+function playShowup()     { if (_uiSoundOn) _playRandom(['./Showup.m4a'], 0.75); }
 
 /** 벌 등장/사라질 때 재생 */
-function playBeeSound()   { _playRandom(['./Bee.m4a'], 0.75); }
+function playBeeSound()   { if (_fruitSoundOn) _playRandom(['./Bee.m4a'], 0.75); }
 
 function _applyBgmVolume() {
     _bgmAudio.volume = _bgmVolume;
@@ -754,7 +759,7 @@ function _setNextBgmTrack() {
 }
 
 function _tryPlayBgm() {
-    if (!_bgmOn || !_bgmUrls.length) return;
+    if (document.hidden || !_bgmOn || !_bgmUrls.length) return;
     if (!_bgmAudio.src) _setNextBgmTrack();
     _bgmAudio.play().catch(() => {});
 }
@@ -771,12 +776,22 @@ _bgmAudio.addEventListener('ended', () => {
 _applyBgmVolume();
 _setNextBgmTrack();
 
+let _audioUnlocked = false;
 const _unlockBgmPlayback = () => {
+    _audioUnlocked = true;
     _resumeAudioCtx();
     _tryPlayBgm();
 };
 window.addEventListener('pointerdown', _unlockBgmPlayback, { passive: true });
 window.addEventListener('keydown', _unlockBgmPlayback, { passive: true });
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        _bgmAudio.pause();
+        _audioCtx.suspend().catch(() => {});
+    } else if (_audioUnlocked) {
+        _unlockBgmPlayback();
+    }
+});
 
 // 페이지 로드 시 모든 사운드 미리 디코딩
 [..._fruitSoundUrls, ..._uiSoundUrls, './Showup.m4a', './Bee.m4a'].forEach(u => _loadAudio(u));
@@ -803,19 +818,20 @@ const getSellVal = (def, item) => {
 };
 
 const BEE_DEFS = [
-    { key:'bee',      file:'./Bee.glb',     emoji:'🐝', icon:'./Bee.png',     name:'꿀벌',   buyPrice:1500,  beeScale:0.4,  divisor:3, color:'#FFD700', orbitR:0.55, orbitSpeed:0.0022 },
-    { key:'queenBee', file:'./QeenBee.glb', emoji:'👑', icon:'./QeenBee.png', name:'여왕벌', buyPrice:5800,  beeScale:0.48, divisor:2, color:'#FF4500', orbitR:0.70, orbitSpeed:0.0018 },
+    { key:'bee',      file:'./Bee.glb',     emoji:'🐝', icon:'./Bee.PNG',     name:'꿀벌',   buyPrice:1500,  beeScale:0.4,  divisor:3, color:'#FFD700', orbitR:0.55, orbitSpeed:0.0022 },
+    { key:'queenBee', file:'./QeenBee.glb', emoji:'👑', icon:'./QeenBee.PNG', name:'여왕벌', buyPrice:5800,  beeScale:0.48, divisor:2, color:'#FF4500', orbitR:0.70, orbitSpeed:0.0018 },
 ];
 
-const SAVE_KEY = 'fc_v16';
+const SAVE_KEY = tossPlatform ? tossPlatform.saveKey : 'fc_v16';
 let _uiTimer = null;
+const pendingFruitPurchases = new Set();
 let isResetting = false;
 
-function loadSave() { try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch { return {}; } }
+function loadSave() { try { return SAVE_KEY ? JSON.parse(localStorage.getItem(SAVE_KEY)) || {} : {}; } catch { return {}; } }
 
 // ★ writeSave: 슬롯 순서대로 {key, fromBox} 배열(fruitsEx)로 저장
 function writeSave() {
-    if (isResetting) return;
+    if (isResetting || !SAVE_KEY) return;
     const d = { score, unlockedSlots, rebirthCount };
 
     // fruitsEx: 슬롯 인덱스 순으로 과일 key + _fromBox 플래그 저장
@@ -918,7 +934,7 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(-4.4, 0, -4.4);
 controls.enableDamping = true; controls.dampingFactor = 0.2; controls.enablePan = false;
 controls.minZoom = 0.8;
-controls.maxZoom = 2.4;
+controls.maxZoom = 2.8;
 
 
 const COLS = 3, GAP = 2.2, MAX_SLOTS = 9;
@@ -985,7 +1001,11 @@ function fixMesh(obj) {
 
 function place(def, slotIdx, animate, cb) {
     loader.load(def.file, gltf => {
-        const model = gltf.scene; fixMesh(model);
+        // Keep the cached template independent of each watermelon's deformable mesh.
+        const model = def.key === 'watermelon' && gltf.scene === _gltfCache[def.file]?.scene
+            ? gltf.scene.clone()
+            : gltf.scene;
+        fixMesh(model);
         const box = new THREE.Box3().setFromObject(model);
         if (floorY===null) { floorY=box.min.y; floorMesh.position.y=floorY; }
         const {x,z} = gridPos(slotIdx);
@@ -998,7 +1018,11 @@ function place(def, slotIdx, animate, cb) {
         pools[def.key].list.push({model,slot:slotIdx});
         gridSlots[slotIdx]={key:def.key,idx:instIdx};
         if (cb) cb(instIdx); else { updateAllUI(); writeSave(); }
-    }, undefined, err=>{ console.error('GLB 실패:',def.file,err); if(cb) cb(null); });
+    }, undefined, err=>{
+        if (gridSlots[slotIdx] === 'reserved') gridSlots[slotIdx] = null;
+        console.error('GLB 실패:',def.file,err);
+        if (cb) cb(null);
+    });
 }
 
 function addFruit(def, animate, cb) {
@@ -1015,7 +1039,7 @@ function removeFruitAt(key, idx, refund) {
         scene.remove(b.model); const bi=beeInstances.indexOf(b); if(bi!==-1) beeInstances.splice(bi,1);
         if(refund){score+=b.bDef.buyPrice;scoreEl.innerText=fmtN(score);createPopup(b.bDef.buyPrice,b.bDef.color);}
     }
-    new TWEEN.Tween(model.scale).to({x:0,y:0,z:0},150).easing(TWEEN.Easing.Cubic.In).onComplete(()=>scene.remove(model)).start();
+    new TWEEN.Tween(model.scale).to({x:0,y:0,z:0},150).easing(TWEEN.Easing.Cubic.In).onComplete(()=>removeFruitModel(model)).start();
     playShowup(); // 🔊 과일 사라질 때
     pool.list.splice(idx,1); gridSlots[slot]=null;
     pool.list.forEach((item,i)=>{gridSlots[item.slot]={key,idx:i};});
@@ -1268,7 +1292,7 @@ function finishInit(){
 }
 
 try { initGame(); } catch(e) { console.error('initGame error:', e); finishInit(); }
-setTimeout(()=>{const ov=document.getElementById('loading-overlay');if(ov){const bar=document.getElementById('loading-bar');if(bar)bar.style.width='100%';ov.classList.add('fade');setTimeout(()=>ov.remove(),700);}try{buildSlotShopUI();buildFruitShopUI();buildBeeShopUI();buildBoxShopUI();}catch(e){console.error('fallback init error:',e);}},8000);
+setTimeout(()=>{if(document.getElementById('loading-overlay'))finishInit();},8000);
 
 const popupArea=document.getElementById('popup-area');
 function createPopup(val,color){
@@ -1305,28 +1329,52 @@ function buildFruitShopUI(){
     const grid=document.getElementById('fruit-shop-grid');grid.innerHTML='';
     for(const fd of FRUIT_DEFS){
         const isFree=fd.buyPrice===0,card=document.createElement('div');card.className='shop-item';card.id=`fsi-${fd.key}`;
-        card.innerHTML=`<div class="shop-item-emoji">${fd.icon?`<img src="${fd.icon}" alt="${fd.name}">`:`<span style="font-size:72px;line-height:140px;display:block;text-align:center;">${fd.emoji}</span>`}</div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${fd.name}</div><div class="shop-item-clickval">클릭 +${fd.clickVal}</div></div><button class="shop-buy-btn${isFree?' free':''}" id="fsb-${fd.key}" onclick="window.__buyFruit('${fd.key}')">${isFree?'무료 획득':fmtN(fd.buyPrice)}</button>`;
+        card.innerHTML=`<div class="shop-item-emoji">${fd.icon?`<img src="${fd.icon}" alt="${fd.name}">`:`<span style="font-size:72px;line-height:140px;display:block;text-align:center;">${fd.emoji}</span>`}</div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${fd.name}</div><div class="shop-item-clickval">클릭 +${fd.clickVal}</div></div><button class="shop-buy-btn${isFree?' free':''}" id="fsb-${fd.key}">${isFree?'무료 획득':fmtN(fd.buyPrice)}</button>`;
+        card.querySelector('button').addEventListener('click', () => buyFruit(fd));
         grid.appendChild(card);
     }
     updateAllUI();
 }
 function updateFruitShopUI(){
     document.getElementById('fruit-shop-score').innerText=`${fmtN(score)}점`;
-    const full=gridSlots.every(s=>s!==null);
+    const full=nextFreeSlot()===-1;
     for(const fd of FRUIT_DEFS){
         const bEl=document.getElementById(`fsb-${fd.key}`),rEl=document.getElementById(`fsi-${fd.key}`);if(!bEl||!rEl)continue;
         const isFree=fd.buyPrice===0,label=isFree?'무료 획득':fmtN(fd.buyPrice);
-        if(full){bEl.disabled=true;bEl.innerText='꽉참';bEl.className='shop-buy-btn';}
+        if(pendingFruitPurchases.has(fd.key)){bEl.disabled=true;bEl.innerText='불러오는 중…';bEl.className='shop-buy-btn';}
+        else if(full){bEl.disabled=true;bEl.innerText='꽉참';bEl.className='shop-buy-btn';}
         else if(score<fd.buyPrice){bEl.disabled=true;bEl.innerText=label;bEl.className='shop-buy-btn';}
         else{bEl.disabled=false;bEl.innerText=label;bEl.className=`shop-buy-btn${isFree?' free':''}`;}
     }
 }
-window.__buyFruit=function(key){
-    const fd=FRUIT_DEFS.find(d=>d.key===key);if(!fd||score<fd.buyPrice||nextFreeSlot()===-1)return;
-    playUIClick(); // 🔊 UI 클릭음
-    score-=fd.buyPrice;scoreEl.innerText=fmtN(score);writeSave();updateAllUI();
-    addFruit(fd,true,()=>{updateAllUI();});
-};
+function buyFruit(fd) {
+    if (window.location.protocol === 'file:') {
+        showSellToast('폴더에서 Play Fruit Clicker.command로 게임을 열어 주세요.');
+        return;
+    }
+    const slot = nextFreeSlot();
+    if (slot === -1 || pendingFruitPurchases.has(fd.key) || score < fd.buyPrice) return;
+
+    pendingFruitPurchases.add(fd.key);
+    const firstApple = fd.key === 'apple' && !pools.apple?.list.length;
+    playUIClick();
+    score -= fd.buyPrice;
+    scoreEl.innerText = fmtN(score);
+    updateFruitShopUI();
+
+    addFruit(fd, true, index => {
+        pendingFruitPurchases.delete(fd.key);
+        if (index == null) {
+            score += fd.buyPrice;
+            showSellToast('과일을 불러오지 못했어요. 다시 눌러 주세요.');
+        } else if (firstApple) {
+            const shop = document.getElementById('fruit-shop-overlay');
+            if (shop.classList.contains('visible')) closeShop(shop.id);
+        }
+        writeSave();
+        updateAllUIImmediate();
+    });
+}
 
 function buildBeeShopUI(){
     const grid=document.getElementById('bee-shop-grid');grid.innerHTML='';
@@ -1861,7 +1909,7 @@ function playRebirthAnimation() {
                 allFruits.forEach((model,i)=>{
                     const delay=i*60;
                     new TWEEN.Tween(model.position).to({x:bucket.position.x,y:bucket.position.y+0.5,z:bucket.position.z},400).delay(delay).easing(TWEEN.Easing.Quadratic.In).start();
-                    new TWEEN.Tween(model.scale).to({x:0,y:0,z:0},400).delay(delay).easing(TWEEN.Easing.Quadratic.In).onComplete(()=>{scene.remove(model);done++;if(done>=allFruits.length)finishRebirth(bucket,resolve);}).start();
+                    new TWEEN.Tween(model.scale).to({x:0,y:0,z:0},400).delay(delay).easing(TWEEN.Easing.Quadratic.In).onComplete(()=>{removeFruitModel(model);done++;if(done>=allFruits.length)finishRebirth(bucket,resolve);}).start();
                 });
             }).start();
         }, undefined, err=>{console.error('Bucket GLB 실패',err);resolve();});
@@ -2045,6 +2093,7 @@ document.getElementById('bucket-overlay').addEventListener('click',e=>{if(e.targ
         const s = _loadSettings(); s.pixelRatio = parseFloat(selectPR.value); _saveSettings(s);
     });
 
+    // debug-handler:start
     document.getElementById('settings-code-apply').addEventListener('click', () => {
         const code = document.getElementById('settings-code').value.trim();
         if (!code) return;
@@ -2057,6 +2106,7 @@ document.getElementById('bucket-overlay').addEventListener('click',e=>{if(e.targ
         }
         document.getElementById('settings-code').value = '';
     });
+    // debug-handler:end
 }
 
 const anyShopOpen=()=>
@@ -2066,12 +2116,226 @@ const anyShopOpen=()=>
     document.getElementById('bucket-overlay').classList.contains('open')||
     document.getElementById('settings-overlay').classList.contains('open');
 
+if (tossPlatform) {
+    tossPlatform.onBack(() => {
+        const shop = document.querySelector('.shop-overlay.open, #settings-overlay.open');
+        if (shop) {
+            closeShop(shop.id);
+        } else if (window.confirm('Fruit Clicker를 종료할까요?')) {
+            tossPlatform.close().catch(() => {});
+        }
+    });
+    if (!SAVE_KEY) showSellToast('사용자 정보를 확인하지 못해 이번 플레이는 저장되지 않아요.');
+}
+
+const WATERMELON_PRESS_MS = 230;
+const WATERMELON_RELEASE_DELAY_MS = 45;
+const WATERMELON_RECOVERY_MS = 850;
+const watermelonSurfaces = new WeakMap();
+const activeWatermelonSurfaces = new Set();
+
+function makeWatermelonGeometry(source) {
+    // The optimized model has a few long edges across flat faces.
+    // Split them in place so the surface can bend at a point between its original vertices.
+    const geometry = source.clone();
+    const attributes = Object.entries(source.attributes).map(([name, attribute]) => ({
+        name, attribute, values: Array.from(attribute.array),
+    }));
+    const positions = attributes.find(({ name }) => name === 'position').values;
+    const pending = Array.from(source.index.array);
+    const triangles = [];
+    const midpoints = new Map();
+    const maxEdgeSquared = 0.085 ** 2;
+
+    function edgeSquared(a, b) {
+        return (positions[a * 3] - positions[b * 3]) ** 2
+            + (positions[a * 3 + 1] - positions[b * 3 + 1]) ** 2
+            + (positions[a * 3 + 2] - positions[b * 3 + 2]) ** 2;
+    }
+
+    while (pending.length) {
+        let c = pending.pop(), b = pending.pop(), a = pending.pop();
+        const ab = edgeSquared(a, b), bc = edgeSquared(b, c), ca = edgeSquared(c, a);
+        const longest = Math.max(ab, bc, ca);
+        if (longest <= maxEdgeSquared) {
+            triangles.push(a, b, c);
+            continue;
+        }
+        // Rotate the triangle so its longest edge comes first, preserving its winding.
+        if (bc > ab && bc >= ca) [a, b, c] = [b, c, a];
+        else if (ca > ab) [a, b, c] = [c, a, b];
+
+        const edge = a < b ? a + ':' + b : b + ':' + a;
+        let midpoint = midpoints.get(edge);
+        if (midpoint === undefined) {
+            midpoint = positions.length / 3;
+            midpoints.set(edge, midpoint);
+            for (const { attribute, values } of attributes) {
+                const size = attribute.itemSize;
+                for (let i = 0; i < size; i++) {
+                    const value = (values[a * size + i] + values[b * size + i]) / 2;
+                    values.push(attribute.normalized ? Math.round(value) : value);
+                }
+            }
+        }
+        pending.push(a, midpoint, c, midpoint, b, c);
+    }
+
+    if (midpoints.size) {
+        for (const { name, attribute, values } of attributes) {
+            geometry.setAttribute(name, new THREE.BufferAttribute(
+                new attribute.array.constructor(values), attribute.itemSize, attribute.normalized,
+            ));
+        }
+        geometry.setIndex(triangles);
+    }
+    return geometry;
+}
+
+function pressWatermelon(model, hit) {
+    if (!hit.face) return;
+    let surface = watermelonSurfaces.get(model);
+    const space = surface?.cushion ?? model;
+    const center = space.worldToLocal(hit.point.clone());
+    const worldNormal = hit.face.normal.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld));
+    const normal = space.worldToLocal(hit.point.clone().add(worldNormal)).sub(center).normalize();
+
+    if (!surface) {
+        const cushion = new THREE.Group();
+        cushion.add(...model.children.slice());
+        model.add(cushion);
+        surface = { cushion, parts: [], dents: new Set() };
+        const worldToModel = model.matrixWorld.clone().invert();
+        model.traverse(mesh => {
+            if (!mesh.isMesh) return;
+            const source = mesh.geometry;
+            const geometry = makeWatermelonGeometry(source);
+            const position = geometry.getAttribute('position').setUsage(THREE.DynamicDrawUsage);
+            geometry.boundingBox?.expandByScalar(0.20);
+            if (!geometry.boundingSphere) geometry.computeBoundingSphere();
+            geometry.boundingSphere.radius += 0.20;
+            const toModel = new THREE.Matrix4().multiplyMatrices(worldToModel, mesh.matrixWorld);
+            const toMeshDirection = new THREE.Matrix3().setFromMatrix4(toModel).invert();
+            surface.parts.push({ mesh, source, geometry, position, rest: position.clone(), toModel, toMeshDirection });
+        });
+        watermelonSurfaces.set(model, surface);
+    }
+
+    const vertex = new THREE.Vector3();
+    const offset = new THREE.Vector3();
+    const patches = [];
+    for (const { mesh, geometry, rest, position, toModel, toMeshDirection } of surface.parts) {
+        const offsets = [];
+        for (let i = 0; i < rest.count; i++) {
+            vertex.fromBufferAttribute(rest, i).applyMatrix4(toModel).sub(center);
+            const radius = vertex.length() / 0.62;
+            if (radius >= 1) continue;
+
+            // Let the depression taper smoothly over a broad patch.
+            const depression = 0.20 * (1 - radius * radius * (3 - 2 * radius));
+            offset.copy(normal).multiplyScalar(-depression).applyMatrix3(toMeshDirection);
+            offsets.push(i * 3, offset.x, offset.y, offset.z);
+        }
+        if (offsets.length) {
+            mesh.geometry = geometry;
+            patches.push({ position, offsets });
+        }
+    }
+
+    const dent = { pressedAt: performance.now(), releasedAt: null, strength: 0, applied: 0, patches };
+    surface.dents.add(dent);
+    activeWatermelonSurfaces.add(surface);
+    return dent;
+}
+
+function updateWatermelonDents(time) {
+    for (const surface of activeWatermelonSurfaces) {
+        let compression = 0;
+        for (const dent of surface.dents) {
+            const age = dent.releasedAt === null ? -1 : time - dent.releasedAt;
+            if (age < 0) {
+                const progress = THREE.MathUtils.clamp((time - dent.pressedAt) / WATERMELON_PRESS_MS, 0, 1);
+                dent.strength = 1 - (1 - progress) ** 2;
+            } else {
+                const progress = Math.min(age / WATERMELON_RECOVERY_MS, 1);
+                dent.strength = 1 - progress * progress * (3 - 2 * progress);
+            }
+            compression += dent.strength;
+        }
+
+        // Overlapping taps share the same maximum compression.
+        const weight = 1 / Math.max(1, compression);
+        for (const dent of surface.dents) {
+            const applied = dent.strength * weight;
+            const change = applied - dent.applied;
+            if (change !== 0) {
+                for (const { position, offsets } of dent.patches) {
+                    const points = position.array;
+                    for (let i = 0; i < offsets.length; i += 4) {
+                        const index = offsets[i];
+                        points[index] += offsets[i + 1] * change;
+                        points[index + 1] += offsets[i + 2] * change;
+                        points[index + 2] += offsets[i + 3] * change;
+                    }
+                    position.needsUpdate = true;
+                }
+            }
+            dent.applied = applied;
+            if (dent.releasedAt !== null && time - dent.releasedAt >= WATERMELON_RECOVERY_MS) {
+                surface.dents.delete(dent);
+            }
+        }
+        const squash = Math.min(1, compression);
+        const width = 1 + 0.055 * squash;
+        surface.cushion.scale.set(width, 1 - 0.10 * squash, width);
+        surface.cushion.position.y = -0.05 * squash;
+        if (surface.dents.size === 0) {
+            // Reset exactly to the source positions even after overlapping presses.
+            for (const { mesh, source, rest, position } of surface.parts) {
+                position.copyArray(rest.array);
+                position.needsUpdate = true;
+                mesh.geometry = source;
+            }
+            activeWatermelonSurfaces.delete(surface);
+        }
+    }
+}
+
+function removeFruitModel(model) {
+    const surface = watermelonSurfaces.get(model);
+    if (surface) {
+        activeWatermelonSurfaces.delete(surface);
+        watermelonSurfaces.delete(model);
+        for (const { mesh, source, geometry } of surface.parts) {
+            geometry.dispose();
+            mesh.geometry = source;
+        }
+    }
+    scene.remove(model);
+}
+
 const HOLD_MS=800,CIRC=175.9;
 const holdRing=document.getElementById('hold-ring'),holdProg=document.getElementById('hold-prog');
 let hold=null,holdRAF=null;
 function startHold(key,idx,cx,cy){cancelHold();hold={key,idx,t0:performance.now(),cx,cy};holdRing.style.cssText=`display:block;left:${cx}px;top:${cy}px`;holdProg.style.strokeDashoffset=CIRC;tickHold();}
-function tickHold(){if(!hold)return;const p=Math.min((performance.now()-hold.t0)/HOLD_MS,1);holdProg.style.strokeDashoffset=CIRC*(1-p);if(p>=1){doSell(hold.key,hold.idx);cancelHold();return;}holdRAF=requestAnimationFrame(tickHold);}
-function cancelHold(){if(holdRAF){cancelAnimationFrame(holdRAF);holdRAF=null;}hold=null;holdRing.style.display='none';holdProg.style.strokeDashoffset=CIRC;}
+function tickHold(){
+    if(!hold)return;
+    const elapsed = performance.now() - hold.t0;
+    const progress = Math.min(elapsed / HOLD_MS, 1);
+    // Keep the short tap clear while still showing progress for a deliberate sale.
+    if (hold.key === 'watermelon') holdRing.style.visibility = elapsed < 320 ? 'hidden' : 'visible';
+    holdProg.style.strokeDashoffset = CIRC * (1 - progress);
+    if(progress>=1){doSell(hold.key,hold.idx);cancelHold();return;}
+    holdRAF=requestAnimationFrame(tickHold);
+}
+function cancelHold(){
+    if(holdRAF){cancelAnimationFrame(holdRAF);holdRAF=null;}
+    if (hold?.dent) {
+        const fullPress = hold.dent.pressedAt + WATERMELON_PRESS_MS + WATERMELON_RELEASE_DELAY_MS;
+        hold.dent.releasedAt = Math.max(performance.now(), fullPress);
+    }
+    hold=null;holdRing.style.display='none';holdProg.style.strokeDashoffset=CIRC;
+}
 function doSell(key,idx){
     // 효과 아이템 판매: 0원, 효과 즉시 종료
     if(key==='__manure__'){
@@ -2123,11 +2387,18 @@ function findFruitByMesh(obj){
     for(const fd of FRUIT_DEFS){const pool=pools[fd.key];if(!pool)continue;for(let i=0;i<pool.list.length;i++){let cur=obj;while(cur){if(cur===pool.list[i].model)return{fd,idx:i};cur=cur.parent;}}}
     return null;
 }
-function hitFruit(cx,cy){mp.x=(cx/window.innerWidth)*2-1;mp.y=-(cy/window.innerHeight)*2+1;ray.setFromCamera(mp,camera);for(const h of ray.intersectObjects(scene.children,true)){const r=findFruitByMesh(h.object);if(r)return r;}return null;}
+function hitFruit(cx,cy){mp.x=(cx/window.innerWidth)*2-1;mp.y=-(cy/window.innerHeight)*2+1;ray.setFromCamera(mp,camera);for(const h of ray.intersectObjects(scene.children,true)){const r=findFruitByMesh(h.object);if(r)return {...r, intersection:h};}return null;}
 
 renderer.domElement.addEventListener('pointerdown',e=>{
     if(!e.isPrimary||anyShopOpen())return;const hit=hitFruit(e.clientX,e.clientY);
-    if(hit){if(hit.isManure){startHold('__manure__',0,e.clientX,e.clientY);controls.enabled=false;}else if(hit.isFlower){startHold('__flower__',0,e.clientX,e.clientY);controls.enabled=false;}else if(hit.isBox){clickBox(hit.boxInst);controls.enabled=false;}else if(hit.isPlusBox){clickPlusBox(hit.boxInst);controls.enabled=false;}else{startHold(hit.fd.key,hit.idx,e.clientX,e.clientY);controls.enabled=false;}}
+    if(hit){if(hit.isManure){startHold('__manure__',0,e.clientX,e.clientY);controls.enabled=false;}else if(hit.isFlower){startHold('__flower__',0,e.clientX,e.clientY);controls.enabled=false;}else if(hit.isBox){clickBox(hit.boxInst);controls.enabled=false;}else if(hit.isPlusBox){clickPlusBox(hit.boxInst);controls.enabled=false;}else{
+        const {key} = hit.fd;
+        startHold(key,hit.idx,e.clientX,e.clientY);
+        controls.enabled=false;
+        if (key === 'watermelon') {
+            hold.dent = pressWatermelon(pools[key].list[hit.idx].model, hit.intersection);
+        }
+    }}
 });
 renderer.domElement.addEventListener('pointerup',e=>{
     controls.enabled=true;if(!e.isPrimary||!hold)return;
@@ -2144,7 +2415,9 @@ renderer.domElement.addEventListener('pointerup',e=>{
         }
         const fd=FRUIT_DEFS.find(d=>d.key===key);const pool=pools[key];if(!fd||!pool||idx>=pool.list.length)return;
         const model=pool.list[idx].model;const s=fd.ms;
-        new TWEEN.Tween(model.scale).to({x:s*1.3,y:s*.7,z:s*1.3},75).chain(new TWEEN.Tween(model.scale).to({x:s,y:s,z:s},380).easing(TWEEN.Easing.Elastic.Out)).start();
+        if (key !== 'watermelon') {
+            new TWEEN.Tween(model.scale).to({x:s*1.3,y:s*.7,z:s*1.3},75).chain(new TWEEN.Tween(model.scale).to({x:s,y:s,z:s},380).easing(TWEEN.Easing.Elastic.Out)).start();
+        }
         moveCameraTo(model);
         const _gain=Math.floor(fd.clickVal*CLICK_SCORE_MULTI());score+=_gain;scoreEl.innerText=fmtN(score);
         playFruitClick(); // 🔊 과일 클릭음
@@ -2160,6 +2433,7 @@ renderer.domElement.addEventListener('pointerup',e=>{
 });
 renderer.domElement.addEventListener('pointermove',e=>{if(!hold)return;if((e.clientX-hold.cx)**2+(e.clientY-hold.cy)**2>18**2){cancelHold();controls.enabled=true;}});
 renderer.domElement.addEventListener('pointercancel',()=>{cancelHold();controls.enabled=true;});
+window.addEventListener('blur',()=>{cancelHold();controls.enabled=true;});
 
 function initBeeRandom(bee){bee._rMult=0.82+Math.random()*0.36;bee._sMult=0.75+Math.random()*0.5;bee._hPhase=Math.random()*Math.PI*2;bee._hAmp=0.08+Math.random()*0.18;bee._tilt=0.65+Math.random()*0.7;bee._wPhase=Math.random()*Math.PI*2;bee._wAmp=0.03+Math.random()*0.05;scheduleBeeSquish(bee);}
 function scheduleBeeSquish(bee){
@@ -2173,9 +2447,10 @@ function resetIdle(key,idx){const k=getFruitIdleKey(key,idx);if(idleState[k])idl
 function playIdleAnim(model,scale){if(!model)return;const s=scale||1;const seq=[{scale:{x:s*0.92,y:s*1.08,z:s*0.92},dur:120},{scale:{x:s*1.08,y:s*0.93,z:s*1.08},dur:140},{scale:{x:s*0.95,y:s*1.05,z:s*0.95},dur:110},{scale:{x:s,y:s,z:s},dur:180}];let tw=new TWEEN.Tween(model.scale).to(seq[0].scale,seq[0].dur).easing(TWEEN.Easing.Quadratic.InOut);let cur=tw;for(let i=1;i<seq.length;i++){const next=new TWEEN.Tween(model.scale).to(seq[i].scale,seq[i].dur).easing(TWEEN.Easing.Quadratic.InOut);cur.chain(next);cur=next;}tw.start();}
 
 let lastT=0,_lastScoreUpdate=0,_frameCount=0;
-function animate(t){
+function animate(t=performance.now()){
     requestAnimationFrame(animate);
     TWEEN.update(t);
+    updateWatermelonDents(t);
     const dt=Math.min(t-lastT,50);lastT=t;_frameCount++;
     if(t-_lastScoreUpdate>150){scoreEl.innerText=fmtN(score);_lastScoreUpdate=t;}
     const beeSkip=2,idleSkip=4;
@@ -2196,7 +2471,7 @@ function animate(t){
         bee.model.rotation.y=Math.atan2(nx-bx,nz-bz);
     }
     const now=t;
-    if(_frameCount%idleSkip===0)for(const fd of FRUIT_DEFS){const pool=pools[fd.key];if(!pool)continue;for(let i=0;i<pool.list.length;i++){const k=getFruitIdleKey(fd.key,i);if(!idleState[k]){scheduleIdle(fd.key,i);continue;}const st=idleState[k];if(!st.playing&&now>=st.nextIdleT){st.playing=true;playIdleAnim(pool.list[i].model,fd.ms);setTimeout(()=>{st.playing=false;scheduleIdle(fd.key,i);},600);}}}
+    if(_frameCount%idleSkip===0)for(const fd of FRUIT_DEFS){const pool=pools[fd.key];if(!pool||fd.key==='watermelon')continue;for(let i=0;i<pool.list.length;i++){const k=getFruitIdleKey(fd.key,i);if(!idleState[k]){scheduleIdle(fd.key,i);continue;}const st=idleState[k];if(!st.playing&&now>=st.nextIdleT){st.playing=true;playIdleAnim(pool.list[i].model,fd.ms);setTimeout(()=>{st.playing=false;scheduleIdle(fd.key,i);},600);}}}
     controls.update();renderer.render(scene,camera);
 }
 animate();
