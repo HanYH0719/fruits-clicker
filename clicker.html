@@ -87,6 +87,24 @@
         #sell-toast[data-anchor="bottom"] {
             top:auto; bottom:calc(86px + var(--toss-safe-bottom, env(safe-area-inset-bottom, 0px)));
         }
+        #sugar-target {
+            position:fixed; z-index:140; left:50%; transform:translateX(-50%);
+            bottom:calc(108px + var(--toss-safe-bottom, env(safe-area-inset-bottom, 0px)));
+            display:flex; gap:10px; align-items:center; padding:8px 10px 8px 15px;
+            background:#fff; border:2px solid #eadcf5; border-radius:999px;
+            box-shadow:var(--shadow); white-space:nowrap; font-size:15px;
+        }
+        #sugar-target[hidden] { display:none; }
+        #sugar-target-cancel {
+            color:#724ba1; background:#f4eafc; border:0; padding:6px 10px;
+            border-radius:999px; cursor:pointer; font:inherit;
+        }
+        .sugar-shop-icon {
+            display:grid; place-items:center; width:86px; height:86px;
+            margin:1rem auto; border-radius:42% 55% 48% 43%; font-size:42px;
+            background:conic-gradient(from 45deg,#ffecb5,#f9bee1,#c4ebff,#e3d1ff,#ffecb5);
+            box-shadow:inset -5px -6px 10px #9a6bbd25,inset 7px 6px 8px #ffffffbb;
+        }
 
         #hold-hint {
             position:fixed; bottom:90px; left:50%; transform:translateX(-50%);
@@ -448,6 +466,10 @@
 </div>
 
 <div id="sell-toast" role="status"></div>
+<div id="sugar-target" hidden>
+    <span role="status">코팅할 과일을 눌러 주세요</span>
+    <button type="button" id="sugar-target-cancel">취소</button>
+</div>
 <div id="hold-hint">🖱️ 길게 누르면 판매</div>
 
 <!-- 설정 버튼 -->
@@ -829,6 +851,9 @@ const BEE_DEFS = [
 ];
 
 const SAVE_KEY = tossPlatform ? tossPlatform.saveKey : 'fc_v16';
+const SUGAR_COATING_PRICE = 250;
+const sugarCoatings = new WeakMap();
+let selectingSugarTarget = false;
 let _uiTimer = null;
 const pendingFruitPurchases = new Set();
 let isResetting = false;
@@ -846,7 +871,10 @@ function writeSave() {
         const g = gridSlots[s];
         if (!g || g === 'locked' || g === 'reserved' || g.key === '__box__' || g.key === '__plusbox__') continue;
         const item = pools[g.key]?.list[g.idx];
-        fruitsEx.push({ key: g.key, fromBox: !!(item && item._fromBox) });
+        const coating = item && sugarCoatings.get(item.model);
+        const fruit = { key: g.key, fromBox: Boolean(item?._fromBox) };
+        if (coating) fruit.sugar = [...coating.broken];
+        fruitsEx.push(fruit);
     }
     d.fruitsEx = fruitsEx;
 
@@ -1227,9 +1255,9 @@ function initGame(){
     const toLoad = [];
 
     if (save.fruitsEx && save.fruitsEx.length > 0) {
-        for (const { key, fromBox } of save.fruitsEx) {
+        for (const { key, fromBox, sugar } of save.fruitsEx) {
             const fd = FRUIT_DEFS.find(f => f.key === key);
-            if (fd) toLoad.push({ fd, fromBox: !!fromBox });
+            if (fd) toLoad.push({ fd, fromBox: !!fromBox, sugar });
         }
     } else {
         // 구버전 세이브 호환
@@ -1256,11 +1284,12 @@ function initGame(){
         let i = 0;
         function loadNext() {
             if (i >= limited.length) { restoreBees(); return; }
-            const { fd, fromBox } = limited[i++];
+            const { fd, fromBox, sugar } = limited[i++];
             addFruit(fd, false, (instIdx) => {
-                if (fromBox && instIdx != null) {
-                    const pool = pools[fd.key];
-                    if (pool && pool.list[instIdx]) pool.list[instIdx]._fromBox = true;
+                const item = pools[fd.key]?.list[instIdx];
+                if (item) {
+                    if (fromBox) item._fromBox = true;
+                    if (Array.isArray(sugar)) coatFruitWithSugar(item.model, fd.key, sugar);
                 }
                 loadNext();
             });
@@ -1399,7 +1428,15 @@ function buildBeeShopUI(){
     itemsGrid.appendChild(flowerCard);
     const manureCard=document.createElement('div');manureCard.className='shop-item';manureCard.id='bsi-manure';
     manureCard.innerHTML=`<div class="shop-item-emoji"><img src="./Manure.png" alt="비료" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">비료</div><div class="shop-item-clickval">전체 수입 15초간 ×2배</div><div class="shop-item-info2" style="color:#8B6914;margin-top:3px;">환생 2회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-manure" onclick="window.__buyManure()">${fmtN(MANURE_PRICE)}</button>`;
-    itemsGrid.appendChild(manureCard);}
+    itemsGrid.appendChild(manureCard);
+    const sugarCard = document.createElement('div');
+    sugarCard.className = 'shop-item';
+    sugarCard.innerHTML = `<div class="shop-item-emoji"><div class="sugar-shop-icon" aria-hidden="true">🍬</div></div>
+        <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">설탕 코팅</div>
+        <div class="shop-item-clickval">과일 1개 · 누른 곳이 조각조각 깨져요</div></div>
+        <button type="button" class="shop-buy-btn bee-btn" id="bsb-sugar">${fmtN(SUGAR_COATING_PRICE)}</button>`;
+    sugarCard.querySelector('button').addEventListener('click', beginSugarSelection);
+    itemsGrid.appendChild(sugarCard);}
     updateAllUI();
 }
 function updateBeeShopUI(){
@@ -1415,6 +1452,12 @@ function updateBeeShopUI(){
     }
     updateFlowerBtnUI();
     updateManureBtnUI();
+    const sugarButton = document.getElementById('bsb-sugar');
+    if (sugarButton) {
+        const available = hasFruit && Object.values(pools).some(pool => pool.list.some(({ model }) => canCoatFruit(model)));
+        sugarButton.disabled = !available || score < SUGAR_COATING_PRICE;
+        sugarButton.textContent = available ? fmtN(SUGAR_COATING_PRICE) : '코팅할 과일 없음';
+    }
 }
 window.__buyBee=function(key){
     const bd=BEE_DEFS.find(b=>b.key===key);if(!bd||score<bd.buyPrice)return;
@@ -2047,6 +2090,7 @@ function playRebirthAnimation() {
 }
 
 function finishRebirth(bucket, resolve) {
+    setSugarSelection(false);
     for(const b of beeInstances){clearInterval(b.intervalId);scene.remove(b.model);}
     beeInstances.length=0;
     new TWEEN.Tween(bucket.scale).to({x:3.2,y:3.2,z:3.2},150).easing(TWEEN.Easing.Quadratic.Out).chain(
@@ -2431,17 +2475,17 @@ function updateFruitPresses(time) {
 
 const WATERMELON_PRESS_MS = 78;
 const FRUIT_DENT_PROFILES = {
-    apple:      { radius: 0.47, depth: 0.151, recoveryMs: 370, peakHoldMs: 94 },
-    watermelon: { radius: 0.62, depth: 0.155, recoveryMs: 460 },
-    orange:     { radius: 0.52, depth: 0.178, recoveryMs: 405, peakHoldMs: 104 },
-    blueberry:  { radius: 0.40, depth: 0.143, recoveryMs: 342, peakHoldMs: 91 },
-    avocado:    { radius: 0.45, depth: 0.107, recoveryMs: 475 },
-    cherry:     { radius: 0.37, depth: 0.136, recoveryMs: 335, peakHoldMs: 88 },
-    pineapple:  { radius: 0.43, depth: 0.145, recoveryMs: 330, peakHoldMs: 87 },
-    lemon:      { radius: 0.49, depth: 0.163, recoveryMs: 395, peakHoldMs: 102 },
-    coconut:    { radius: 0.37, depth: 0.130, recoveryMs: 300, peakHoldMs: 84 },
-    kiwi:       { radius: 0.50, depth: 0.173, recoveryMs: 445, peakHoldMs: 111 },
-    strawberry: { radius: 0.55, depth: 0.195, recoveryMs: 490, peakHoldMs: 118 },
+    apple:      { radius: 0.47, depth: 0.132, recoveryMs: 370, peakHoldMs: 94 },
+    watermelon: { radius: 0.62, depth: 0.145, recoveryMs: 460 },
+    orange:     { radius: 0.52, depth: 0.153, recoveryMs: 405, peakHoldMs: 104 },
+    blueberry:  { radius: 0.40, depth: 0.123, recoveryMs: 342, peakHoldMs: 91 },
+    avocado:    { radius: 0.45, depth: 0.103, recoveryMs: 475 },
+    cherry:     { radius: 0.37, depth: 0.118, recoveryMs: 335, peakHoldMs: 88 },
+    pineapple:  { radius: 0.43, depth: 0.125, recoveryMs: 330, peakHoldMs: 87 },
+    lemon:      { radius: 0.49, depth: 0.142, recoveryMs: 395, peakHoldMs: 102 },
+    coconut:    { radius: 0.37, depth: 0.111, recoveryMs: 300, peakHoldMs: 84 },
+    kiwi:       { radius: 0.50, depth: 0.148, recoveryMs: 445, peakHoldMs: 111 },
+    strawberry: { radius: 0.55, depth: 0.164, recoveryMs: 490, peakHoldMs: 118 },
 };
 const fruitDentGeometryTemplates = new WeakMap();
 const fruitDentSurfaces = new WeakMap();
@@ -2613,6 +2657,8 @@ function pressFruitDent(model, key, hit, time = performance.now()) {
         peakAt: null,
         strength: 0,
         applied: 0,
+        center,
+        normal,
         patches,
     };
     surface.dents.add(dent);
@@ -2699,6 +2745,7 @@ function updateWatermelonBounce(surface, time) {
 }
 
 function removeFruitModel(model) {
+    disposeSugarCoating(model);
     activeFruitPresses.delete(model);
     const surface = fruitDentSurfaces.get(model);
     if (surface) {
@@ -2710,6 +2757,411 @@ function removeFruitModel(model) {
         }
     }
     scene.remove(model);
+}
+
+const sugarPalette = [0xffacd3, 0xa6ddff, 0xffde85, 0xcbb9ff, 0xf9b6ac].map(value => new THREE.Color(value));
+const sugarSurfaceMaterial = new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.32, metalness: 0.04, side: THREE.DoubleSide, flatShading: false,
+});
+const sugarCrackMaterial = new THREE.LineBasicMaterial({
+    color: 0xfff7e4, transparent: true, opacity: 0.94, depthWrite: false,
+});
+const sugarChipMaterial = new THREE.MeshStandardMaterial({ roughness: 0.37, metalness: 0.02 });
+const sugarChipGeometry = new THREE.OctahedronGeometry(1, 0);
+const sugarBursts = [];
+const sugarFragments = [];
+const sugarDust = new THREE.InstancedMesh(sugarChipGeometry, sugarChipMaterial, 160);
+sugarDust.count = 0;
+sugarDust.frustumCulled = false;
+sugarDust.raycast = () => {};
+sugarDust.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+scene.add(sugarDust);
+const sugarDustPose = new THREE.Object3D();
+let sugarCrackleBuffer;
+
+function canCoatFruit(model) {
+    const coating = sugarCoatings.get(model);
+    return !coating || (coating.broken.size > 0 && coating.cracking.size === 0);
+}
+
+function setSugarSelection(active) {
+    selectingSugarTarget = active;
+    document.getElementById('sugar-target').hidden = !active;
+}
+document.getElementById('sugar-target-cancel').addEventListener('click', () => setSugarSelection(false));
+
+function beginSugarSelection() {
+    if (score < SUGAR_COATING_PRICE || !Object.values(pools).some(pool => pool.list.some(({ model }) => canCoatFruit(model)))) return;
+    playUIClick();
+    closeShop('bee-shop-overlay');
+    setSugarSelection(true);
+}
+
+function applyPurchasedSugar(key, model) {
+    if (score < SUGAR_COATING_PRICE) {
+        setSugarSelection(false);
+        showSellToast('설탕 코팅에는 250점이 필요해요.', 'bottom');
+        return;
+    }
+    if (!canCoatFruit(model)) {
+        showSellToast('이미 설탕 코팅이 남아 있어요.', 'bottom');
+        return;
+    }
+    if (!coatFruitWithSugar(model, key)) return;
+    score -= SUGAR_COATING_PRICE;
+    setSugarSelection(false);
+    playShowup();
+    writeSave();
+    updateAllUIImmediate();
+    moveCameraTo(model);
+    showSellToast('설탕 코팅 완료! 눌러서 깨 보세요.', 'bottom');
+}
+
+// Use the fruit's own surface so the brittle shell follows its shape, including rounded edges.
+function buildSugarCells(part) {
+    const source = getFruitDentGeometryTemplate(part.source);
+    const positions = source.attributes.position;
+    const triangles = source.index.array;
+    const size = part.bounds.getSize(new THREE.Vector3());
+    const center = part.bounds.getCenter(new THREE.Vector3());
+    const vertices = Array.from({ length: positions.count }, (_, index) =>
+        new THREE.Vector3().fromBufferAttribute(positions, index).applyMatrix4(part.toGroup));
+    const samples = [];
+    for (let index = 0; index < triangles.length; index += 3) {
+        samples.push(vertices[triangles[index]].clone().add(vertices[triangles[index + 1]])
+            .add(vertices[triangles[index + 2]]).multiplyScalar(1 / 3));
+    }
+
+    // Spread deterministic seeds over the surface. Stable IDs also restore the same cracks on reload.
+    const stride = Math.max(1, Math.floor(samples.length / 1500));
+    const candidates = samples.filter((_, index) => index % stride === 0);
+    const distances = new Float32Array(candidates.length).fill(Infinity);
+    const seeds = [candidates[Math.floor(candidates.length * 0.37)]];
+    const cellCount = THREE.MathUtils.clamp(Math.round(105 * (size.length() / 1.73) ** 2), 42, 145);
+    while (seeds.length < cellCount) {
+        const last = seeds.at(-1);
+        let furthest = 0;
+        for (const [index, candidate] of candidates.entries()) {
+            distances[index] = Math.min(distances[index], last.distanceToSquared(candidate));
+            if (distances[index] > distances[furthest]) furthest = index;
+        }
+        if (distances[furthest] < 0.00005) break;
+        seeds.push(candidates[furthest]);
+    }
+
+    const cells = seeds.map((seed, index) => {
+        const band = (Math.sin(seed.x * 5 + seed.z * 2.5) + Math.cos(seed.y * 6 - seed.z * 3) + 2) * 0.9;
+        const color = sugarPalette[Math.floor(band) % sugarPalette.length].clone()
+            .lerp(sugarPalette[(Math.floor(band) + 1) % sugarPalette.length], band % 1 * 0.62)
+            .multiplyScalar(0.93 + (index % 5) * 0.020);
+        return { center: seed, color, triangles: [], edges: new Map() };
+    });
+    for (const [index, sample] of samples.entries()) {
+        let nearest = 0;
+        let distance = Infinity;
+        for (const [candidate, seed] of seeds.entries()) {
+            const d = seed.distanceToSquared(sample);
+            if (d < distance) {
+                nearest = candidate;
+                distance = d;
+            }
+        }
+        const cell = cells[nearest];
+        const offset = index * 3;
+        cell.triangles.push(triangles[offset], triangles[offset + 1], triangles[offset + 2]);
+    }
+
+    const away = new THREE.Vector3();
+    for (const vertex of vertices) {
+        away.copy(vertex).sub(center).normalize();
+        vertex.addScaledVector(away, 0.022);
+    }
+    return { cells: cells.filter(cell => cell.triangles.length), vertices };
+}
+
+function coatFruitWithSugar(model, key, broken = []) {
+    const surface = getFruitDentSurface(model, key);
+    const skin = surface.parts.filter(({ source }) => source.attributes.position.count >= 3000);
+    if (!skin.length) return false;
+    disposeSugarCoating(model);
+
+    const points = [], colors = [], cells = [];
+    for (const part of skin) {
+        const patch = buildSugarCells(part);
+        for (const cell of patch.cells) {
+            const ids = new Map();
+            const indices = cell.triangles.map(index => {
+                if (!ids.has(index)) {
+                    ids.set(index, points.length / 3);
+                    const point = patch.vertices[index].clone().lerp(cell.center, 0.003);
+                    points.push(point.x, point.y, point.z);
+                    colors.push(cell.color.r, cell.color.g, cell.color.b);
+                }
+                return ids.get(index);
+            });
+            for (let index = 0; index < indices.length; index += 3) {
+                const [a, b, c] = [indices[index], indices[index + 1], indices[index + 2]];
+                for (const [from, to] of [[a,b], [b,c], [c,a]]) {
+                    const edge = Math.min(from, to) + ':' + Math.max(from, to);
+                    if (cell.edges.has(edge)) cell.edges.delete(edge);
+                    else cell.edges.set(edge, [from, to]);
+                }
+            }
+            cells.push({ center: cell.center, color: cell.color, indices, edges: [...cell.edges.values()] });
+        }
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geometry.setIndex(cells.flatMap(cell => cell.indices));
+    geometry.computeVertexNormals();
+    geometry.computeBoundingSphere();
+    geometry.index.setUsage(THREE.DynamicDrawUsage);
+    const mesh = new THREE.Mesh(geometry, sugarSurfaceMaterial);
+    mesh.raycast = () => {};
+    surface.group.add(mesh);
+
+    const coating = {
+        mesh, cells,
+        broken: new Set(broken.filter(id => Number.isInteger(id) && id >= 0 && id < cells.length)),
+        cracking: new Set(),
+    };
+    sugarCoatings.set(model, coating);
+    refreshSugarShell(coating);
+    return true;
+}
+
+function refreshSugarShell(coating) {
+    const index = coating.mesh.geometry.index;
+    let length = 0;
+    for (const [id, { indices }] of coating.cells.entries()) {
+        if (coating.broken.has(id)) continue;
+        index.array.set(indices, length);
+        length += indices.length;
+    }
+    index.needsUpdate = true;
+    coating.mesh.geometry.setDrawRange(0, length);
+    coating.mesh.visible = length > 0;
+}
+
+function disposeSugarCoating(model) {
+    const coating = sugarCoatings.get(model);
+    if (!coating) return;
+    for (let i = sugarBursts.length - 1; i >= 0; i--) {
+        if (sugarBursts[i].coating !== coating) continue;
+        removeSugarCracks(sugarBursts[i].cracks);
+        sugarBursts.splice(i, 1);
+    }
+    coating.mesh.removeFromParent();
+    coating.mesh.geometry.dispose();
+    sugarCoatings.delete(model);
+}
+
+function crackSugarCoating(model, point, normal, time) {
+    const coating = sugarCoatings.get(model);
+    if (!coating?.mesh.visible) return;
+
+    // Limit the break to the connected area around the press. Tapping a bare spot leaves the rest intact.
+    const eligible = coating.cells.map((cell, id) => ({ id, distance: cell.center.distanceTo(point) }))
+        .filter(({ distance }) => distance < 0.285)
+        .sort((a, b) => a.distance - b.distance);
+    const nearest = eligible[0];
+    if (!nearest || nearest.distance > 0.19 || coating.broken.has(nearest.id) || coating.cracking.has(nearest.id)) return;
+    const ids = eligible.filter(({id, distance}) =>
+        !coating.broken.has(id) && !coating.cracking.has(id) && distance < 0.245).slice(0, 8).map(({id}) => id);
+    if (!ids.length) return;
+    for (const id of ids) coating.cracking.add(id);
+
+    // The center gives way first, then the neighboring flakes break loose.
+    queueSugarBurst(coating, ids.slice(0, 3), normal, time + 36);
+    if (ids.length > 3) queueSugarBurst(coating, ids.slice(3), normal, time + 76, 0.48);
+}
+
+function queueSugarBurst(coating, ids, normal, at, volume = 1) {
+    const linePoints = [];
+    const position = coating.mesh.geometry.attributes.position;
+    const vertex = new THREE.Vector3();
+    for (const id of ids) {
+        for (const edge of coating.cells[id].edges) {
+            for (const index of edge) {
+                vertex.fromBufferAttribute(position, index).addScaledVector(normal, 0.008);
+                linePoints.push(vertex.x, vertex.y, vertex.z);
+            }
+        }
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(linePoints, 3));
+    const cracks = new THREE.LineSegments(geometry, sugarCrackMaterial);
+    cracks.raycast = () => {};
+    coating.mesh.add(cracks);
+    sugarBursts.push({ coating, ids, normal, cracks, at, volume });
+}
+
+function removeSugarCracks(cracks) {
+    cracks.removeFromParent();
+    cracks.geometry.dispose();
+}
+
+function launchSugarFragments(burst, time) {
+    const { coating, ids, normal } = burst;
+    const shell = coating.mesh;
+    shell.updateWorldMatrix(true, false);
+    const outgoing = normal.clone().transformDirection(shell.matrixWorld);
+    const scale = shell.getWorldScale(new THREE.Vector3());
+    const rotation = shell.getWorldQuaternion(new THREE.Quaternion());
+    const source = shell.geometry.attributes.position;
+
+    for (const id of ids) {
+        const cell = coating.cells[id];
+        coating.cracking.delete(id);
+        coating.broken.add(id);
+        const position = shell.localToWorld(cell.center.clone());
+        const fragmentPoints = [];
+        const colors = [];
+        const offset = new THREE.Vector3();
+        for (const index of cell.indices) {
+            offset.fromBufferAttribute(source, index).sub(cell.center);
+            fragmentPoints.push(offset.x, offset.y, offset.z);
+            colors.push(cell.color.r, cell.color.g, cell.color.b);
+        }
+        // Thin edge walls keep each flake visible as it tumbles edge-on.
+        const inner = normal.clone().multiplyScalar(-0.014);
+        const a = new THREE.Vector3(), b = new THREE.Vector3();
+        const aInner = new THREE.Vector3(), bInner = new THREE.Vector3();
+        for (const [start, end] of cell.edges) {
+            a.fromBufferAttribute(source, start).sub(cell.center);
+            b.fromBufferAttribute(source, end).sub(cell.center);
+            aInner.copy(a).add(inner);
+            bInner.copy(b).add(inner);
+            for (const vertex of [a, b, bInner, a, bInner, aInner]) {
+                fragmentPoints.push(vertex.x, vertex.y, vertex.z);
+                colors.push(cell.color.r * 0.80, cell.color.g * 0.80, cell.color.b * 0.80);
+            }
+        }
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(fragmentPoints, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        geometry.computeVertexNormals();
+        const fragment = new THREE.Mesh(geometry, sugarSurfaceMaterial);
+        fragment.position.copy(position);
+        fragment.quaternion.copy(rotation);
+        fragment.scale.copy(scale);
+        fragment.raycast = () => {};
+        scene.add(fragment);
+        addSugarFragment(time, position.clone(), outgoing, cell.color, fragment, scale.clone());
+
+        for (let i = 0; i < 3; i++) {
+            const dustScale = (0.014 + Math.random() * 0.033) * scale.x;
+            addSugarFragment(time, position.clone(), outgoing, cell.color, null,
+                new THREE.Vector3(dustScale, dustScale * 0.68, dustScale * 0.43));
+        }
+    }
+
+    refreshSugarShell(coating);
+    playSugarCrackle(ids.length, burst.volume);
+    writeSave();
+    updateAllUI();
+}
+
+function addSugarFragment(time, position, normal, color, mesh, scale) {
+    const speed = mesh ? 1.4 : 2.4;
+    const velocity = normal.clone().multiplyScalar(speed * (0.7 + Math.random() * 0.65));
+    velocity.x += (Math.random() - 0.5) * 2.2;
+    velocity.y += 0.9 + Math.random() * 1.65;
+    velocity.z += (Math.random() - 0.5) * 2.2;
+    if (sugarFragments.length >= 150) disposeSugarFragment(sugarFragments.shift());
+    sugarFragments.push({
+        mesh, position, velocity, color, scale, born: time,
+        lifetime: 560 + Math.random() * 310,
+        spin: new THREE.Vector3(4 + Math.random() * 9, -9 + Math.random() * 18, -10 + Math.random() * 20),
+        rotation: new THREE.Euler(),
+    });
+}
+
+function disposeSugarFragment(fragment) {
+    if (!fragment.mesh) return;
+    fragment.mesh.removeFromParent();
+    fragment.mesh.geometry.dispose();
+}
+
+function updateSugarCoatings(time, elapsed) {
+    for (let i = 0; i < sugarBursts.length;) {
+        const burst = sugarBursts[i];
+        if (time < burst.at) {
+            i++;
+            continue;
+        }
+        sugarBursts.splice(i, 1);
+        removeSugarCracks(burst.cracks);
+        launchSugarFragments(burst, time);
+    }
+    const step = Math.min(elapsed, 40) / 1000;
+    const ground = (floorY ?? 0) + 0.025;
+    let dustCount = 0;
+    for (let i = sugarFragments.length - 1; i >= 0; i--) {
+        const part = sugarFragments[i];
+        const remaining = (part.born + part.lifetime - time) / 140;
+        if (remaining <= 0) {
+            disposeSugarFragment(part);
+            sugarFragments.splice(i, 1);
+            continue;
+        }
+        part.velocity.y -= 9 * step;
+        part.position.addScaledVector(part.velocity, step);
+        if (part.position.y < ground) {
+            part.position.y = ground;
+            part.velocity.y *= -0.27;
+            part.velocity.x *= 0.72;
+            part.velocity.z *= 0.72;
+            part.spin.multiplyScalar(0.72);
+        }
+        const size = Math.min(1, remaining);
+        const pose = part.mesh ?? sugarDustPose;
+        pose.position.copy(part.position);
+        const rotation = part.mesh ? pose.rotation : part.rotation;
+        rotation.x += part.spin.x * step;
+        rotation.y += part.spin.y * step;
+        rotation.z += part.spin.z * step;
+        pose.scale.copy(part.scale).multiplyScalar(size);
+        if (!part.mesh) {
+            pose.rotation.copy(rotation);
+            pose.updateMatrix();
+            sugarDust.setMatrixAt(dustCount, pose.matrix);
+            sugarDust.setColorAt(dustCount++, part.color);
+        }
+    }
+    sugarDust.count = dustCount;
+    if (dustCount) {
+        sugarDust.instanceMatrix.needsUpdate = true;
+        sugarDust.instanceColor.needsUpdate = true;
+    }
+}
+
+function playSugarCrackle(pieces, level) {
+    if (!_fruitSoundOn || document.hidden || _audioCtx.state !== 'running') return;
+    if (!sugarCrackleBuffer) {
+        sugarCrackleBuffer = _audioCtx.createBuffer(1, Math.floor(_audioCtx.sampleRate * 0.13), _audioCtx.sampleRate);
+        const noise = sugarCrackleBuffer.getChannelData(0);
+        for (let i = 0; i < noise.length; i++) noise[i] = Math.random() * 2 - 1;
+    }
+    const grain = _audioCtx.createBufferSource();
+    grain.buffer = sugarCrackleBuffer;
+    grain.playbackRate.value = 0.93 + Math.random() * 0.19;
+    const filter = _audioCtx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 2260 + Math.random() * 920;
+    filter.Q.value = 0.83;
+    const gain = _audioCtx.createGain();
+    const now = _audioCtx.currentTime;
+    gain.gain.setValueAtTime(0, now);
+    for (const [offset, volume] of [[0,0.38],[0.018,0.24],[0.041,0.16],[0.064,0.072]]) {
+        gain.gain.setValueAtTime(0.001, now + offset);
+        gain.gain.linearRampToValueAtTime(volume * level * (0.72 + Math.min(pieces, 8) * 0.035), now + offset + 0.001);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.014);
+    }
+    grain.connect(filter).connect(gain).connect(_audioCtx.destination);
+    grain.start();
 }
 
 const HOLD_MS=800,CIRC=175.9;
@@ -2791,6 +3243,10 @@ renderer.domElement.addEventListener('pointerdown',e=>{
     if (!e.isPrimary || anyShopOpen()) return;
     const hit = hitFruit(e.clientX, e.clientY);
     if (!hit) return;
+    if (selectingSugarTarget) {
+        if (hit.fd) applyPurchasedSugar(hit.fd.key, pools[hit.fd.key].list[hit.idx].model);
+        return;
+    }
     controls.enabled = false;
     if (hit.isManure || hit.isFlower) {
         startHold(hit.isFlower ? '__flower__' : '__manure__', 0, e.clientX, e.clientY);
@@ -2806,6 +3262,7 @@ renderer.domElement.addEventListener('pointerdown',e=>{
         const time = performance.now();
         if (key !== 'watermelon') hold.fruitPress = pressFruit(model, key, hit.intersection, time);
         hold.dent = pressFruitDent(model, key, hit.intersection, time);
+        if (hold.dent) crackSugarCoating(model, hold.dent.center, hold.dent.normal, time);
     }
 });
 renderer.domElement.addEventListener('pointerup',e=>{
@@ -2955,6 +3412,7 @@ function animate(t=performance.now()){
     updateFruitPresses(t);
     updateFruitDents(t);
     const dt=Math.min(t-lastT,50);lastT=t;_frameCount++;
+    updateSugarCoatings(t, dt);
     if(t-_lastScoreUpdate>150){scoreEl.innerText=fmtN(score);_lastScoreUpdate=t;}
     for (const bee of beeInstances) updateBeeFlight(bee, t, dt);
     if (_frameCount % 4 === 0) updateFruitIdle(t);
