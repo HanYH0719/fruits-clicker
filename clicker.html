@@ -2431,17 +2431,17 @@ function updateFruitPresses(time) {
 
 const WATERMELON_PRESS_MS = 78;
 const FRUIT_DENT_PROFILES = {
-    apple:      { radius: 0.33, depth: 0.055, recoveryMs: 280 },
+    apple:      { radius: 0.47, depth: 0.151, recoveryMs: 370, peakHoldMs: 94 },
     watermelon: { radius: 0.62, depth: 0.155, recoveryMs: 460 },
-    orange:     { radius: 0.40, depth: 0.088, recoveryMs: 325 },
-    blueberry:  { radius: 0.30, depth: 0.057, recoveryMs: 260 },
+    orange:     { radius: 0.52, depth: 0.178, recoveryMs: 405, peakHoldMs: 104 },
+    blueberry:  { radius: 0.40, depth: 0.143, recoveryMs: 342, peakHoldMs: 91 },
     avocado:    { radius: 0.45, depth: 0.107, recoveryMs: 475 },
-    cherry:     { radius: 0.27, depth: 0.044, recoveryMs: 265 },
-    pineapple:  { radius: 0.30, depth: 0.039, recoveryMs: 230 },
-    lemon:      { radius: 0.38, depth: 0.070, recoveryMs: 365 },
-    coconut:    { radius: 0.26, depth: 0.027, recoveryMs: 195 },
-    kiwi:       { radius: 0.38, depth: 0.080, recoveryMs: 415 },
-    strawberry: { radius: 0.44, depth: 0.113, recoveryMs: 440 },
+    cherry:     { radius: 0.37, depth: 0.136, recoveryMs: 335, peakHoldMs: 88 },
+    pineapple:  { radius: 0.43, depth: 0.145, recoveryMs: 330, peakHoldMs: 87 },
+    lemon:      { radius: 0.49, depth: 0.163, recoveryMs: 395, peakHoldMs: 102 },
+    coconut:    { radius: 0.37, depth: 0.130, recoveryMs: 300, peakHoldMs: 84 },
+    kiwi:       { radius: 0.50, depth: 0.173, recoveryMs: 445, peakHoldMs: 111 },
+    strawberry: { radius: 0.55, depth: 0.195, recoveryMs: 490, peakHoldMs: 118 },
 };
 const fruitDentGeometryTemplates = new WeakMap();
 const fruitDentSurfaces = new WeakMap();
@@ -2548,13 +2548,34 @@ function prepareDentPart(part) {
     Object.assign(part, { geometry, position, rest, restInGroup });
 }
 
+function locateRestDent(hit, part, center, normal) {
+    // Place a repeated tap at the corresponding point on the unpressed surface.
+    const { a, b, c } = hit.face;
+    const localHit = hit.object.worldToLocal(hit.point.clone());
+    const v0 = new THREE.Vector3().fromBufferAttribute(part.position, a);
+    const v1 = new THREE.Vector3().fromBufferAttribute(part.position, b);
+    const v2 = new THREE.Vector3().fromBufferAttribute(part.position, c);
+    const coordinates = new THREE.Vector3();
+    if (!THREE.Triangle.getBarycoord(localHit, v0, v1, v2, coordinates)) return;
+    v0.fromBufferAttribute(part.rest, a);
+    v1.fromBufferAttribute(part.rest, b);
+    v2.fromBufferAttribute(part.rest, c);
+    center.set(0, 0, 0).addScaledVector(v0, coordinates.x)
+        .addScaledVector(v1, coordinates.y).addScaledVector(v2, coordinates.z).applyMatrix4(part.toGroup);
+    THREE.Triangle.getNormal(v0, v1, v2, normal).applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(part.toGroup));
+}
+
 function pressFruitDent(model, key, hit, time = performance.now()) {
     if (!hit?.face) return;
-    const { radius, depth, recoveryMs } = FRUIT_DENT_PROFILES[key];
+    const { radius, depth, recoveryMs, peakHoldMs = 0 } = FRUIT_DENT_PROFILES[key];
     const surface = getFruitDentSurface(model, key);
     const center = surface.group.worldToLocal(hit.point.clone());
     const worldNormal = hit.face.normal.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld));
     const normal = surface.group.worldToLocal(hit.point.clone().add(worldNormal)).sub(center).normalize();
+    if (peakHoldMs) {
+        const hitPart = surface.parts.find(part => part.mesh === hit.object);
+        if (hitPart?.position && hitPart.geometry === hit.object.geometry) locateRestDent(hit, hitPart, center, normal);
+    }
     const radiusSquared = radius * radius;
     const patches = [];
 
@@ -2572,7 +2593,8 @@ function pressFruitDent(model, key, hit, time = performance.now()) {
             if (distanceSquared >= radiusSquared) continue;
 
             // Fade the indentation out smoothly before reaching the rest of the fruit.
-            const r = Math.sqrt(distanceSquared) / radius;
+            const relativeRadius = Math.sqrt(distanceSquared) / radius;
+            const r = peakHoldMs ? Math.max(0, (relativeRadius - 0.12) / 0.88) : relativeRadius;
             const displacement = -depth * (1 - r * r * (3 - 2 * r));
             offsets.push(i, direction.x * displacement, direction.y * displacement, direction.z * displacement);
         }
@@ -2587,6 +2609,8 @@ function pressFruitDent(model, key, hit, time = performance.now()) {
         releasedAt: null,
         pressMs: FRUIT_PRESS_PROFILES[key]?.pressMs ?? WATERMELON_PRESS_MS,
         recoveryMs,
+        peakHoldMs,
+        peakAt: null,
         strength: 0,
         applied: 0,
         patches,
@@ -2601,22 +2625,34 @@ function updateFruitDents(time) {
     for (const surface of activeFruitDentSurfaces) {
         let compression = 0;
         for (const dent of surface.dents) {
-            const age = dent.releasedAt === null ? -1 : time - dent.releasedAt;
-            if (age < 0) {
-                const progress = THREE.MathUtils.clamp((time - dent.pressedAt) / dent.pressMs, 0, 1);
-                dent.strength = 1 - (1 - progress) ** 2;
-                if (dent.autoRelease && progress === 1) releaseFruitPress(dent, time);
-            } else {
-                const progress = Math.min(age / dent.recoveryMs, 1);
-                dent.strength = (1 - progress) ** 2.5;
+            const progress = THREE.MathUtils.clamp((time - dent.pressedAt) / dent.pressMs, 0, 1);
+            const release = dent.releasedAt ?? Infinity;
+            if (progress === 1 && dent.peakAt === null) {
+                dent.peakAt = time;
+                if (dent.autoRelease) releaseFruitPress(dent, time);
             }
+            const recoverAt = dent.peakHoldMs
+                ? Math.max(release, (dent.peakAt ?? Infinity) + dent.peakHoldMs)
+                : release;
+            const age = time - recoverAt;
+            if (age < 0) {
+                dent.strength = 1 - (1 - progress) ** 2;
+            } else {
+                const recovery = Math.min(age / dent.recoveryMs, 1);
+                dent.strength = (1 - recovery) ** (dent.peakHoldMs ? 1.65 : 2.5);
+            }
+            dent.finished = age >= dent.recoveryMs;
             compression += dent.strength;
         }
 
-        // Overlapping taps share the same maximum compression.
+        // Keep the newest impression clear during rapid taps, then let older impressions fade.
+        const newest = surface.latestPress;
         const weight = 1 / Math.max(1, compression);
+        const olderWeight = Math.min(1, (1 - newest.strength) / Math.max(0.001, compression - newest.strength));
         for (const dent of surface.dents) {
-            const applied = dent.strength * weight;
+            const applied = newest.peakHoldMs
+                ? dent === newest ? dent.strength : Math.min(dent.applied, dent.strength * olderWeight)
+                : dent.strength * weight;
             const change = applied - dent.applied;
             if (change !== 0) {
                 for (const { position, offsets } of dent.patches) {
@@ -2631,7 +2667,7 @@ function updateFruitDents(time) {
                 }
             }
             dent.applied = applied;
-            if (dent.releasedAt !== null && time - dent.releasedAt >= dent.recoveryMs) {
+            if (dent.finished) {
                 surface.dents.delete(dent);
             }
         }
