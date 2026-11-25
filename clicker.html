@@ -2581,6 +2581,7 @@ function getFruitDentSurface(model, key) {
         const toGroup = new THREE.Matrix4().multiplyMatrices(worldToGroup, mesh.matrixWorld);
         surface.parts.push({
             mesh, source, toGroup,
+            isSugarDetail: source.attributes.position.count < 3000,
             bounds: source.boundingBox.clone().applyMatrix4(toGroup),
             toMeshDirection: new THREE.Matrix3().setFromMatrix4(toGroup).invert(),
         });
@@ -2634,9 +2635,9 @@ function pressFruitDent(model, key, hit, time = performance.now()) {
     const center = surface.group.worldToLocal(hit.point.clone());
     const worldNormal = hit.face.normal.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld));
     const normal = surface.group.worldToLocal(hit.point.clone().add(worldNormal)).sub(center).normalize();
-    if (peakHoldMs || coated) {
-        const hitPart = surface.parts.find(part => part.mesh === hit.object);
-        if (hitPart?.position && hitPart.geometry === hit.object.geometry) locateRestDent(hit, hitPart, center, normal);
+    const hitPart = surface.parts.find(part => part.mesh === hit.object);
+    if ((peakHoldMs || coated) && hitPart?.position && hitPart.geometry === hit.object.geometry) {
+        locateRestDent(hit, hitPart, center, normal);
     }
     const radiusSquared = radius * radius;
     const patches = [];
@@ -2677,6 +2678,7 @@ function pressFruitDent(model, key, hit, time = performance.now()) {
         applied: 0,
         center,
         normal,
+        hitPart,
         coated,
         patches,
     };
@@ -2983,7 +2985,9 @@ function buildSugarCells(part) {
     const candidates = samples.filter((_, index) => index % stride === 0);
     const distances = new Float32Array(candidates.length).fill(Infinity);
     const seeds = [candidates[Math.floor(candidates.length * 0.37)]];
-    const cellCount = THREE.MathUtils.clamp(Math.round(105 * (size.length() / 1.73) ** 2), 42, 145);
+    const targetCellCount = Math.round(105 * (size.length() / 1.73) ** 2);
+    const cellCount = part.isSugarDetail ? THREE.MathUtils.clamp(targetCellCount, 4, 32)
+        : THREE.MathUtils.clamp(targetCellCount, 42, 145);
     while (seeds.length < cellCount) {
         const last = seeds.at(-1);
         let furthest = 0;
@@ -3012,23 +3016,30 @@ function buildSugarCells(part) {
     }
 
     const away = new THREE.Vector3();
-    for (const vertex of vertices) {
-        away.copy(vertex).sub(center).normalize();
-        vertex.addScaledVector(away, 0.014);
+    for (const [index, vertex] of vertices.entries()) {
+        if (part.isSugarDetail) {
+            vertex.addScaledVector(normals[index], 0.006);
+        } else {
+            away.copy(vertex).sub(center).normalize();
+            vertex.addScaledVector(away, 0.014);
+        }
     }
     return { cells: cells.filter(cell => cell.triangles.length), vertices, normals };
 }
 
 function coatFruitWithSugar(model, key, broken = []) {
     const surface = getFruitDentSurface(model, key);
-    const skin = surface.parts.filter(({ source }) => source.attributes.position.count >= 3000);
-    if (!skin.length) return false;
+    const skin = surface.parts.filter(part => !part.isSugarDetail);
+    const details = surface.parts.filter(part => part.isSugarDetail);
+    if (!surface.parts.length) return false;
     prepareSugarMaterial();
     disposeSugarCoating(model);
 
     const points = [], normals = [], cells = [];
-    for (const part of skin) {
+    // Append details after the body so existing saved crack IDs still refer to the same cells.
+    for (const part of [...skin, ...details]) {
         const patch = buildSugarCells(part);
+        const detail = part.isSugarDetail ? part : null;
         for (const cell of patch.cells) {
             const ids = new Map();
             const indices = cell.triangles.map(index => {
@@ -3041,7 +3052,7 @@ function coatFruitWithSugar(model, key, broken = []) {
                 }
                 return ids.get(index);
             });
-            cells.push({ center: cell.center, indices, vertices: [...ids.values()] });
+            cells.push({ center: cell.center, indices, vertices: [...ids.values()], detail });
         }
     }
 
@@ -3084,20 +3095,25 @@ function disposeSugarCoating(model) {
 function crackSugarCoating(model, key, dent, time) {
     const coating = sugarCoatings.get(model);
     if (!coating) return;
-    const { center, normal } = dent;
+    const { center, normal, hitPart } = dent;
+    const detail = hitPart?.isSugarDetail ? hitPart : null;
     const profile = FRUIT_DENT_PROFILES[key];
     const radius = profile.radius * SUGAR_PRESS_RESPONSE.shellRadiusScale;
     const { crackSpread, shellSpread } = SUGAR_PRESS_RESPONSE;
     const shellDepth = profile.depth * SUGAR_PRESS_RESPONSE.shellDepthScale;
-    const local = coating.cells.map((cell, id) => ({ id, distance: cell.center.distanceTo(center) }))
-        .filter(({ distance }) => distance < shellSpread)
-        .sort((a, b) => a.distance - b.distance)
-        .slice(0, 12);
+    const local = [];
+    for (let id = 0; id < coating.cells.length; id++) {
+        const cell = coating.cells[id];
+        if (cell.detail !== detail) continue;
+        const distance = cell.center.distanceTo(center);
+        if (distance < shellSpread) local.push({ id, distance });
+    }
+    local.sort((a, b) => a.distance - b.distance);
     if (!local.length || local[0].distance > 0.19) return;
 
     const offsets = [];
     const fresh = [];
-    for (const { id, distance } of local) {
+    for (const { id, distance } of local.slice(0, 12)) {
         const cell = coating.cells[id];
         if (distance < crackSpread && !coating.broken.has(id) && !coating.cracking.has(id)) {
             coating.cracking.add(id);
