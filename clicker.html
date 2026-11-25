@@ -2419,6 +2419,7 @@ const FRUIT_REST_POSE = [1, 1, 1, 0, 0, 0];
 const FRUIT_PRESS_PROFILES = {
     apple: {
         pressMs: 70, soundRate: 1,
+        bareResponse: { motion: 0.52, rebound: 0.33, turn: 0.52 },
         down: [1.28, 0.72, 1.28, 0.015, 0, 0],
         recovery: [
             [92, [0.94, 1.10, 0.94, -0.012, 0.025, 0]],
@@ -2428,6 +2429,7 @@ const FRUIT_PRESS_PROFILES = {
     },
     orange: {
         pressMs: 64, soundRate: 1.10,
+        bareResponse: { motion: 0.61, rebound: 0.30, turn: 0.50 },
         down: [1.22, 0.76, 1.22, 0.055, 0, 0],
         recovery: [
             [96, [0.924, 1.112, 0.924, -0.028, 0.075, 0.034]],
@@ -2437,6 +2439,7 @@ const FRUIT_PRESS_PROFILES = {
     },
     blueberry: {
         pressMs: 58, soundRate: 1.26,
+        bareResponse: { motion: 0.74, rebound: 0.58, turn: 0.46 },
         down: [1.135, 0.84, 1.15, 0.115, 0, -0.035],
         recovery: [
             [63, [0.975, 1.048, 0.988, -0.109, 0.021, 0.061]],
@@ -2456,6 +2459,7 @@ const FRUIT_PRESS_PROFILES = {
     },
     cherry: {
         pressMs: 57, soundRate: 1.32,
+        bareResponse: { motion: 0.80, rebound: 0.43, turn: 0.43 },
         down: [1.11, 0.86, 1.10, 0.105, 0, 0.055],
         recovery: [
             [63, [0.975, 1.055, 0.963, -0.060, 0.045, -0.031]],
@@ -2476,6 +2480,7 @@ const FRUIT_PRESS_PROFILES = {
     },
     lemon: {
         pressMs: 74, soundRate: 1.18,
+        bareResponse: { motion: 0.56, rebound: 0.44, turn: 0.52 },
         down: [1.23, 0.73, 1.23, 0.064, 0, -0.035],
         recovery: [
             [96, [0.953, 1.082, 0.953, -0.058, 0.023, 0.043]],
@@ -2486,6 +2491,7 @@ const FRUIT_PRESS_PROFILES = {
     },
     coconut: {
         pressMs: 52, soundRate: 0.72,
+        bareResponse: { motion: 0.76, rebound: 0.45, turn: 0.50 },
         down: [1.055, 0.91, 1.045, 0.048, 0, 0.045],
         recovery: [
             [70, [0.992, 1.019, 0.992, -0.075, 0.078, -0.024]],
@@ -2591,13 +2597,18 @@ function pressFruit(model, key, hit, time = performance.now()) {
 
 function applyFruitPressPose(press, from, to, progress) {
     const { group, bottom } = press.surface;
+    const { bareResponse } = press.profile;
     const mix = (index) => {
         const value = THREE.MathUtils.lerp(from[index], to[index], progress);
-        if (!press.coated) return value;
-
         const rest = FRUIT_REST_POSE[index];
         const isRebound = index === 4 || (index === 1 && value > rest);
-        return THREE.MathUtils.lerp(rest, value, isRebound ? SUGAR_PRESS_RESPONSE.rebound : SUGAR_PRESS_RESPONSE.motion);
+        if (press.coated) {
+            return THREE.MathUtils.lerp(rest, value, isRebound ? SUGAR_PRESS_RESPONSE.rebound : SUGAR_PRESS_RESPONSE.motion);
+        }
+        if (!bareResponse) return value;
+        const isTurn = index === 3 || index === 5;
+        const strength = isRebound ? bareResponse.rebound : isTurn ? bareResponse.turn : bareResponse.motion;
+        return THREE.MathUtils.lerp(rest, value, strength);
     };
     const height = mix(1);
     const tilt = mix(3);
@@ -2639,15 +2650,15 @@ function updateFruitPresses(time) {
 
 const WATERMELON_PRESS_MS = 78;
 const FRUIT_DENT_PROFILES = {
-    apple:      { radius: 0.47, depth: 0.132, recoveryMs: 370, peakHoldMs: 94 },
+    apple:      { radius: 0.47, depth: 0.132, bareDepth: 0.124, recoveryMs: 370, peakHoldMs: 94 },
     watermelon: { radius: 0.62, depth: 0.145, recoveryMs: 460 },
-    orange:     { radius: 0.52, depth: 0.147, recoveryMs: 405, peakHoldMs: 104 },
-    blueberry:  { radius: 0.40, depth: 0.118, recoveryMs: 342, peakHoldMs: 91 },
+    orange:     { radius: 0.52, depth: 0.147, bareDepth: 0.141, recoveryMs: 405, peakHoldMs: 104 },
+    blueberry:  { radius: 0.40, depth: 0.118, bareDepth: 0.115, recoveryMs: 342, peakHoldMs: 91 },
     avocado:    { radius: 0.45, depth: 0.103, recoveryMs: 475 },
-    cherry:     { radius: 0.37, depth: 0.114, recoveryMs: 335, peakHoldMs: 88 },
+    cherry:     { radius: 0.37, depth: 0.114, bareDepth: 0.110, recoveryMs: 335, peakHoldMs: 88 },
     pineapple:  { radius: 0.43, depth: 0.125, recoveryMs: 330, peakHoldMs: 87 },
-    lemon:      { radius: 0.49, depth: 0.137, recoveryMs: 395, peakHoldMs: 102 },
-    coconut:    { radius: 0.37, depth: 0.107, recoveryMs: 300, peakHoldMs: 84 },
+    lemon:      { radius: 0.49, depth: 0.137, bareDepth: 0.132, recoveryMs: 395, peakHoldMs: 102 },
+    coconut:    { radius: 0.37, depth: 0.107, bareDepth: 0.104, recoveryMs: 300, peakHoldMs: 84 },
     kiwi:       { radius: 0.50, depth: 0.148, recoveryMs: 445, peakHoldMs: 111 },
     strawberry: { radius: 0.55, depth: 0.164, recoveryMs: 490, peakHoldMs: 118 },
 };
@@ -2817,7 +2828,7 @@ function pressFruitDent(model, key, hit, time = performance.now()) {
     const { recoveryMs, peakHoldMs = 0 } = profile;
     const coated = sugarCoatings.has(model);
     const radius = profile.radius * (coated ? SUGAR_PRESS_RESPONSE.fruitRadiusScale : 1);
-    const depth = profile.depth * (coated ? SUGAR_PRESS_RESPONSE.fruitDepthScale : 1);
+    const depth = coated ? profile.depth * SUGAR_PRESS_RESPONSE.fruitDepthScale : (profile.bareDepth ?? profile.depth);
     const surface = getFruitDentSurface(model, key);
     const center = surface.group.worldToLocal(hit.point.clone());
     const worldNormal = hit.face.normal.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld));
