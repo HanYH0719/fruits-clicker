@@ -868,7 +868,7 @@ const SUGAR_COATING_PRICE = 250;
 const SUGAR_PRESS_RESPONSE = {
     fruitDepthScale: 0.91, shellDepthScale: 1.40,
     fruitRadiusScale: 1.16, shellRadiusScale: 1.25, crackSpread: 0.35, shellSpread: 0.42,
-    seamOpening: 0.10, seamStep: 0.19,
+    seamOpening: 0.117, seamStep: 0.207,
     motion: 0.44, rebound: 0.25,
 };
 const sugarCoatings = new WeakMap();
@@ -2942,9 +2942,9 @@ function removeFruitModel(model) {
 }
 
 const sugarSurfaceMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0xfffdf8, opacity: 0.20, transparent: true, depthWrite: false,
-    roughness: 0.23, ior: 1.49, clearcoat: 1, clearcoatRoughness: 0.16,
-    envMapIntensity: 0.93,
+    color: 0xfffdf8, opacity: 0.26, transparent: true, depthWrite: false,
+    roughness: 0.26, ior: 1.49, clearcoat: 1, clearcoatRoughness: 0.175,
+    envMapIntensity: 1.04,
 });
 
 function makeSugarGrainTexture() {
@@ -3022,12 +3022,12 @@ function prepareSugarMaterial() {
                 vec3 sugarNormal = abs(normalize(cross(dFdx(vSugarPosition), dFdy(vSugarPosition))));
                 vec3 sugarBlend = pow(sugarNormal, vec3(4.0));
                 sugarBlend /= max(dot(sugarBlend, vec3(1.0)), 0.0001);
-                vec3 sugarSample = vSugarPosition * 1.20;
+                vec3 sugarSample = vSugarPosition * 1.32;
                 float grain = dot(sugarBlend, vec3(
                     texture2D(sugarGrains, sugarSample.yz).r,
                     texture2D(sugarGrains, sugarSample.xz).r,
                     texture2D(sugarGrains, sugarSample.xy).r));
-                diffuseColor.a += 0.07 * smoothstep(0.23, 0.78, grain);
+                diffuseColor.a += 0.065 * smoothstep(0.22, 0.75, grain);
             `)
             .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
                 roughnessFactor *= mix(0.9, 1.35, smoothstep(0.12, 0.64, grain));
@@ -3055,7 +3055,10 @@ function prepareSugarMaterial() {
                 // Bright highlights are more visible than the translucent syrup between them.
                 vec3 sugarReflection = totalSpecular + clearcoatSpecularDirect + clearcoatSpecularIndirect;
                 float sugarGloss = smoothstep(0.09, 0.76, dot(sugarReflection, vec3(0.2126, 0.7152, 0.0722)));
-                diffuseColor.a = mix(diffuseColor.a, 0.55, sugarGloss);
+                // The translucent layer is slightly denser at grazing angles.
+                float sugarRim = 1.0 - saturate(dot(nonPerturbedNormal, geometryViewDir));
+                diffuseColor.a += 0.085 * sugarRim * sugarRim;
+                diffuseColor.a = mix(diffuseColor.a, 0.62, sugarGloss);
                 float fractured = smoothstep(0.018, 0.095, vSugarShift);
                 diffuseColor.a += 0.074 * fractured * (0.35 + 0.65 * sugarGloss);
                 #include <opaque_fragment>
