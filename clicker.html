@@ -2470,12 +2470,11 @@ const FRUIT_PRESS_PROFILES = {
         ],
     },
     pineapple: {
-        pressMs: 62, soundRate: 0.93,
-        down: [1.09, 0.87, 1.07, 0.08, 0, 0.21],
+        pressMs: 58, soundRate: 0.93,
+        down: [1.044, 0.938, 1.033, 0.018, 0, 0],
         recovery: [
-            [98, [0.985, 1.035, 0.985, -0.045, 0.02, -0.15]],
-            [183, [1.015, 0.985, 1.015, 0.027, 0, 0.075]],
-            [316, FRUIT_REST_POSE],
+            [72, [0.994, 1.008, 0.995, -0.009, 0.002, 0]],
+            [198, FRUIT_REST_POSE],
         ],
     },
     lemon: {
@@ -2501,11 +2500,12 @@ const FRUIT_PRESS_PROFILES = {
     },
     kiwi: {
         pressMs: 84, soundRate: 0.96,
-        down: [1.24, 0.68, 1.21, 0.072, 0, 0.042],
+        bareResponse: { motion: 0.56, rebound: 0.44, turn: 0.50 },
+        down: [1.225, 0.73, 1.205, 0.063, 0, 0.026],
         recovery: [
-            [118, [0.92, 1.11, 0.95, -0.105, 0.031, -0.07]],
-            [202, [1.10, 0.91, 1.045, 0.07, 0, 0.041]],
-            [286, [0.98, 1.04, 0.985, -0.03, 0.01, -0.016]],
+            [118, [0.946, 1.084, 0.968, -0.062, 0.024, -0.041]],
+            [202, [1.065, 0.94, 1.038, 0.039, 0, 0.023]],
+            [286, [0.99, 1.027, 0.991, -0.018, 0.007, -0.009]],
             [430, FRUIT_REST_POSE],
         ],
     },
@@ -2656,10 +2656,10 @@ const FRUIT_DENT_PROFILES = {
     blueberry:  { radius: 0.40, depth: 0.118, bareDepth: 0.115, recoveryMs: 342, peakHoldMs: 91 },
     avocado:    { radius: 0.45, depth: 0.103, recoveryMs: 475 },
     cherry:     { radius: 0.37, depth: 0.114, bareDepth: 0.110, recoveryMs: 335, peakHoldMs: 88 },
-    pineapple:  { radius: 0.43, depth: 0.125, recoveryMs: 330, peakHoldMs: 87 },
+    pineapple:  { radius: 0.43, depth: 0.116, bareDepth: 0.092, recoveryMs: 255, peakHoldMs: 65 },
     lemon:      { radius: 0.49, depth: 0.137, bareDepth: 0.132, recoveryMs: 395, peakHoldMs: 102 },
     coconut:    { radius: 0.37, depth: 0.107, bareDepth: 0.104, recoveryMs: 300, peakHoldMs: 84 },
-    kiwi:       { radius: 0.50, depth: 0.148, recoveryMs: 445, peakHoldMs: 111 },
+    kiwi:       { radius: 0.50, depth: 0.138, bareDepth: 0.132, recoveryMs: 445, peakHoldMs: 111 },
     strawberry: { radius: 0.55, depth: 0.164, recoveryMs: 490, peakHoldMs: 118 },
 };
 const fruitDentGeometryTemplates = new WeakMap();
