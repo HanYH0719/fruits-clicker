@@ -125,6 +125,17 @@
         #settings-btn:hover { transform:translateY(-3px) scale(1.08); filter:drop-shadow(0 5px 12px rgba(0,0,0,.2)); }
         #settings-btn:active { transform:translateY(0) scale(.93); }
 
+        #camera-lock-btn {
+            position:fixed; top:calc(16px + var(--toss-safe-top, env(safe-area-inset-top, 0px))); right:calc(16px + var(--toss-safe-right, env(safe-area-inset-right, 0px))); z-index:100;
+            display:flex; align-items:center; justify-content:center; gap:4px;
+            min-width:80px; min-height:44px; padding:0 11px;
+            background:var(--white); color:var(--text); border:1.5px solid var(--border); border-radius:999px;
+            box-shadow:0 2px 8px rgba(0,0,0,.10); font:inherit; font-size:14px; font-weight:700; cursor:pointer;
+        }
+        #camera-lock-btn[aria-pressed="true"] { background:var(--blue-lt); color:#224d7a; border-color:var(--blue); }
+        #camera-lock-btn[aria-pressed="false"] span { display:none; }
+        #camera-lock-btn:focus-visible { outline:2px solid #224d7a; outline-offset:3px; }
+
         #settings-overlay {
             position:fixed; inset:0; background:rgba(60,40,40,.18);
             backdrop-filter:blur(12px) saturate(1.5);
@@ -476,6 +487,7 @@
 <button id="settings-btn">
     <img src="./SettingsUI.PNG" alt="설정">
 </button>
+<button id="camera-lock-btn" type="button" aria-pressed="false">시점 고정 <span aria-hidden="true">✓</span></button>
 
 <!-- 설정 오버레이 -->
 <div id="settings-overlay">
@@ -975,6 +987,26 @@ controls.target.set(-4.4, 0, -4.4);
 controls.enableDamping = true; controls.dampingFactor = 0.2; controls.enablePan = false;
 controls.minZoom = 0.8;
 controls.maxZoom = 2.8;
+let cameraLocked = false;
+let fTw, cTw;
+const cameraLockButton = document.getElementById('camera-lock-btn');
+cameraLockButton.addEventListener('click', () => {
+    cameraLocked = !cameraLocked;
+    controls.enabled = !cameraLocked && !hold;
+    cameraLockButton.setAttribute('aria-pressed', String(cameraLocked));
+    if (cameraLocked) {
+        fTw?.stop();
+        cTw?.stop();
+        // Clear any remaining drag inertia without moving the current view.
+        const damping = controls.enableDamping;
+        controls.saveState();
+        controls.enableDamping = false;
+        controls.update();
+        controls.reset();
+        controls.enableDamping = damping;
+    }
+    playUIClick();
+});
 
 
 const COLS = 3, GAP = 2.2, MAX_SLOTS = 9;
@@ -1098,7 +1130,7 @@ function removeFruitAt(key, idx, refund) {
 }
 
 function moveCameraTo(model) {
-    if(!model) return;
+    if(!model || cameraLocked) return;
     const tp=model.position.clone(), off=new THREE.Vector3().subVectors(camera.position,controls.target);
     if(fTw) fTw.stop(); if(cTw) cTw.stop();
     fTw=new TWEEN.Tween(controls.target).to({x:tp.x,y:tp.y,z:tp.z},420).easing(TWEEN.Easing.Quadratic.Out).start();
@@ -3290,7 +3322,6 @@ function doSell(key,idx){
 }
 
 const ray=new THREE.Raycaster(),mp=new THREE.Vector2();
-let fTw,cTw;
 function findFruitByMesh(obj){
     // 효과 아이템 체크
     if(_manureModel&&!effectItemRigs.get(_manureModel)?.exiting){let cur=obj;while(cur){if(cur===_manureModel)return{isManure:true};cur=cur.parent;}}
@@ -3329,7 +3360,7 @@ renderer.domElement.addEventListener('pointerdown',e=>{
     }
 });
 renderer.domElement.addEventListener('pointerup',e=>{
-    controls.enabled=true;if(!e.isPrimary||!hold)return;
+    controls.enabled=!cameraLocked;if(!e.isPrimary||!hold)return;
     const elapsed=performance.now()-hold.t0;const{key,idx}=hold;cancelHold();
     if(elapsed<HOLD_MS){
         if (key === '__manure__' || key === '__flower__') {
@@ -3349,9 +3380,9 @@ renderer.domElement.addEventListener('pointerup',e=>{
         writeSave();createPopup(_gain,fd.color);if(anyShopOpen())updateAllUIImmediate();scheduleFruitIdle(model);
     }
 });
-renderer.domElement.addEventListener('pointermove',e=>{if(!hold)return;if((e.clientX-hold.cx)**2+(e.clientY-hold.cy)**2>18**2){cancelHold();controls.enabled=true;}});
-renderer.domElement.addEventListener('pointercancel',()=>{cancelHold();controls.enabled=true;});
-window.addEventListener('blur',()=>{cancelHold();controls.enabled=true;});
+renderer.domElement.addEventListener('pointermove',e=>{if(!hold)return;if((e.clientX-hold.cx)**2+(e.clientY-hold.cy)**2>18**2){cancelHold();controls.enabled=!cameraLocked;}});
+renderer.domElement.addEventListener('pointercancel',()=>{cancelHold();controls.enabled=!cameraLocked;});
+window.addEventListener('blur',()=>{cancelHold();controls.enabled=!cameraLocked;});
 
 // Each bee gets its own flight rhythm. Queens bank more slowly and fly wider arcs.
 const BEE_FLIGHT_STYLES = {
@@ -3479,7 +3510,8 @@ function animate(t=performance.now()){
     if(t-_lastScoreUpdate>150){scoreEl.innerText=fmtN(score);_lastScoreUpdate=t;}
     for (const bee of beeInstances) updateBeeFlight(bee, t, dt);
     if (_frameCount % 4 === 0) updateFruitIdle(t);
-    controls.update();renderer.render(scene,camera);
+    if (!cameraLocked) controls.update();
+    renderer.render(scene,camera);
 }
 animate();
 
