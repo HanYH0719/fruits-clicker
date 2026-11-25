@@ -868,6 +868,7 @@ const SUGAR_COATING_PRICE = 250;
 const SUGAR_PRESS_RESPONSE = {
     fruitDepthScale: 0.91, shellDepthScale: 1.40,
     fruitRadiusScale: 1.16, shellRadiusScale: 1.25, crackSpread: 0.35, shellSpread: 0.42,
+    seamOpening: 0.10, seamStep: 0.19,
     motion: 0.44, rebound: 0.25,
 };
 const sugarCoatings = new WeakMap();
@@ -3008,11 +3009,12 @@ function prepareSugarMaterial() {
     const grains = makeSugarGrainTexture();
     sugarSurfaceMaterial.onBeforeCompile = shader => {
         shader.uniforms.sugarGrains = { value: grains };
-        const varyings = 'varying vec3 vSugarPosition;\nvarying vec3 vSugarRestView;\n';
+        const varyings = 'varying vec3 vSugarPosition;\nvarying vec3 vSugarRestView;\nvarying float vSugarShift;\n';
         shader.vertexShader = `attribute vec3 sugarRestPosition;\n${varyings}${shader.vertexShader}`
             .replace('#include <begin_vertex>', `#include <begin_vertex>
                 vSugarPosition = sugarRestPosition;
                 vSugarRestView = mat3(modelViewMatrix) * sugarRestPosition;
+                vSugarShift = distance(position, sugarRestPosition);
             `);
         shader.fragmentShader = `uniform sampler2D sugarGrains;\n${varyings}${shader.fragmentShader}`
             .replace('#include <color_fragment>', `#include <color_fragment>
@@ -3054,6 +3056,8 @@ function prepareSugarMaterial() {
                 vec3 sugarReflection = totalSpecular + clearcoatSpecularDirect + clearcoatSpecularIndirect;
                 float sugarGloss = smoothstep(0.09, 0.76, dot(sugarReflection, vec3(0.2126, 0.7152, 0.0722)));
                 diffuseColor.a = mix(diffuseColor.a, 0.55, sugarGloss);
+                float fractured = smoothstep(0.018, 0.095, vSugarShift);
+                diffuseColor.a += 0.074 * fractured * (0.35 + 0.65 * sugarGloss);
                 #include <opaque_fragment>
             `);
     };
@@ -3260,23 +3264,35 @@ function crackSugarCoating(model, key, dent, time) {
 
     const offsets = [];
     const fresh = [];
+    const { rest } = coating;
     for (const { id, distance } of local.slice(0, 12)) {
         const cell = coating.cells[id];
-        if (distance < crackSpread && !coating.broken.has(id) && !coating.cracking.has(id)) {
+        const cracksHere = distance < crackSpread;
+        if (cracksHere && !coating.broken.has(id) && !coating.cracking.has(id)) {
             coating.cracking.add(id);
             fresh.push(id);
         }
         const central = Math.max(0, 1 - distance / crackSpread);
         const edge = 1 - THREE.MathUtils.smoothstep(distance, crackSpread, shellSpread);
-        const cellDepth = shellDepth * (0.70 + central * 0.18 + (id % 3) * 0.035) * edge;
+        const plateStep = cracksHere && id !== local[0].id && id % 2
+            ? shellDepth * SUGAR_PRESS_RESPONSE.seamStep * (1 - 0.45 * central) : 0;
+        const cellDepth = (shellDepth * (0.70 + central * 0.18 + (id % 3) * 0.035) - plateStep) * edge;
+        const seam = cracksHere ? SUGAR_PRESS_RESPONSE.seamOpening : 0;
         for (const index of cell.vertices) {
             const i = index * 3;
-            const r = Math.hypot(coating.rest[i] - center.x, coating.rest[i + 1] - center.y,
-                coating.rest[i + 2] - center.z) / radius;
+            const x = rest[i], y = rest[i + 1], z = rest[i + 2];
+            const r = Math.hypot(x - center.x, y - center.y, z - center.z) / radius;
             if (r >= 1) continue;
             const falloff = dent.peakHoldMs ? Math.max(0, (r - 0.12) / 0.88) : r;
-            const displacement = -cellDepth * (1 - falloff * falloff * (3 - 2 * falloff));
-            offsets.push(i, normal.x * displacement, normal.y * displacement, normal.z * displacement);
+            const pressure = 1 - falloff * falloff * (3 - 2 * falloff);
+            const displacement = -cellDepth * pressure;
+            // Pull each plate toward its center along the shell, opening space at its edges.
+            const dx = cell.center.x - x, dy = cell.center.y - y, dz = cell.center.z - z;
+            const alongNormal = dx * normal.x + dy * normal.y + dz * normal.z;
+            const gap = seam * pressure;
+            offsets.push(i, normal.x * displacement + (dx - normal.x * alongNormal) * gap,
+                normal.y * displacement + (dy - normal.y * alongNormal) * gap,
+                normal.z * displacement + (dz - normal.z * alongNormal) * gap);
         }
     }
     // Keep the jagged patch visible after a short tap, then restore the fruit and shell together.
