@@ -2942,7 +2942,7 @@ function removeFruitModel(model) {
 }
 
 const sugarSurfaceMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0xfffdf8, opacity: 0.26, transparent: true, depthWrite: false,
+    color: 0xfffdf8, opacity: 0.275, transparent: true, depthWrite: false,
     roughness: 0.26, ior: 1.49, clearcoat: 1, clearcoatRoughness: 0.175,
     envMapIntensity: 1.04,
 });
@@ -3172,10 +3172,10 @@ function buildSugarCells(part) {
     const away = new THREE.Vector3();
     for (const [index, vertex] of vertices.entries()) {
         if (part.isSugarDetail) {
-            vertex.addScaledVector(normals[index], 0.006);
+            vertex.addScaledVector(normals[index], 0.0075);
         } else {
             away.copy(vertex).sub(center).normalize();
-            vertex.addScaledVector(away, 0.014);
+            vertex.addScaledVector(away, 0.0175);
         }
     }
     return { cells: cells.filter(cell => cell.triangles.length), vertices, normals };
