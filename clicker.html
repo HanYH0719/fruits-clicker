@@ -3061,7 +3061,11 @@ function prepareSugarMaterial() {
                 vSugarRestView = mat3(modelViewMatrix) * sugarRestPosition;
                 vSugarShift = distance(position, sugarRestPosition);
             `);
-        shader.fragmentShader = `uniform sampler2D sugarGrains;\n${varyings}${shader.fragmentShader}`
+        shader.fragmentShader = `uniform sampler2D sugarGrains;
+            #ifdef SUGAR_APPLICATION
+                uniform vec3 sugarApplication;
+            #endif
+            ${varyings}${shader.fragmentShader}`
             .replace('#include <color_fragment>', `#include <color_fragment>
                 // Project the grains on three planes so they follow every side of the fruit.
                 vec3 sugarNormal = abs(normalize(cross(dFdx(vSugarPosition), dFdy(vSugarPosition))));
@@ -3106,6 +3110,22 @@ function prepareSugarMaterial() {
                 diffuseColor.a = mix(diffuseColor.a, 0.62, sugarGloss);
                 float fractured = smoothstep(0.018, 0.095, vSugarShift);
                 diffuseColor.a += 0.074 * fractured * (0.35 + 0.65 * sugarGloss);
+                #ifdef SUGAR_APPLICATION
+                    float phase = sugarApplication.z;
+                    float fill = clamp(phase / 0.79, 0.0, 1.0);
+                    fill = fill * (1.45 - 0.45 * fill);
+                    float height = (vSugarPosition.y - sugarApplication.x) / sugarApplication.y;
+                    // Let the glaze run unevenly around the contours of the fruit.
+                    float ripple = 0.045 * sin(9.5 * vSugarPosition.x + 6.0 * vSugarPosition.z)
+                        + 0.022 * sin(17.0 * vSugarPosition.z - 12.0 * vSugarPosition.x);
+                    float wet = height + ripple - mix(1.14, -0.18, fill);
+                    float coverage = smoothstep(-0.023, 0.068, wet);
+                    float lip = 1.0 - smoothstep(0.016, 0.10, abs(wet - 0.047));
+                    float settle = smoothstep(0.74, 0.84, phase) * (1.0 - smoothstep(0.84, 1.0, phase));
+                    float sheen = 0.19 * lip + 0.11 * settle * (0.4 + 0.6 * sugarGloss);
+                    outgoingLight += vec3(0.94, 0.97, 1.0) * sheen;
+                    diffuseColor.a = (diffuseColor.a + sheen * 0.9) * coverage;
+                #endif
                 #include <opaque_fragment>
             `);
     };
@@ -3116,6 +3136,8 @@ const sugarChipMaterial = new THREE.MeshStandardMaterial({ color: 0xfff9e9, roug
 const sugarChipGeometry = new THREE.OctahedronGeometry(1, 0);
 const sugarBursts = [];
 const sugarFragments = [];
+const sugarApplications = new Set();
+const SUGAR_APPLICATION_MS = 820;
 const sugarDust = new THREE.InstancedMesh(sugarChipGeometry, sugarChipMaterial, 40);
 sugarDust.count = 0;
 sugarDust.frustumCulled = false;
@@ -3153,6 +3175,7 @@ function applyPurchasedSugar(key, model) {
         return;
     }
     if (!coatFruitWithSugar(model, key)) return;
+    startSugarApplication(sugarCoatings.get(model));
     score -= SUGAR_COATING_PRICE;
     setSugarSelection(false);
     playShowup();
@@ -3276,9 +3299,35 @@ function coatFruitWithSugar(model, key, broken = []) {
     return true;
 }
 
+function startSugarApplication(coating) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const { mesh } = coating;
+    mesh.geometry.computeBoundingBox();
+    const { min, max } = mesh.geometry.boundingBox;
+    const uniform = { value: new THREE.Vector3(min.y, Math.max(0.001, max.y - min.y), 0) };
+    const material = sugarSurfaceMaterial.clone();
+    material.defines.SUGAR_APPLICATION = 1;
+    material.onBeforeCompile = (shader, renderer) => {
+        sugarSurfaceMaterial.onBeforeCompile(shader, renderer);
+        shader.uniforms.sugarApplication = uniform;
+    };
+    coating.application = { material, uniform, startedAt: performance.now() };
+    mesh.material = material;
+    sugarApplications.add(coating);
+}
+
+function finishSugarApplication(coating) {
+    if (!coating.application) return;
+    coating.mesh.material = sugarSurfaceMaterial;
+    coating.application.material.dispose();
+    delete coating.application;
+    sugarApplications.delete(coating);
+}
+
 function disposeSugarCoating(model) {
     const coating = sugarCoatings.get(model);
     if (!coating) return;
+    finishSugarApplication(coating);
     for (let i = sugarBursts.length - 1; i >= 0; i--) {
         if (sugarBursts[i].coating === coating) sugarBursts.splice(i, 1);
     }
@@ -3378,6 +3427,12 @@ function markSugarCracks(burst, time) {
 }
 
 function updateSugarCoatings(time, elapsed) {
+    for (const coating of sugarApplications) {
+        const { uniform, startedAt } = coating.application;
+        const progress = (time - startedAt) / SUGAR_APPLICATION_MS;
+        if (progress >= 1) finishSugarApplication(coating);
+        else uniform.value.z = Math.max(0, progress);
+    }
     for (let i = 0; i < sugarBursts.length;) {
         const burst = sugarBursts[i];
         if (time < burst.at) {
