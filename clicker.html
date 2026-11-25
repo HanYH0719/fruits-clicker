@@ -853,7 +853,11 @@ const BEE_DEFS = [
 
 const SAVE_KEY = tossPlatform ? tossPlatform.saveKey : 'fc_v16';
 const SUGAR_COATING_PRICE = 250;
-const SUGAR_PRESS_RESPONSE = { fruitDepthScale: 0.91, shellDepthScale: 1.40, radius: 1.16, spread: 0.35, motion: 0.44, rebound: 0.25 };
+const SUGAR_PRESS_RESPONSE = {
+    fruitDepthScale: 0.91, shellDepthScale: 1.40,
+    fruitRadiusScale: 1.16, shellRadiusScale: 1.25, crackSpread: 0.35, shellSpread: 0.42,
+    motion: 0.44, rebound: 0.25,
+};
 const sugarCoatings = new WeakMap();
 let selectingSugarTarget = false;
 let _uiTimer = null;
@@ -2624,7 +2628,7 @@ function pressFruitDent(model, key, hit, time = performance.now()) {
     const profile = FRUIT_DENT_PROFILES[key];
     const { recoveryMs, peakHoldMs = 0 } = profile;
     const coated = sugarCoatings.has(model);
-    const radius = profile.radius * (coated ? SUGAR_PRESS_RESPONSE.radius : 1);
+    const radius = profile.radius * (coated ? SUGAR_PRESS_RESPONSE.fruitRadiusScale : 1);
     const depth = profile.depth * (coated ? SUGAR_PRESS_RESPONSE.fruitDepthScale : 1);
     const surface = getFruitDentSurface(model, key);
     const center = surface.group.worldToLocal(hit.point.clone());
@@ -2674,7 +2678,6 @@ function pressFruitDent(model, key, hit, time = performance.now()) {
         center,
         normal,
         coated,
-        radius,
         patches,
     };
     surface.dents.add(dent);
@@ -3081,11 +3084,13 @@ function disposeSugarCoating(model) {
 function crackSugarCoating(model, key, dent, time) {
     const coating = sugarCoatings.get(model);
     if (!coating) return;
-    const { center, normal, radius } = dent;
-    const spread = SUGAR_PRESS_RESPONSE.spread;
-    const shellDepth = FRUIT_DENT_PROFILES[key].depth * SUGAR_PRESS_RESPONSE.shellDepthScale;
+    const { center, normal } = dent;
+    const profile = FRUIT_DENT_PROFILES[key];
+    const radius = profile.radius * SUGAR_PRESS_RESPONSE.shellRadiusScale;
+    const { crackSpread, shellSpread } = SUGAR_PRESS_RESPONSE;
+    const shellDepth = profile.depth * SUGAR_PRESS_RESPONSE.shellDepthScale;
     const local = coating.cells.map((cell, id) => ({ id, distance: cell.center.distanceTo(center) }))
-        .filter(({ distance }) => distance < spread)
+        .filter(({ distance }) => distance < shellSpread)
         .sort((a, b) => a.distance - b.distance)
         .slice(0, 12);
     if (!local.length || local[0].distance > 0.19) return;
@@ -3094,12 +3099,13 @@ function crackSugarCoating(model, key, dent, time) {
     const fresh = [];
     for (const { id, distance } of local) {
         const cell = coating.cells[id];
-        if (!coating.broken.has(id) && !coating.cracking.has(id)) {
+        if (distance < crackSpread && !coating.broken.has(id) && !coating.cracking.has(id)) {
             coating.cracking.add(id);
             fresh.push(id);
         }
-        const central = 1 - distance / spread;
-        const cellDepth = shellDepth * (0.70 + central * 0.18 + (id % 3) * 0.035);
+        const central = Math.max(0, 1 - distance / crackSpread);
+        const edge = 1 - THREE.MathUtils.smoothstep(distance, crackSpread, shellSpread);
+        const cellDepth = shellDepth * (0.70 + central * 0.18 + (id % 3) * 0.035) * edge;
         for (const index of cell.vertices) {
             const i = index * 3;
             const r = Math.hypot(coating.rest[i] - center.x, coating.rest[i + 1] - center.y,
