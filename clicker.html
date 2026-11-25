@@ -556,8 +556,8 @@
                 <span class="settings-label">그림자 품질</span>
                 <select id="select-shadow-quality" class="settings-select">
                     <option value="512">낮음</option>
-                    <option value="1024">보통</option>
-                    <option value="2048" selected>높음</option>
+                    <option value="1024" selected>보통</option>
+                    <option value="2048">높음</option>
                 </select>
             </div>
 
@@ -573,8 +573,8 @@
                 <span class="settings-label">픽셀 비율</span>
                 <select id="select-pixel-ratio" class="settings-select">
                     <option value="1">×1 (저사양)</option>
-                    <option value="1.5">×1.5</option>
-                    <option value="2" selected>×2 (기본)</option>
+                    <option value="1.5" selected>×1.5 (기본)</option>
+                    <option value="2">×2</option>
                 </select>
             </div>
         </div>
@@ -954,9 +954,13 @@ scoreEl.innerText = fmtN(score);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xF8F8F8);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+const DEFAULT_PIXEL_RATIO = 1.5;
+const DEFAULT_SHADOW_SIZE = 1024;
+const renderer = new THREE.WebGLRenderer({ antialias: _settings.antiAlias !== false });
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.98;
+renderer.setPixelRatio(Math.min(_settings.pixelRatio || DEFAULT_PIXEL_RATIO, window.devicePixelRatio));
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
@@ -967,19 +971,20 @@ const camera = new THREE.OrthographicCamera(-FRUS*aspect/2, FRUS*aspect/2, FRUS/
 camera.position.set(-7-4.4, 7, -7-4.4);
 camera.lookAt(-4.4, 0, -4.4);
 
-scene.add(new THREE.AmbientLight(0xf3ede1, 1.0));
-const dirLight = new THREE.DirectionalLight(0xf3ede1, 2.3);
-dirLight.position.set(-8, 12, -8);
+scene.add(new THREE.HemisphereLight(0xf5f9ff, 0xd9c9b5, 0.85));
+const dirLight = new THREE.DirectionalLight(0xfff2e5, 2.12);
+dirLight.target.position.set(-2.2, 0, -2.2);
+dirLight.position.copy(dirLight.target.position).add(new THREE.Vector3(-7, 15, -4));
 dirLight.castShadow = true;
-dirLight.shadow.mapSize.width  = 2048;
-dirLight.shadow.mapSize.height = 2048;
-dirLight.shadow.bias = -0.001; dirLight.shadow.normalBias = 0.02; dirLight.shadow.radius = 12;
-dirLight.shadow.camera.near = 0.1; dirLight.shadow.camera.far = 50;
-dirLight.shadow.camera.left = -15; dirLight.shadow.camera.right = 15;
-dirLight.shadow.camera.top = 15; dirLight.shadow.camera.bottom = -15;
-scene.add(dirLight);
+dirLight.shadow.mapSize.set(DEFAULT_SHADOW_SIZE, DEFAULT_SHADOW_SIZE);
+dirLight.shadow.bias = -0.00035;
+dirLight.shadow.normalBias = 0.018;
+dirLight.shadow.camera.near = 0.1; dirLight.shadow.camera.far = 27;
+dirLight.shadow.camera.left = -7; dirLight.shadow.camera.right = 7;
+dirLight.shadow.camera.top = 7; dirLight.shadow.camera.bottom = -7;
+scene.add(dirLight, dirLight.target);
 
-const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.ShadowMaterial({ opacity:0.10 }));
+const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.ShadowMaterial({ opacity:0.085 }));
 floorMesh.rotation.x = -Math.PI/2; floorMesh.receiveShadow = true; scene.add(floorMesh);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -1010,6 +1015,7 @@ cameraLockButton.addEventListener('click', () => {
 
 
 const COLS = 3, GAP = 2.2, MAX_SLOTS = 9;
+const fruitContactShadows = createFruitContactShadows(MAX_SLOTS);
 const gridSlots = new Array(MAX_SLOTS).fill(null);
 const SLOT_PRICES = [200,500,1200,3000,7000,15000];
 let unlockedSlots = Math.min(save.unlockedSlots || 3, MAX_SLOTS);
@@ -1062,12 +1068,44 @@ loader.load = function(url, onLoad, onProgress, onError) {
     }, onProgress, onError);
 };
 
-function fixMesh(obj) {
+const filteredTextures = new WeakSet();
+const preparedFruitMaterials = new WeakSet();
+
+function fixMesh(obj, fruit = false) {
     obj.traverse(c => {
         if (!c.isMesh) return;
         c.castShadow = c.receiveShadow = true;
-        if (c.geometry) c.geometry.computeBoundingBox();
-        if (c.material?.map) { c.material.map.minFilter=THREE.LinearFilter; c.material.map.anisotropy=renderer.capabilities.getMaxAnisotropy(); c.material.map.needsUpdate=true; }
+        const { geometry, material } = c;
+        if (!geometry.boundingBox) geometry.computeBoundingBox();
+        const map = material?.map;
+        if (map && !filteredTextures.has(map)) {
+            // The fruit UV islands are tightly packed and bleed at the seams with mipmaps.
+            map.minFilter = fruit ? THREE.LinearFilter : THREE.LinearMipmapLinearFilter;
+            map.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+            map.needsUpdate = true;
+            filteredTextures.add(map);
+        }
+        if (!fruit || !material?.isMeshStandardMaterial) return;
+        const positions = geometry.attributes.position;
+        const smooth = positions.count >= 3000;
+        if (smooth && !geometry.hasAttribute('surfaceRestPosition')) {
+            const vertices = Array.from({ length: positions.count }, (_, index) =>
+                new THREE.Vector3().fromBufferAttribute(positions, index));
+            const normals = smoothSurfaceNormals(vertices, geometry.index.array);
+            const normalData = new Float32Array(normals.length * 3);
+            normals.forEach((normal, index) => normal.toArray(normalData, index * 3));
+            geometry.setAttribute('normal', new THREE.BufferAttribute(normalData, 3));
+            geometry.setAttribute('surfaceRestPosition', positions);
+        }
+        if (preparedFruitMaterials.has(material)) return;
+        material.envMap = getStudioReflection();
+        material.envMapIntensity = 0.25;
+        if (smooth) {
+            material.flatShading = false;
+            material.onBeforeCompile = addPressedSurfaceSlope;
+        }
+        material.needsUpdate = true;
+        preparedFruitMaterials.add(material);
     });
 }
 
@@ -1077,7 +1115,7 @@ function place(def, slotIdx, animate, cb) {
         const model = gltf.scene === _gltfCache[def.file]?.scene
             ? gltf.scene.clone()
             : gltf.scene;
-        fixMesh(model);
+        fixMesh(model, true);
         const box = new THREE.Box3().setFromObject(model);
         prepareFruitPress(model, box);
         if (floorY===null) { floorY=box.min.y; floorMesh.position.y=floorY; }
@@ -2223,14 +2261,15 @@ document.getElementById('bucket-overlay').addEventListener('click',e=>{if(e.targ
     // 그래픽 설정 로드
     const gs = _loadSettings();
     const _shadowOn     = gs.shadowOn     !== false;
-    const _shadowQuality= gs.shadowQuality || 2048;
+    const _shadowQuality= gs.shadowQuality || DEFAULT_SHADOW_SIZE;
     const _antiAlias    = gs.antiAlias    !== false;
-    const _pixelRatio   = gs.pixelRatio   || Math.min(window.devicePixelRatio, 2);
+    const _pixelRatio   = gs.pixelRatio   || DEFAULT_PIXEL_RATIO;
 
     // Three.js 그래픽 설정 초기 적용
     function _applyShadow(on) {
         renderer.shadowMap.enabled = on;
         dirLight.castShadow = on;
+        fruitContactShadows.visible = on;
         document.getElementById('shadow-quality-row').style.opacity = on ? '1' : '0.4';
         document.getElementById('shadow-quality-row').style.pointerEvents = on ? '' : 'none';
     }
@@ -2248,7 +2287,7 @@ document.getElementById('bucket-overlay').addEventListener('click',e=>{if(e.targ
     toggleShadow.checked = _shadowOn;
     selectShadowQ.value  = String(_shadowQuality);
     toggleAA.checked     = _antiAlias;
-    selectPR.value       = String(Math.min(_pixelRatio, window.devicePixelRatio));
+    selectPR.value       = String(_pixelRatio);
 
     _applyShadow(_shadowOn);
     _applyShadowQuality(_shadowQuality);
@@ -2443,11 +2482,55 @@ const FRUIT_PRESS_PROFILES = {
 const fruitPressSurfaces = new WeakMap();
 const activeFruitPresses = new Map();
 
+function createFruitContactShadows(capacity) {
+    const size = 32;
+    const pixels = new Uint8Array(size * size * 4);
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            const radius = Math.hypot((x + 0.5) / size - 0.5, (y + 0.5) / size - 0.5) * 2;
+            pixels[(y * size + x) * 4 + 1] = Math.round(255 * (1 - THREE.MathUtils.smoothstep(radius, 0.22, 1)) ** 2);
+        }
+    }
+    const alphaMap = new THREE.DataTexture(pixels, size, size);
+    alphaMap.magFilter = alphaMap.minFilter = THREE.LinearFilter;
+    alphaMap.needsUpdate = true;
+    const material = new THREE.MeshBasicMaterial({
+        color: 0x30261f, alphaMap, opacity: 0.27, transparent: true, depthWrite: false, toneMapped: false,
+    });
+    const geometry = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    const shadows = new THREE.InstancedMesh(geometry, material, capacity);
+    shadows.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    shadows.count = 0;
+    shadows.frustumCulled = false;
+    shadows.raycast = () => {};
+    scene.add(shadows);
+    return shadows;
+}
+
+const contactShadowPose = new THREE.Object3D();
+function updateFruitContactShadows() {
+    if (!fruitContactShadows.visible || floorY === null) return;
+    let count = 0;
+    for (const { key } of FRUIT_DEFS) {
+        for (const { model } of pools[key]?.list ?? []) {
+            const { group, footprint } = fruitPressSurfaces.get(model);
+            contactShadowPose.position.set(model.position.x, floorY + 0.002, model.position.z);
+            contactShadowPose.scale.set(footprint.x * model.scale.x * group.scale.x, 1,
+                footprint.z * model.scale.z * group.scale.z);
+            contactShadowPose.updateMatrix();
+            fruitContactShadows.setMatrixAt(count++, contactShadowPose.matrix);
+        }
+    }
+    fruitContactShadows.count = count;
+    if (count) fruitContactShadows.instanceMatrix.needsUpdate = true;
+}
+
 function prepareFruitPress(model, box) {
     const group = new THREE.Group();
     group.add(...model.children.slice());
     model.add(group);
-    fruitPressSurfaces.set(model, { group, bottom: box.min.y, center: box.getCenter(new THREE.Vector3()) });
+    const footprint = box.getSize(new THREE.Vector3()).multiplyScalar(1.65);
+    fruitPressSurfaces.set(model, { group, bottom: box.min.y, center: box.getCenter(new THREE.Vector3()), footprint });
 }
 
 function pressFruit(model, key, hit, time = performance.now()) {
@@ -2537,15 +2620,51 @@ const fruitDentGeometryTemplates = new WeakMap();
 const fruitDentSurfaces = new WeakMap();
 const activeFruitDentSurfaces = new Set();
 
+function smoothSurfaceNormals(vertices, triangles) {
+    // Share lighting normals across duplicated vertices at the texture seams.
+    const sharedNormals = new Map();
+    const normals = vertices.map(({ x, y, z }) => {
+        const key = `${Math.round(x * 1e5)}:${Math.round(y * 1e5)}:${Math.round(z * 1e5)}`;
+        if (!sharedNormals.has(key)) sharedNormals.set(key, new THREE.Vector3());
+        return sharedNormals.get(key);
+    });
+    const faceNormal = new THREE.Vector3(), edge = new THREE.Vector3();
+    for (let i = 0; i < triangles.length; i += 3) {
+        const a = triangles[i], b = triangles[i + 1], c = triangles[i + 2];
+        faceNormal.subVectors(vertices[b], vertices[a]).cross(edge.subVectors(vertices[c], vertices[a]));
+        normals[a].add(faceNormal);
+        normals[b].add(faceNormal);
+        normals[c].add(faceNormal);
+    }
+    for (const normal of sharedNormals.values()) normal.normalize();
+    return normals;
+}
+
+function addPressedSurfaceSlope(shader) {
+    const varying = 'varying vec3 vRestSurfaceView;\n';
+    shader.vertexShader = `attribute vec3 surfaceRestPosition;\n${varying}${shader.vertexShader}`
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+            vRestSurfaceView = mat3(modelViewMatrix) * surfaceRestPosition;
+        `);
+    shader.fragmentShader = `${varying}${shader.fragmentShader}`
+        .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
+            // Keep the smooth rest normals while adding the slope created by the press.
+            vec3 restSlope = normalize(cross(dFdx(vRestSurfaceView), dFdy(vRestSurfaceView)));
+            vec3 pressedSlope = normalize(cross(dFdx(vViewPosition), dFdy(vViewPosition)));
+            normal = normalize(normal + pressedSlope - restSlope);
+            nonPerturbedNormal = normal;
+        `);
+}
+
 function getFruitDentGeometryTemplate(source) {
     const template = fruitDentGeometryTemplates.get(source);
     if (template) return template;
 
     // The optimized model has a few long edges across flat faces.
     // Split them in place so the surface can bend at a point between its original vertices.
-    const attributes = Object.entries(source.attributes).map(([name, attribute]) => ({
-        name, attribute, values: Array.from(attribute.array),
-    }));
+    const attributes = Object.entries(source.attributes)
+        .filter(([name]) => name !== 'surfaceRestPosition')
+        .map(([name, attribute]) => ({ name, attribute, values: Array.from(attribute.array) }));
     const positions = attributes.find(({ name }) => name === 'position').values;
     const pending = Array.from(source.index.array);
     const triangles = [];
@@ -2594,6 +2713,7 @@ function getFruitDentGeometryTemplate(source) {
             ));
         }
         geometry.setIndex(triangles);
+        if (source.hasAttribute('surfaceRestPosition')) geometry.setAttribute('surfaceRestPosition', geometry.attributes.position);
     }
     fruitDentGeometryTemplates.set(source, geometry);
     return geometry;
@@ -2859,8 +2979,9 @@ function makeSugarGrainTexture() {
     return texture;
 }
 
-function prepareSugarMaterial() {
-    if (sugarSurfaceMaterial.envMap) return;
+let studioReflection;
+function getStudioReflection() {
+    if (studioReflection) return studioReflection;
     const room = new RoomEnvironment();
     // Place reflections along the top shoulder and forward-facing curve at the starting view.
     for (const { size, position, intensity } of [
@@ -2874,9 +2995,15 @@ function prepareSugarMaterial() {
         room.add(light);
     }
     const reflections = new THREE.PMREMGenerator(renderer);
-    sugarSurfaceMaterial.envMap = reflections.fromScene(room, 0.087).texture;
+    studioReflection = reflections.fromScene(room, 0.087).texture;
     room.dispose();
     reflections.dispose();
+    return studioReflection;
+}
+
+function prepareSugarMaterial() {
+    if (sugarSurfaceMaterial.envMap) return;
+    sugarSurfaceMaterial.envMap = getStudioReflection();
 
     const grains = makeSugarGrainTexture();
     sugarSurfaceMaterial.onBeforeCompile = shader => {
@@ -2993,24 +3120,12 @@ function buildSugarCells(part) {
     const center = part.bounds.getCenter(new THREE.Vector3());
     const vertices = Array.from({ length: positions.count }, (_, index) =>
         new THREE.Vector3().fromBufferAttribute(positions, index).applyMatrix4(part.toGroup));
-    // Sugar follows the fruit's contours, including across the texture seams in the model.
-    const sharedNormals = new Map();
-    const normals = vertices.map(({ x, y, z }) => {
-        const key = `${Math.round(x * 1e5)}:${Math.round(y * 1e5)}:${Math.round(z * 1e5)}`;
-        if (!sharedNormals.has(key)) sharedNormals.set(key, new THREE.Vector3());
-        return sharedNormals.get(key);
-    });
-    const faceNormal = new THREE.Vector3(), edge = new THREE.Vector3();
+    const normals = smoothSurfaceNormals(vertices, triangles);
     const samples = [];
     for (let index = 0; index < triangles.length; index += 3) {
         const a = triangles[index], b = triangles[index + 1], c = triangles[index + 2];
         samples.push(vertices[a].clone().add(vertices[b]).add(vertices[c]).multiplyScalar(1 / 3));
-        faceNormal.subVectors(vertices[b], vertices[a]).cross(edge.subVectors(vertices[c], vertices[a]));
-        normals[a].add(faceNormal);
-        normals[b].add(faceNormal);
-        normals[c].add(faceNormal);
     }
-    for (const normal of sharedNormals.values()) normal.normalize();
 
     // Spread deterministic seeds over the surface. Stable IDs also restore the same cracks on reload.
     const stride = Math.max(1, Math.floor(samples.length / 1500));
@@ -3510,6 +3625,7 @@ function animate(t=performance.now()){
     if(t-_lastScoreUpdate>150){scoreEl.innerText=fmtN(score);_lastScoreUpdate=t;}
     for (const bee of beeInstances) updateBeeFlight(bee, t, dt);
     if (_frameCount % 4 === 0) updateFruitIdle(t);
+    updateFruitContactShadows();
     if (!cameraLocked) controls.update();
     renderer.render(scene,camera);
 }
