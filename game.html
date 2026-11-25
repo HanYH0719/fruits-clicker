@@ -173,8 +173,11 @@
         .shop-item:active:not(.locked){ transform:translateY(0) scale(.98); }
         .shop-item.locked { opacity:.4; }
 
-        .shop-item-emoji { width:100%; margin-bottom:8px; }
-        .shop-item-emoji img { width:100%; max-width:190px; height:190px; object-fit:contain; display:block; margin:0 auto; border-radius:12px; }
+        .ui-icon { width:1.15em; height:1.15em; vertical-align:-.19em; margin-inline-end:.25em; }
+        .shop-art-fallback { display:none; height:190px; place-items:center; font-size:72px; }
+        .shop-art-fallback .ui-icon, .slot-buy-icon .ui-icon, .buy-particle .ui-icon { margin:0; }
+        .shop-item-art { width:100%; margin-bottom:8px; }
+        .shop-item-art img { width:100%; max-width:190px; height:190px; object-fit:contain; display:block; margin:0 auto; border-radius:12px; }
         .shop-item-info  { width:100%; flex:1; text-align:left; margin-bottom:10px; }
         .shop-item-name  { color:var(--text); font-size:clamp(18px,3.6vw,22px); font-weight:700; line-height:1.1; margin-bottom:4px; }
         .shop-item-meta  { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
@@ -201,7 +204,7 @@
             padding:14px 16px; display:flex; align-items:center; gap:14px; transition:all .18s;
         }
         .slot-buy-row:hover { box-shadow:0 4px 16px rgba(165,123,255,.2); transform:translateY(-1px); }
-        .slot-buy-emoji { font-size:32px; width:48px; text-align:center; flex-shrink:0; }
+        .slot-buy-icon { font-size:32px; width:48px; text-align:center; flex-shrink:0; }
         .slot-buy-info  { flex:1; }
         .slot-buy-name  { color:var(--text); font-size:clamp(17px,3.5vw,18px); margin-bottom:3px; font-weight:400; }
         .slot-buy-meta  { display:flex; gap:8px; align-items:center; }
@@ -244,7 +247,7 @@
   </defs>
 </svg>
 
-<div id="loading-overlay"><div class="loading-spinner"></div><div style="font-size:16px;font-weight:400;">과일 가져오는 중 🍎</div></div>
+<div id="loading-overlay"><div class="loading-spinner"></div><div style="font-size:16px;font-weight:400;">과일 가져오는 중 <svg class="ui-icon" aria-hidden="true"><use href="./ui-icons.svg#apple"/></svg></div></div>
 
 <div id="score-wrapper">
     <div id="score-container"><span id="score">0</span></div>
@@ -259,7 +262,7 @@
 </div>
 
 <div id="sell-toast"></div>
-<div id="hold-hint">🖱️ 길게 누르면 판매</div>
+<div id="hold-hint"><svg class="ui-icon" aria-hidden="true"><use href="./ui-icons.svg#mouse"/></svg>길게 누르면 판매</div>
 
 <div id="bottom-btns">
     <button class="bottom-btn img-btn" id="box-shop-btn">
@@ -331,12 +334,12 @@ import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/control
 import * as TWEEN        from 'https://esm.sh/@tweenjs/tween.js@23.1.1';
 
 const FRUIT_DEFS = [
-    { key:'apple',      icon:'./Apple.png',      file:'./Apple.glb',      emoji:'🍎', name:'사과',     clickVal:1,  color:'#ff4d4d', buyPrice:0,     ms:1.0 },
-    { key:'watermelon', icon:'./Watermelon.png',  file:'./Watermelon.glb', emoji:'🍉', name:'수박',     clickVal:5,  color:'#28a745', buyPrice:150,   ms:1.0 },
-    { key:'orange',     icon:'./Orange.png',      file:'./Orange.glb',     emoji:'🍊', name:'오렌지',   clickVal:10, color:'#ffa500', buyPrice:900,   ms:1.0 },
-    { key:'blueberry',  icon:'./Blueberry.png',   file:'./Blueberry.glb',  emoji:'🫐', name:'블루베리', clickVal:20, color:'#4f5bd5', buyPrice:2200,  ms:1.0 },
-    { key:'avocado',    icon:'./Avocado.png',      file:'./Avocado.glb',    emoji:'🥑', name:'아보카도', clickVal:32, color:'#568203', buyPrice:6000,  ms:1.0 },
-    { key:'cherry',     icon:'./Cherry.png',       file:'./Cherry.glb',     emoji:'🍒', name:'체리',     clickVal:64, color:'#c0001a', buyPrice:30000, ms:1.0 },
+    { key:'apple',      icon:'./Apple.png',      file:'./Apple.glb',      name:'사과',     clickVal:1,  color:'#ff4d4d', buyPrice:0,     ms:1.0 },
+    { key:'watermelon', icon:'./Watermelon.png',  file:'./Watermelon.glb', name:'수박',     clickVal:5,  color:'#28a745', buyPrice:150,   ms:1.0 },
+    { key:'orange',     icon:'./Orange.png',      file:'./Orange.glb',     name:'오렌지',   clickVal:10, color:'#ffa500', buyPrice:900,   ms:1.0 },
+    { key:'blueberry',  icon:'./Blueberry.png',   file:'./Blueberry.glb',  name:'블루베리', clickVal:20, color:'#4f5bd5', buyPrice:2200,  ms:1.0 },
+    { key:'avocado',    icon:'./Avocado.png',      file:'./Avocado.glb',    name:'아보카도', clickVal:32, color:'#568203', buyPrice:6000,  ms:1.0 },
+    { key:'cherry',     icon:'./Cherry.png',       file:'./Cherry.glb',     name:'체리',     clickVal:64, color:'#c0001a', buyPrice:30000, ms:1.0 },
 ];
 const getSellVal = (def, item) => {
     if (item && item._fromBox) return 0;
@@ -344,8 +347,8 @@ const getSellVal = (def, item) => {
 };
 
 const BEE_DEFS = [
-    { key:'bee',      file:'./Bee.glb',     emoji:'🐝', icon:'./Bee.png',     name:'꿀벌',   buyPrice:1500,  beeScale:0.4,  divisor:3, color:'#FFD700', orbitR:0.55, orbitSpeed:0.0022 },
-    { key:'queenBee', file:'./QeenBee.glb', emoji:'👑', icon:'./QeenBee.png', name:'여왕벌', buyPrice:5800,  beeScale:0.48, divisor:2, color:'#FF4500', orbitR:0.70, orbitSpeed:0.0018 },
+    { key:'bee',      file:'./Bee.glb',     icon:'./Bee.PNG',     name:'꿀벌',   buyPrice:1500,  beeScale:0.4,  divisor:3, color:'#FFD700', orbitR:0.55, orbitSpeed:0.0022 },
+    { key:'queenBee', file:'./QeenBee.glb', icon:'./QeenBee.PNG', name:'여왕벌', buyPrice:5800,  beeScale:0.48, divisor:2, color:'#FF4500', orbitR:0.70, orbitSpeed:0.0018 },
 ];
 
 const SAVE_KEY = 'fc_v15';
@@ -559,22 +562,31 @@ initGame();
 setTimeout(()=>{const ov=document.getElementById('loading-overlay');if(ov){ov.classList.add('fade');setTimeout(()=>ov.remove(),600);}buildSlotShopUI();buildFruitShopUI();buildBeeShopUI();buildBoxShopUI();},15000);
 
 const popupArea=document.getElementById('popup-area');
-function createPopup(val,color){const d=document.createElement('div');d.className='click-popup';d.innerText=`+${val.toLocaleString()}`;d.style.color=color;d.style.left=`calc(50% + ${(Math.random()-.5)*160}px)`;popupArea.appendChild(d);setTimeout(()=>d.remove(),600);}
+function uiIcon(name) {
+    return `<svg class="ui-icon" aria-hidden="true"><use href="./ui-icons.svg#${name}"/></svg>`;
+}
+
+function setIconText(element, message, icon) {
+    element.textContent = message;
+    if (icon) element.insertAdjacentHTML('afterbegin', uiIcon(icon));
+}
+
+function createPopup(val,color,icon){const d=document.createElement('div');d.className='click-popup';setIconText(d,typeof val==='number'?`+${val.toLocaleString()}`:val,icon);d.style.color=color;d.style.left=`calc(50% + ${(Math.random()-.5)*160}px)`;popupArea.appendChild(d);setTimeout(()=>d.remove(),600);}
 
 let toastTmr;
-function showSellToast(msg){const t=document.getElementById('sell-toast');t.innerText=msg;t.className='show';clearTimeout(toastTmr);toastTmr=setTimeout(()=>{t.className='hide';setTimeout(()=>{t.className='';},380);},1800);}
+function showSellToast(msg,icon){const t=document.getElementById('sell-toast');setIconText(t,msg,icon);t.className='show';clearTimeout(toastTmr);toastTmr=setTimeout(()=>{t.className='hide';setTimeout(()=>{t.className='';},380);},1800);}
 
 function showUnlockImg(src){const img=document.createElement('img');img.src=src;img.className='unlock-img';document.body.appendChild(img);setTimeout(()=>img.parentNode&&img.remove(),2000);}
 
-function spawnParticles(emoji,btnEl){if(!btnEl)return;const r=btnEl.getBoundingClientRect();for(let i=0;i<7;i++){const p=document.createElement('div');p.className='buy-particle';p.innerText=emoji;p.style.cssText=`left:${r.left+r.width/2}px;top:${r.top+r.height/2}px`;const ang=(i/7)*Math.PI*2,d=70+Math.random()*60;p.style.setProperty('--dx',Math.cos(ang)*d+'px');p.style.setProperty('--dy',Math.sin(ang)*d+'px');p.style.animationDelay=Math.random()*.08+'s';document.body.appendChild(p);setTimeout(()=>p.remove(),850);}}
+function spawnParticles(icon,btnEl){if(!btnEl)return;const r=btnEl.getBoundingClientRect();for(let i=0;i<7;i++){const p=document.createElement('div');p.className='buy-particle';p.innerHTML=uiIcon(icon);p.style.cssText=`left:${r.left+r.width/2}px;top:${r.top+r.height/2}px`;const ang=(i/7)*Math.PI*2,d=70+Math.random()*60;p.style.setProperty('--dx',Math.cos(ang)*d+'px');p.style.setProperty('--dy',Math.sin(ang)*d+'px');p.style.animationDelay=Math.random()*.08+'s';document.body.appendChild(p);setTimeout(()=>p.remove(),850);}}
 
 function buildSlotShopUI(){
     const grid=document.getElementById('slot-shop-grid');if(!grid)return;grid.innerHTML='';
     const nextIdx=nextLockedSlot();
-    if(nextIdx===-1){const div=document.createElement('div');div.className='slot-buy-row';div.innerHTML=`<div class="slot-buy-emoji">✅</div><div class="slot-buy-info"><div class="slot-buy-name">슬롯 최대 확장 완료!</div><div class="slot-buy-meta"><span class="slot-buy-count">25 / 25칸</span></div></div>`;grid.appendChild(div);return;}
+    if(nextIdx===-1){const div=document.createElement('div');div.className='slot-buy-row';div.innerHTML=`<div class="slot-buy-icon">${uiIcon('check')}</div><div class="slot-buy-info"><div class="slot-buy-name">슬롯 최대 확장 완료!</div><div class="slot-buy-meta"><span class="slot-buy-count">25 / 25칸</span></div></div>`;grid.appendChild(div);return;}
     const price=slotPrice(nextIdx+1);
     const row=document.createElement('div');row.className='slot-buy-row';row.id='slot-buy-row';
-    row.innerHTML=`<div class="slot-buy-emoji">📦</div><div class="slot-buy-info"><div class="slot-buy-name">슬롯 확장</div><div class="slot-buy-meta"><span class="slot-buy-price">💰 ${price.toLocaleString()}점</span><span class="slot-buy-count" id="slot-count-display">${unlockedSlots} / ${MAX_SLOTS}칸</span></div></div><button class="slot-buy-btn" id="slot-buy-btn" onclick="window.__buySlot()">확장</button>`;
+    row.innerHTML=`<div class="slot-buy-icon">${uiIcon('box')}</div><div class="slot-buy-info"><div class="slot-buy-name">슬롯 확장</div><div class="slot-buy-meta"><span class="slot-buy-price">${uiIcon('coin')}${price.toLocaleString()}점</span><span class="slot-buy-count" id="slot-count-display">${unlockedSlots} / ${MAX_SLOTS}칸</span></div></div><button class="slot-buy-btn" id="slot-buy-btn" onclick="window.__buySlot()">확장</button>`;
     grid.appendChild(row);updateSlotShopUI();
 }
 function updateSlotShopUI(){
@@ -585,14 +597,14 @@ function updateSlotShopUI(){
 }
 window.__buySlot=function(){
     const nextIdx=nextLockedSlot();if(nextIdx===-1)return;const price=slotPrice(nextIdx+1);if(score<price)return;
-    score-=price;scoreEl.innerText=score;gridSlots[nextIdx]=null;unlockedSlots++;writeSave();buildSlotShopUI();updateAllUI();spawnParticles('📦',document.getElementById('slot-buy-btn'));
+    score-=price;scoreEl.innerText=score;gridSlots[nextIdx]=null;unlockedSlots++;writeSave();buildSlotShopUI();updateAllUI();spawnParticles('box',document.getElementById('slot-buy-btn'));
 };
 
 function buildFruitShopUI(){
     const grid=document.getElementById('fruit-shop-grid');grid.innerHTML='';
     for(const fd of FRUIT_DEFS){
         const isFree=fd.buyPrice===0,card=document.createElement('div');card.className='shop-item';card.id=`fsi-${fd.key}`;
-        card.innerHTML=`<div class="shop-item-emoji">${fd.icon?`<img src="${fd.icon}" alt="${fd.name}">`:`<span style="font-size:72px;line-height:140px;display:block;text-align:center;">${fd.emoji}</span>`}</div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${fd.name}</div><div class="shop-item-clickval">클릭 +${fd.clickVal}</div></div><button class="shop-buy-btn${isFree?' free':''}" id="fsb-${fd.key}" onclick="window.__buyFruit('${fd.key}')">${isFree?'무료 획득':fd.buyPrice.toLocaleString()}</button>`;
+        card.innerHTML=`<div class="shop-item-art"><img src="${fd.icon}" alt="${fd.name}"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${fd.name}</div><div class="shop-item-clickval">클릭 +${fd.clickVal}</div></div><button class="shop-buy-btn${isFree?' free':''}" id="fsb-${fd.key}" onclick="window.__buyFruit('${fd.key}')">${isFree?'무료 획득':fd.buyPrice.toLocaleString()}</button>`;
         grid.appendChild(card);
     }
     updateAllUI();
@@ -611,14 +623,14 @@ function updateFruitShopUI(){
 window.__buyFruit=function(key){
     const fd=FRUIT_DEFS.find(d=>d.key===key);if(!fd||score<fd.buyPrice||nextFreeSlot()===-1)return;
     score-=fd.buyPrice;scoreEl.innerText=score;writeSave();updateAllUI();
-    addFruit(fd,true,()=>{updateAllUI();spawnParticles(fd.emoji,document.getElementById(`fsb-${key}`));});
+    addFruit(fd,true,()=>{updateAllUI();spawnParticles(fd.key,document.getElementById(`fsb-${key}`));});
 };
 
 function buildBeeShopUI(){
     const grid=document.getElementById('bee-shop-grid');grid.innerHTML='';
     for(const bd of BEE_DEFS){
         const card=document.createElement('div');card.className='shop-item';card.id=`bsi-${bd.key}`;
-        card.innerHTML=`<div class="shop-item-emoji">${bd.icon?`<img src="${bd.icon}" alt="${bd.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span style="font-size:72px;line-height:190px;display:none;text-align:center;width:100%">${bd.emoji}</span>`:`<span style="font-size:72px;line-height:190px;display:block;text-align:center;">${bd.emoji}</span>`}</div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${bd.name}</div><div class="shop-item-clickval">초당 ÷${bd.divisor}</div></div><button class="shop-buy-btn bee-btn" id="bsb-${bd.key}" onclick="window.__buyBee('${bd.key}')">${bd.buyPrice.toLocaleString()}</button>`;
+        card.innerHTML=`<div class="shop-item-art"><img src="${bd.icon}" alt="${bd.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"><span class="shop-art-fallback">${uiIcon(bd.key)}</span></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${bd.name}</div><div class="shop-item-clickval">초당 ÷${bd.divisor}</div></div><button class="shop-buy-btn bee-btn" id="bsb-${bd.key}" onclick="window.__buyBee('${bd.key}')">${bd.buyPrice.toLocaleString()}</button>`;
         grid.appendChild(card);
     }
     updateAllUI();
@@ -639,7 +651,7 @@ window.__buyBee=function(key){
     const bd=BEE_DEFS.find(b=>b.key===key);if(!bd||score<bd.buyPrice)return;
     const slot=getBestFruitSlot();if(!slot)return;
     score-=bd.buyPrice;scoreEl.innerText=score;writeSave();updateAllUI();
-    spawnBeeOnFruit(bd,slot.fruitKey,slot.fruitIdx,false,0);spawnParticles(bd.emoji,document.getElementById(`bsb-${key}`));
+    spawnBeeOnFruit(bd,slot.fruitKey,slot.fruitIdx,false,0);spawnParticles(bd.key,document.getElementById(`bsb-${key}`));
 };
 
 const BOX_PRICE=1500;
@@ -677,7 +689,7 @@ function openBox(inst){
             if(!pools[rewardDef.key])pools[rewardDef.key]={list:[]};
             place(rewardDef,slotIdx,true,(newInstIdx)=>{
                 const p=pools[rewardDef.key];if(p&&newInstIdx!=null&&p.list[newInstIdx])p.list[newInstIdx]._fromBox=true;
-                createPopup('✨ '+rewardDef.name+'!',rewardDef.color);showSellToast('🎁 '+rewardDef.name+' 획득!');updateAllUI();writeSave();
+                createPopup(`${rewardDef.name}!`,rewardDef.color,'sparkle');showSellToast(`${rewardDef.name} 획득!`,'gift');updateAllUI();writeSave();
             });
         })
     ).start();
@@ -689,11 +701,11 @@ function buildBoxShopUI(){
     card.innerHTML=`
         <button onclick="window.__toggleBoxInfo(event)" style="position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;background:#bbb;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.12);">i</button>
         <div id="box-info-popup" style="display:none;position:absolute;top:38px;right:8px;background:var(--white);border:2px solid var(--border);border-radius:14px;padding:12px 16px;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:180px;">
-            <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;">📦 뽑기 확률</div>
+            <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;">${uiIcon('box')}뽑기 확률</div>
             <div style="font-size:12px;color:#666;line-height:1.9;">오렌지 <span style="float:right;font-weight:700;color:var(--text);">45%</span><br>블루베리 <span style="float:right;font-weight:700;color:var(--text);">30%</span><br>아보카도 <span style="float:right;font-weight:700;color:var(--text);">18%</span><br>체리 <span style="float:right;font-weight:700;color:var(--text);">7%</span></div>
         </div>
-        <div class="shop-item-emoji"><img src="./RandomBox.png" alt="과일박스" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div>
-        <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">과일박스</div><div class="shop-item-clickval">오렌지~체리 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">⚠️ 판매 시 0점</div></div>
+        <div class="shop-item-art"><img src="./RandomBox.png" alt="과일박스" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div>
+        <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">과일박스</div><div class="shop-item-clickval">오렌지~체리 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">${uiIcon('warning')}판매 시 0점</div></div>
         <button class="shop-buy-btn" id="box-buy-btn" style="background:linear-gradient(135deg,#ff6b8a,#ff4757);box-shadow:0 3px 12px rgba(255,71,87,.35);width:100%;" onclick="window.__buyBox()">${BOX_PRICE.toLocaleString()}</button>`;
     grid.appendChild(card);
     const empty=document.createElement('div');empty.className='shop-item';empty.style.cssText='opacity:.35;pointer-events:none;justify-content:center;align-items:center;min-height:200px;';empty.innerHTML=`<div style="font-size:40px;color:#ccc;">＋</div><div style="color:#ccc;font-size:13px;margin-top:8px;">준비 중</div>`;
@@ -755,7 +767,7 @@ function doSell(key,idx){
     const total=fruitGain+beeGain;
     if(removeFruitAt(key,idx,true)){
         score+=fruitGain;scoreEl.innerText=score;writeSave();
-        showSellToast(fruitGain===0?`💰 ${fd.name} 판매! +${total.toLocaleString()}점 (과일 0점)`:`💰 ${fd.name} 판매! +${total.toLocaleString()}점`);
+        showSellToast(fruitGain===0?`${fd.name} 판매! +${total.toLocaleString()}점 (과일 0점)`:`${fd.name} 판매! +${total.toLocaleString()}점`,'coin');
         createPopup(total>0?total:'0',fd.color);updateAllUI();
     }
 }

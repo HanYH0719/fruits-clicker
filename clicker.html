@@ -44,6 +44,9 @@
         }
         * { box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
         body { margin:0; overflow:hidden; background:var(--bg); font-family:'Cafe24PROSlim','Apple SD Gothic Neo',sans-serif; font-weight:400; touch-action:none; color:var(--text); }
+        .ui-icon { width:1.15em; height:1.15em; vertical-align:-.19em; margin-inline-end:.25em; }
+        .shop-art-fallback { display:none; height:190px; place-items:center; font-size:72px; }
+        .shop-art-fallback .ui-icon, .slot-buy-icon .ui-icon, .sugar-shop-icon .ui-icon { margin:0; }
 
         #score-wrapper { position:absolute; top:calc(40px + var(--toss-safe-top, env(safe-area-inset-top, 0px))); width:100%; display:flex; flex-direction:column; align-items:center; pointer-events:none; z-index:10; }
         #score-container { font-size:clamp(66px,11.8vw,94px); font-weight:700; }
@@ -104,6 +107,17 @@
             margin:1rem auto; border-radius:42% 55% 48% 43%; font-size:42px;
             background:conic-gradient(from 45deg,#ffecb5,#f9bee1,#c4ebff,#e3d1ff,#ffecb5);
             box-shadow:inset -5px -6px 10px #9a6bbd25,inset 7px 6px 8px #ffffffbb;
+        }
+        .sugar-shop-icon .ui-icon { width:52px; height:52px; }
+
+        #flower-badge {
+            display:inline-flex; align-items:center; gap:3px; margin-left:6px; vertical-align:middle;
+            font-size:clamp(16px,3vw,22px); font-weight:700; line-height:1; color:#b04f8b;
+            animation:manurePulse 1s ease-in-out infinite;
+        }
+        #flower-badge img {
+            display:block; width:clamp(29px,5vw,40px); height:clamp(29px,5vw,40px);
+            object-fit:contain; transform:scale(1.45);
         }
 
         #hold-hint {
@@ -320,8 +334,8 @@
         .shop-item:active:not(.locked){ transform:translateY(0) scale(.98); }
         .shop-item.locked { opacity:.4; }
 
-        .shop-item-emoji { width:100%; margin-bottom:8px; }
-        .shop-item-emoji img { width:100%; max-width:190px; height:190px; object-fit:contain; display:block; margin:0 auto; border-radius:12px; }
+        .shop-item-art { width:100%; margin-bottom:8px; }
+        .shop-item-art img { width:100%; max-width:190px; height:190px; object-fit:contain; display:block; margin:0 auto; border-radius:12px; }
         .shop-item-info  { width:100%; flex:1; text-align:left; margin-bottom:10px; }
         .shop-item-name  { color:var(--text); font-size:clamp(18px,3.6vw,22px); font-weight:700; line-height:1.1; margin-bottom:4px; }
         .shop-item-meta  { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
@@ -348,7 +362,7 @@
             padding:14px 16px; display:flex; align-items:center; gap:14px; transition:all .18s;
         }
         .slot-buy-row:hover { box-shadow:0 4px 16px rgba(165,123,255,.2); transform:translateY(-1px); }
-        .slot-buy-emoji { font-size:32px; width:48px; text-align:center; flex-shrink:0; }
+        .slot-buy-icon { font-size:32px; width:48px; text-align:center; flex-shrink:0; }
         .slot-buy-info  { flex:1; }
         .slot-buy-name  { color:var(--text); font-size:clamp(17px,3.5vw,18px); margin-bottom:3px; font-weight:400; }
         .slot-buy-meta  { display:flex; gap:8px; align-items:center; }
@@ -363,9 +377,6 @@
         .slot-buy-btn:hover:not(:disabled) { transform:scale(1.07) translateY(-1px); filter:brightness(1.05); }
         .slot-buy-btn:active:not(:disabled){ transform:scale(.88); filter:brightness(.92); transition:all .06s; }
         .slot-buy-btn:disabled { opacity:.35; cursor:not-allowed; transform:none; background:var(--border); box-shadow:none; color:var(--text-sub); font-size:11px; }
-
-        .buy-particle { position:fixed; pointer-events:none; z-index:600; font-size:24px; animation:pFly .7s ease-out forwards; }
-        @keyframes pFly { 0%{opacity:1;transform:translate(0,0) scale(1)} 100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.1)} }
 
         #loading-overlay {
             position:fixed; inset:0; background:#ffffff;
@@ -481,7 +492,7 @@
     <span role="status">코팅할 과일을 눌러 주세요</span>
     <button type="button" id="sugar-target-cancel">취소</button>
 </div>
-<div id="hold-hint">🖱️ 길게 누르면 판매</div>
+<div id="hold-hint"><svg class="ui-icon" aria-hidden="true"><use href="./ui-icons.svg#mouse"/></svg>길게 누르면 판매</div>
 
 <!-- 설정 버튼 -->
 <button id="settings-btn">
@@ -839,17 +850,17 @@ document.addEventListener('visibilitychange', () => {
 // ═══════════════════════════════════════════════════════════
 
 const FRUIT_DEFS = [
-    { key:'apple',      icon:'./Apple.png',      file:'./Apple.glb',      emoji:'🍎', name:'사과',     clickVal:1,   color:'#ff4d4d', buyPrice:0,      ms:1.0 },
-    { key:'watermelon', icon:'./Watermelon.png',  file:'./Watermelon.glb', emoji:'🍉', name:'수박',     clickVal:4,   color:'#28a745', buyPrice:100,    ms:1.0 },
-    { key:'orange',     icon:'./Orange.png',      file:'./Orange.glb',     emoji:'🍊', name:'오렌지',   clickVal:12,  color:'#ffa500', buyPrice:500,    ms:1.0 },
-    { key:'blueberry',  icon:'./Blueberry.png',   file:'./Blueberry.glb',  emoji:'🫐', name:'블루베리', clickVal:32,  color:'#4f5bd5', buyPrice:2000,   ms:1.0 },
-    { key:'avocado',    icon:'./Avocado.png',      file:'./Avocado.glb',    emoji:'🥑', name:'아보카도', clickVal:80,  color:'#568203', buyPrice:8000,   ms:1.0 },
-    { key:'cherry',     icon:'./Cherry.png',       file:'./Cherry.glb',     emoji:'🍒', name:'체리',     clickVal:200, color:'#c0001a', buyPrice:30000,  ms:1.0 },
-    { key:'pineapple',  icon:'./Pineapple.png',    file:'./Pineapple.glb',  emoji:'🍍', name:'파인애플', clickVal:500,  color:'#e6a817', buyPrice:120000,  ms:1.0 },
-    { key:'lemon',      icon:'./Lemon.PNG',        file:'./Lemon.glb',      emoji:'🍋', name:'레몬',     clickVal:1200, color:'#FFE135', buyPrice:300000,  ms:1.0 },
-    { key:'coconut',    icon:'./Coconut.PNG',      file:'./Coconut.glb',    emoji:'🥥', name:'코코넛',   clickVal:3000,  color:'#8B6914', buyPrice:800000,  ms:1.0 },
-    { key:'kiwi',       icon:'./Kiwi.PNG',         file:'./Kiwi.glb',       emoji:'🥝', name:'키위',     clickVal:7000,  color:'#8DB600', buyPrice:2000000, ms:1.0 },
-    { key:'strawberry', icon:'./Strawberry.PNG',   file:'./Strawberry.glb', emoji:'🍓', name:'딸기',     clickVal:16000, color:'#FC5A8D', buyPrice:5000000, ms:1.0 },
+    { key:'apple',      icon:'./Apple.png',      file:'./Apple.glb',      name:'사과',     clickVal:1,   color:'#ff4d4d', buyPrice:0,      ms:1.0 },
+    { key:'watermelon', icon:'./Watermelon.png',  file:'./Watermelon.glb', name:'수박',     clickVal:4,   color:'#28a745', buyPrice:100,    ms:1.0 },
+    { key:'orange',     icon:'./Orange.png',      file:'./Orange.glb',     name:'오렌지',   clickVal:12,  color:'#ffa500', buyPrice:500,    ms:1.0 },
+    { key:'blueberry',  icon:'./Blueberry.png',   file:'./Blueberry.glb',  name:'블루베리', clickVal:32,  color:'#4f5bd5', buyPrice:2000,   ms:1.0 },
+    { key:'avocado',    icon:'./Avocado.png',      file:'./Avocado.glb',    name:'아보카도', clickVal:80,  color:'#568203', buyPrice:8000,   ms:1.0 },
+    { key:'cherry',     icon:'./Cherry.png',       file:'./Cherry.glb',     name:'체리',     clickVal:200, color:'#c0001a', buyPrice:30000,  ms:1.0 },
+    { key:'pineapple',  icon:'./Pineapple.png',    file:'./Pineapple.glb',  name:'파인애플', clickVal:500,  color:'#e6a817', buyPrice:120000,  ms:1.0 },
+    { key:'lemon',      icon:'./Lemon.PNG',        file:'./Lemon.glb',      name:'레몬',     clickVal:1200, color:'#FFE135', buyPrice:300000,  ms:1.0 },
+    { key:'coconut',    icon:'./Coconut.PNG',      file:'./Coconut.glb',    name:'코코넛',   clickVal:3000,  color:'#8B6914', buyPrice:800000,  ms:1.0 },
+    { key:'kiwi',       icon:'./Kiwi.PNG',         file:'./Kiwi.glb',       name:'키위',     clickVal:7000,  color:'#8DB600', buyPrice:2000000, ms:1.0 },
+    { key:'strawberry', icon:'./Strawberry.PNG',   file:'./Strawberry.glb', name:'딸기',     clickVal:16000, color:'#FC5A8D', buyPrice:5000000, ms:1.0 },
 ];
 
 // ★ _fromBox 플래그 포함해서 판매가 계산
@@ -859,8 +870,8 @@ const getSellVal = (def, item) => {
 };
 
 const BEE_DEFS = [
-    { key:'bee',      file:'./Bee.glb',     emoji:'🐝', icon:'./Bee.PNG',     name:'꿀벌',   buyPrice:1500,  beeScale:0.4,  divisor:3, color:'#FFD700', orbitR:0.55, orbitSpeed:0.0022 },
-    { key:'queenBee', file:'./QeenBee.glb', emoji:'👑', icon:'./QeenBee.PNG', name:'여왕벌', buyPrice:5800,  beeScale:0.48, divisor:2, color:'#FF4500', orbitR:0.70, orbitSpeed:0.0018 },
+    { key:'bee',      file:'./Bee.glb',     icon:'./Bee.PNG',     name:'꿀벌',   buyPrice:1500,  beeScale:0.4,  divisor:3, color:'#FFD700', orbitR:0.55, orbitSpeed:0.0022 },
+    { key:'queenBee', file:'./QeenBee.glb', icon:'./QeenBee.PNG', name:'여왕벌', buyPrice:5800,  beeScale:0.48, divisor:2, color:'#FF4500', orbitR:0.70, orbitSpeed:0.0018 },
 ];
 
 const SAVE_KEY = tossPlatform ? tossPlatform.saveKey : 'fc_v16';
@@ -1410,23 +1421,33 @@ try { initGame(); } catch(e) { console.error('initGame error:', e); finishInit()
 setTimeout(()=>{if(document.getElementById('loading-overlay'))finishInit();},8000);
 
 const popupArea=document.getElementById('popup-area');
-function createPopup(val,color){
+function uiIcon(name) {
+    return `<svg class="ui-icon" aria-hidden="true"><use href="./ui-icons.svg#${name}"/></svg>`;
+}
+
+function setIconText(element, message, icon) {
+    element.textContent = message;
+    if (icon) element.insertAdjacentHTML('afterbegin', uiIcon(icon));
+}
+
+function createPopup(val,color,icon){
     if(popupArea.children.length>=8) return;
-    const d=document.createElement('div');d.className='click-popup';d.innerText=`+${fmtN(val)}`;d.style.color=color;d.style.left=`calc(50% + ${(Math.random()-.5)*120}px)`;popupArea.appendChild(d);setTimeout(()=>d.remove(),600);
+    const d=document.createElement('div');d.className='click-popup';
+    setIconText(d, typeof val === 'number' ? `+${fmtN(val)}` : val, icon);
+    d.style.color=color;d.style.left=`calc(50% + ${(Math.random()-.5)*120}px)`;popupArea.appendChild(d);setTimeout(()=>d.remove(),600);
 }
 
 let toastTmr;
-function showSellToast(msg, anchor='center'){const t=document.getElementById('sell-toast');t.dataset.anchor=anchor;t.innerText=msg;t.className='show';clearTimeout(toastTmr);toastTmr=setTimeout(()=>{t.className='hide';setTimeout(()=>{t.className='';},380);},1800);}
+function showSellToast(msg, anchor='center', icon){const t=document.getElementById('sell-toast');t.dataset.anchor=anchor;setIconText(t,msg,icon);t.className='show';clearTimeout(toastTmr);toastTmr=setTimeout(()=>{t.className='hide';setTimeout(()=>{t.className='';},380);},1800);}
 function showUnlockImg(src){const img=document.createElement('img');img.src=src;img.className='unlock-img';document.body.appendChild(img);setTimeout(()=>img.parentNode&&img.remove(),2000);}
-function spawnParticles(emoji,btnEl){if(!btnEl)return;const r=btnEl.getBoundingClientRect();for(let i=0;i<7;i++){const p=document.createElement('div');p.className='buy-particle';p.innerText=emoji;p.style.cssText=`left:${r.left+r.width/2}px;top:${r.top+r.height/2}px`;const ang=(i/7)*Math.PI*2,d=70+Math.random()*60;p.style.setProperty('--dx',Math.cos(ang)*d+'px');p.style.setProperty('--dy',Math.sin(ang)*d+'px');p.style.animationDelay=Math.random()*.08+'s';document.body.appendChild(p);setTimeout(()=>p.remove(),850);}}
 
 function buildSlotShopUI(){
     const grid=document.getElementById('slot-shop-grid');if(!grid)return;grid.innerHTML='';
     const nextIdx=nextLockedSlot();
-    if(nextIdx===-1){const div=document.createElement('div');div.className='slot-buy-row';div.innerHTML=`<div class="slot-buy-emoji">✅</div><div class="slot-buy-info"><div class="slot-buy-name">슬롯 최대 확장 완료!</div><div class="slot-buy-meta"><span class="slot-buy-count">${MAX_SLOTS} / ${MAX_SLOTS}칸</span></div></div>`;grid.appendChild(div);return;}
+    if(nextIdx===-1){const div=document.createElement('div');div.className='slot-buy-row';div.innerHTML=`<div class="slot-buy-icon">${uiIcon('check')}</div><div class="slot-buy-info"><div class="slot-buy-name">슬롯 최대 확장 완료!</div><div class="slot-buy-meta"><span class="slot-buy-count">${MAX_SLOTS} / ${MAX_SLOTS}칸</span></div></div>`;grid.appendChild(div);return;}
     const price=slotPrice(nextIdx+1);
     const row=document.createElement('div');row.className='slot-buy-row';row.id='slot-buy-row';
-    row.innerHTML=`<div class="slot-buy-emoji">📦</div><div class="slot-buy-info"><div class="slot-buy-name">슬롯 확장</div><div class="slot-buy-meta"><span class="slot-buy-price">💰 ${fmtN(price)}점</span><span class="slot-buy-count" id="slot-count-display">${unlockedSlots} / ${MAX_SLOTS}칸</span></div></div><button class="slot-buy-btn" id="slot-buy-btn" onclick="window.__buySlot()">확장</button>`;
+    row.innerHTML=`<div class="slot-buy-icon">${uiIcon('box')}</div><div class="slot-buy-info"><div class="slot-buy-name">슬롯 확장</div><div class="slot-buy-meta"><span class="slot-buy-price">${uiIcon('coin')}${fmtN(price)}점</span><span class="slot-buy-count" id="slot-count-display">${unlockedSlots} / ${MAX_SLOTS}칸</span></div></div><button class="slot-buy-btn" id="slot-buy-btn" onclick="window.__buySlot()">확장</button>`;
     grid.appendChild(row);updateSlotShopUI();
 }
 function updateSlotShopUI(){
@@ -1444,7 +1465,7 @@ function buildFruitShopUI(){
     const grid=document.getElementById('fruit-shop-grid');grid.innerHTML='';
     for(const fd of FRUIT_DEFS){
         const isFree=fd.buyPrice===0,card=document.createElement('div');card.className='shop-item';card.id=`fsi-${fd.key}`;
-        card.innerHTML=`<div class="shop-item-emoji">${fd.icon?`<img src="${fd.icon}" alt="${fd.name}">`:`<span style="font-size:72px;line-height:140px;display:block;text-align:center;">${fd.emoji}</span>`}</div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${fd.name}</div><div class="shop-item-clickval">클릭 +${fd.clickVal}</div></div><button class="shop-buy-btn${isFree?' free':''}" id="fsb-${fd.key}">${isFree?'무료 획득':fmtN(fd.buyPrice)}</button>`;
+        card.innerHTML=`<div class="shop-item-art"><img src="${fd.icon}" alt="${fd.name}"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${fd.name}</div><div class="shop-item-clickval">클릭 +${fd.clickVal}</div></div><button class="shop-buy-btn${isFree?' free':''}" id="fsb-${fd.key}">${isFree?'무료 획득':fmtN(fd.buyPrice)}</button>`;
         card.querySelector('button').addEventListener('click', () => buyFruit(fd));
         grid.appendChild(card);
     }
@@ -1495,20 +1516,20 @@ function buildBeeShopUI(){
     const grid=document.getElementById('bee-shop-grid');grid.innerHTML='';
     for(const bd of BEE_DEFS){
         const card=document.createElement('div');card.className='shop-item';card.id=`bsi-${bd.key}`;
-        card.innerHTML=`<div class="shop-item-emoji">${bd.icon?`<img src="${bd.icon}" alt="${bd.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span style="font-size:72px;line-height:190px;display:none;text-align:center;width:100%">${bd.emoji}</span>`:`<span style="font-size:72px;line-height:190px;display:block;text-align:center;">${bd.emoji}</span>`}</div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${bd.name}</div><div class="shop-item-clickval">초당 ÷${bd.divisor}</div></div><button class="shop-buy-btn bee-btn" id="bsb-${bd.key}" onclick="window.__buyBee('${bd.key}')">${fmtN(bd.buyPrice)}</button>`;
+        card.innerHTML=`<div class="shop-item-art"><img src="${bd.icon}" alt="${bd.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"><span class="shop-art-fallback">${uiIcon(bd.key)}</span></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${bd.name}</div><div class="shop-item-clickval">초당 ÷${bd.divisor}</div></div><button class="shop-buy-btn bee-btn" id="bsb-${bd.key}" onclick="window.__buyBee('${bd.key}')">${fmtN(bd.buyPrice)}</button>`;
         grid.appendChild(card);
     }
     // ★ 아이템 그리드 (꽃, 비료 등)
     const itemsGrid=document.getElementById('bee-shop-items-grid');if(itemsGrid){itemsGrid.innerHTML='';
     const flowerCard=document.createElement('div');flowerCard.className='shop-item';flowerCard.id='bsi-flower';
-    flowerCard.innerHTML=`<div class="shop-item-emoji"><img src="./Flower.png" alt="꽃" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">꽃</div><div class="shop-item-clickval">벌 수입 15초간 ×2배</div><div class="shop-item-info2" style="color:#b04f8b;margin-top:3px;">환생 1회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-flower" onclick="window.__buyFlower()">${fmtN(FLOWER_PRICE)}</button>`;
+    flowerCard.innerHTML=`<div class="shop-item-art"><img src="./Flower.png" alt="꽃" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">꽃</div><div class="shop-item-clickval">벌 수입 15초간 ×2배</div><div class="shop-item-info2" style="color:#b04f8b;margin-top:3px;">환생 1회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-flower" onclick="window.__buyFlower()">${fmtN(FLOWER_PRICE)}</button>`;
     itemsGrid.appendChild(flowerCard);
     const manureCard=document.createElement('div');manureCard.className='shop-item';manureCard.id='bsi-manure';
-    manureCard.innerHTML=`<div class="shop-item-emoji"><img src="./Manure.png" alt="비료" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">비료</div><div class="shop-item-clickval">전체 수입 15초간 ×2배</div><div class="shop-item-info2" style="color:#8B6914;margin-top:3px;">환생 2회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-manure" onclick="window.__buyManure()">${fmtN(MANURE_PRICE)}</button>`;
+    manureCard.innerHTML=`<div class="shop-item-art"><img src="./Manure.png" alt="비료" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">비료</div><div class="shop-item-clickval">전체 수입 15초간 ×2배</div><div class="shop-item-info2" style="color:#8B6914;margin-top:3px;">환생 2회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-manure" onclick="window.__buyManure()">${fmtN(MANURE_PRICE)}</button>`;
     itemsGrid.appendChild(manureCard);
     const sugarCard = document.createElement('div');
     sugarCard.className = 'shop-item';
-    sugarCard.innerHTML = `<div class="shop-item-emoji"><div class="sugar-shop-icon" aria-hidden="true">🍬</div></div>
+    sugarCard.innerHTML = `<div class="shop-item-art"><div class="sugar-shop-icon" aria-hidden="true">${uiIcon('candy')}</div></div>
         <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">설탕 코팅</div>
         <div class="shop-item-clickval">과일 1개 · 누르면 얇은 코팅에 금이 가요</div></div>
         <button type="button" class="shop-buy-btn bee-btn" id="bsb-sugar">${fmtN(SUGAR_COATING_PRICE)}</button>`;
@@ -1802,8 +1823,9 @@ function updateFlowerTimerUI() {
         if (!badge) {
             badge = document.createElement('span');
             badge.id = 'flower-badge';
-            badge.style.cssText = 'display:inline-block;font-size:clamp(16px,3vw,22px);font-weight:700;color:#b04f8b;margin-left:6px;vertical-align:middle;animation:manurePulse 1s ease-in-out infinite;filter:url(#score-filter);';
-            badge.textContent = '🐝×2';
+            badge.setAttribute('role', 'img');
+            badge.setAttribute('aria-label', '벌 수입 2배');
+            badge.innerHTML = '<img src="./Bee.PNG" alt=""><span aria-hidden="true">×2</span>';
             const scoreContainer = document.getElementById('score-container');
             if (scoreContainer) scoreContainer.appendChild(badge);
         }
@@ -1951,8 +1973,8 @@ function openBox(inst){
                 // ★ 박스에서 나온 과일에 _fromBox 플래그 설정 → 이후 writeSave에서 fruitsEx에 저장됨
                 const p=pools[rewardDef.key];
                 if(p&&newInstIdx!=null&&p.list[newInstIdx]) p.list[newInstIdx]._fromBox=true;
-                createPopup('✨ '+rewardDef.name+'!',rewardDef.color);
-                showSellToast('🎁 '+rewardDef.name+' 획득!');
+                createPopup(`${rewardDef.name}!`, rewardDef.color, 'sparkle');
+                showSellToast(`${rewardDef.name} 획득!`, 'center', 'gift');
                 updateAllUI();writeSave();
             });
         })
@@ -1992,8 +2014,8 @@ function openPlusBox(inst){
             place(rewardDef,slotIdx,true,(newInstIdx)=>{
                 const p=pools[rewardDef.key];
                 if(p&&newInstIdx!=null&&p.list[newInstIdx]) p.list[newInstIdx]._fromBox=true;
-                createPopup('✨ '+rewardDef.name+'!',rewardDef.color);
-                showSellToast('🎁✨ '+rewardDef.name+' 획득!');
+                createPopup(`${rewardDef.name}!`, rewardDef.color, 'sparkle');
+                showSellToast(`${rewardDef.name} 획득!`, 'center', 'gift');
                 updateAllUI();writeSave();
             });
         })
@@ -2015,11 +2037,11 @@ function buildBoxShopUI(){
     card.innerHTML=`
         <button onclick="window.__toggleBoxInfo(event)" style="position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;background:#bbb;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.12);">i</button>
         <div id="box-info-popup" style="display:none;position:absolute;top:38px;right:8px;background:var(--white);border:2px solid var(--border);border-radius:14px;padding:12px 16px;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:180px;">
-            <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;">📦 뽑기 확률</div>
+            <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;">${uiIcon('box')} 뽑기 확률</div>
             <div style="font-size:12px;color:#666;line-height:1.9;">${probRows}</div>
         </div>
-        <div class="shop-item-emoji"><img src="./RandomBox.png" alt="과일박스" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div>
-        <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">과일박스</div><div class="shop-item-clickval">오렌지~체리 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">⚠️ 판매 시 0점</div></div>
+        <div class="shop-item-art"><img src="./RandomBox.png" alt="과일박스" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div>
+        <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">과일박스</div><div class="shop-item-clickval">오렌지~체리 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">${uiIcon('warning')}판매 시 0점</div></div>
         <button class="shop-buy-btn" id="box-buy-btn" style="background:linear-gradient(135deg,#ff6b8a,#ff4757);box-shadow:0 3px 12px rgba(255,71,87,.35);width:100%;" onclick="window.__buyBox()">${fmtN(BOX_PRICE)}</button>`;
     grid.appendChild(card);
 
@@ -2035,11 +2057,11 @@ function buildBoxShopUI(){
     plusCard.innerHTML=`
         <button onclick="window.__togglePlusBoxInfo(event)" style="position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;background:#bbb;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.12);">i</button>
         <div id="plusbox-info-popup" style="display:none;position:absolute;top:38px;right:8px;background:var(--white);border:2px solid var(--border);border-radius:14px;padding:12px 16px;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:180px;">
-            <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;">✨ 뽑기 확률</div>
+            <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;">${uiIcon('sparkle')}뽑기 확률</div>
             <div style="font-size:12px;color:#666;line-height:1.9;">${plusProbRows}</div>
         </div>
-        <div class="shop-item-emoji"><img src="./FruitsPlusBox.png" alt="과일플러스박스" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div>
-        <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">플러스 박스</div><div class="shop-item-clickval">체리~코코넛 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">⚠️ 판매 시 0점</div></div>
+        <div class="shop-item-art"><img src="./FruitsPlusBox.png" alt="과일플러스박스" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div>
+        <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">플러스 박스</div><div class="shop-item-clickval">체리~코코넛 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">${uiIcon('warning')}판매 시 0점</div></div>
         <button class="shop-buy-btn" id="plusbox-buy-btn" style="background:linear-gradient(135deg,#5bbf7a,#28a745);box-shadow:0 3px 12px rgba(40,167,69,.35);width:100%;" onclick="window.__buyPlusBox()">${fmtN(PLUS_BOX_PRICE)}</button>`;
     grid.appendChild(plusCard);
     updateBoxShopUI();
@@ -2120,12 +2142,11 @@ function updateBucketUI() {
     btn.style.background = canRebirth ? 'linear-gradient(135deg,#ff6b8a,#a57bff)' : '#ccc';
     btn.style.boxShadow  = canRebirth ? '0 4px 20px rgba(165,123,255,.4)' : 'none';
     btn.style.cursor     = canRebirth ? 'pointer' : 'not-allowed';
-    btn.innerText        = canRebirth ? `✨ 환생 (×${REBIRTH_MULTI().toFixed(1)})` : '조건 미충족';
-    if (rebirthCount > 0) {
-        btn.innerText = canRebirth
-            ? `✨ 바구니에 담기 ${rebirthCount+1}회차 (×${(REBIRTH_MULTI()+0.5).toFixed(1)})`
-            : `조건 미충족 (현재 ×${REBIRTH_MULTI().toFixed(1)})`;
-    }
+    const rebirthLabel = rebirthCount > 0
+        ? `바구니에 담기 ${rebirthCount+1}회차 (×${(REBIRTH_MULTI()+0.5).toFixed(1)})`
+        : `환생 (×${REBIRTH_MULTI().toFixed(1)})`;
+    const disabledLabel = rebirthCount > 0 ? `조건 미충족 (현재 ×${REBIRTH_MULTI().toFixed(1)})` : '조건 미충족';
+    setIconText(btn, canRebirth ? rebirthLabel : disabledLabel, canRebirth ? 'sparkle' : null);
 }
 
 window.__rebirth = async function() {
@@ -2189,7 +2210,7 @@ function finishRebirth(bucket, resolve) {
             writeSave();scoreEl.innerText=fmtN(score);
             buildSlotShopUI();buildFruitShopUI();buildBeeShopUI();buildBoxShopUI();
             updateAllUIImmediate();
-            showSellToast(`🎉 바구니에 담겼어요! 이제 ×${REBIRTH_MULTI().toFixed(1)}배!`);
+            showSellToast(`바구니에 담겼어요! 이제 ×${REBIRTH_MULTI().toFixed(1)}배!`, 'center', 'celebrate');
             resolve();
         })
     ).start();
@@ -2298,9 +2319,7 @@ document.getElementById('bucket-overlay').addEventListener('click',e=>{if(e.targ
     toggleAA.addEventListener('change', () => {
         const s = _loadSettings(); s.antiAlias = toggleAA.checked; _saveSettings(s);
         // 안내 토스트
-        const t = document.getElementById('sell-toast');
-        t.textContent = '새로고침 후 적용돼요 🔄'; t.classList.add('show');
-        setTimeout(() => { t.classList.remove('show'); t.classList.add('hide'); setTimeout(() => { t.classList.remove('hide'); }, 350); }, 1800);
+        showSellToast('새로고침 후 적용돼요', 'center', 'refresh');
     });
 
     document.getElementById('settings-btn').addEventListener('click', () => {
@@ -3450,8 +3469,8 @@ function doSell(key,idx){
     const total=fruitGain+beeGain;
     if(removeFruitAt(key,idx,true)){
         score+=fruitGain;scoreEl.innerText=fmtN(score);writeSave();
-        showSellToast(fruitGain===0?`💰 ${fd.name} 판매! +${fmtN(total)}점 (과일 0점)`:`💰 ${fd.name} 판매! +${fmtN(total)}점`);
-        createPopup(total>0?total:'0',fd.color);updateAllUIImmediate();
+        showSellToast(fruitGain===0?`${fd.name} 판매! +${fmtN(total)}점 (과일 0점)`:`${fd.name} 판매! +${fmtN(total)}점`, 'center', 'coin');
+        createPopup(total,fd.color);updateAllUIImmediate();
     }
 }
 

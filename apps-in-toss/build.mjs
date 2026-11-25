@@ -116,7 +116,7 @@ try {
     });
 
     const referenced = new Set(
-        Array.from((source).matchAll(/\.\/([\w-]+\.(?:glb|png|m4a|mp3|woff2))/gi), match => match[1]),
+        Array.from((source).matchAll(/\.\/([\w-]+\.(?:glb|png|svg|m4a|mp3|woff2))/gi), match => match[1]),
     );
     for (const filename of referenced) {
         const input = new URL(filename, project);
