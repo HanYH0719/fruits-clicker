@@ -710,7 +710,12 @@ const tossPlatform = null;
 // ═══════════════════════════════════════════════════════════
 //  🔊 사운드 시스템
 // ═══════════════════════════════════════════════════════════
-const _fruitSoundUrls = ['./Click1.m4a', './Click2.m4a', './Click4.m4a', './Clcik3.m4a'];
+const _orangeTapUrls = ['./Tap-Orange-01.m4a', './Tap-Orange-02.m4a', './Tap-Orange-03.m4a'];
+const _coconutTapUrls = ['./Tap-Coconut-01.m4a', './Tap-Coconut-02.m4a', './Tap-Coconut-03.m4a'];
+const _fruitTapUrls = [..._orangeTapUrls, ..._coconutTapUrls];
+const _orangeSugarTapUrls = ['./Tap-Sugar-Orange-01.m4a', './Tap-Sugar-Orange-02.m4a', './Tap-Sugar-Orange-03.m4a', './Tap-Sugar-Orange-04.m4a'];
+const _sugarTapUrls = ['./Tap-Sugar-01.m4a', './Tap-Sugar-02.m4a', './Tap-Sugar-03.m4a', './Tap-Sugar-04.m4a', ..._orangeSugarTapUrls];
+const _itemTapUrls = ['./Click1.m4a', './Click2.m4a', './Click4.m4a', './Clcik3.m4a'];
 const _uiSoundUrls    = ['./UIClick.m4a', './UIClick2.m4a', './UIClick3.m4a'];
 const _bgmUrls        = [
     './bgm-01.mp3',
@@ -726,21 +731,25 @@ const _bgmUrls        = [
 ];
 
 const _audioCtx   = new (window.AudioContext || window.webkitAudioContext)();
-const _audioCache = {};   // url → AudioBuffer | null
+const _audioCache = new Map();   // url → Promise<AudioBuffer | null>
 const _bgmAudio   = new Audio();
 let _bgmQueue = [];
 
 // 오디오 파일 디코딩 & 캐싱
-async function _loadAudio(url) {
-    if (url in _audioCache) return _audioCache[url];
-    try {
-        const res = await fetch(url);
-        const raw = await res.arrayBuffer();
-        _audioCache[url] = await _audioCtx.decodeAudioData(raw);
-    } catch (e) {
-        _audioCache[url] = null;  // 실패해도 조용히 무시
+function _loadAudio(url) {
+    if (!_audioCache.has(url)) {
+        _audioCache.set(url, fetch(url)
+            .then(response => {
+                if (!response.ok) throw new Error(`Audio request failed: ${response.status}`);
+                return response.arrayBuffer();
+            })
+            .then(raw => _audioCtx.decodeAudioData(raw))
+            .catch(() => {
+                _audioCache.delete(url);
+                return null;
+            }));
     }
-    return _audioCache[url];
+    return _audioCache.get(url);
 }
 
 // 모바일 자동재생 정책 대응: 첫 터치 시 컨텍스트 resume
@@ -776,9 +785,15 @@ let _uiSoundOn    = _settings.uiSound    !== false;   // 기본 켬
 let _bgmOn        = _settings.bgmOn      !== false;   // 기본 켬
 let _bgmVolume    = Math.min(Math.max(Number(_settings.bgmVolume ?? 0.6), 0), 1);
 
-/** 과일 클릭 시 재생 (Click1~4 랜덤) */
-function playFruitClick(key) {
-    if (_fruitSoundOn) _playRandom(_fruitSoundUrls, 0.7, FRUIT_PRESS_PROFILES[key]?.soundRate ?? 1);
+function playFruitClick(key, coated = false) {
+    if (!_fruitSoundOn) return;
+    if (coated) {
+        _playRandom(key === 'orange' ? _orangeSugarTapUrls : _sugarTapUrls, 0.69);
+        return;
+    }
+    const sounds = key === 'orange' ? _orangeTapUrls : key === 'coconut' ? _coconutTapUrls
+        : key ? _fruitTapUrls : _itemTapUrls;
+    _playRandom(sounds, 0.7, FRUIT_PRESS_PROFILES[key]?.soundRate ?? 1);
 }
 
 /** UI 버튼 클릭 시 재생 (UIClick1~3 랜덤) */
@@ -846,7 +861,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // 페이지 로드 시 모든 사운드 미리 디코딩
-[..._fruitSoundUrls, ..._uiSoundUrls, './Showup.m4a', './Bee.m4a'].forEach(u => _loadAudio(u));
+[..._fruitTapUrls, ..._sugarTapUrls, ..._itemTapUrls, ..._uiSoundUrls, './Showup.m4a', './Bee.m4a'].forEach(u => _loadAudio(u));
 // ═══════════════════════════════════════════════════════════
 
 const FRUIT_DEFS = [
@@ -3097,7 +3112,6 @@ sugarDust.raycast = () => {};
 sugarDust.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 scene.add(sugarDust);
 const sugarDustPose = new THREE.Object3D();
-let sugarCrackleBuffer;
 
 function canCoatFruit(model) {
     const coating = sugarCoatings.get(model);
@@ -3323,14 +3337,14 @@ function crackSugarCoating(model, key, dent, time) {
     dent.recoveryMs = Math.max(dent.recoveryMs, 350);
     if (!fresh.length) return;
 
-    sugarBursts.push({ coating, ids: fresh.slice(0, 3), normal, at: time + 26, crumbs: 2, volume: 0.78 });
+    sugarBursts.push({ coating, ids: fresh.slice(0, 3), normal, at: time + 26, crumbs: 2 });
     if (fresh.length > 3) {
-        sugarBursts.push({ coating, ids: fresh.slice(3), normal, at: time + 65, crumbs: 1, volume: 0.30 });
+        sugarBursts.push({ coating, ids: fresh.slice(3), normal, at: time + 65, crumbs: 1 });
     }
 }
 
 function markSugarCracks(burst, time) {
-    const { coating, ids, normal, crumbs, volume } = burst;
+    const { coating, ids, normal, crumbs } = burst;
     for (const id of ids) {
         coating.cracking.delete(id);
         coating.broken.add(id);
@@ -3348,7 +3362,6 @@ function markSugarCracks(burst, time) {
         velocity.z += (Math.random() - 0.5) * 0.56;
         sugarFragments.push({ position, velocity, born: time, size: 0.009 + Math.random() * 0.008, spin: Math.random() * 9 });
     }
-    playSugarCrackle(ids.length, volume);
     writeSave();
     updateAllUI();
 }
@@ -3384,32 +3397,6 @@ function updateSugarCoatings(time, elapsed) {
     }
     sugarDust.count = dustCount;
     if (dustCount) sugarDust.instanceMatrix.needsUpdate = true;
-}
-
-function playSugarCrackle(pieces, level) {
-    if (!_fruitSoundOn || document.hidden || _audioCtx.state !== 'running') return;
-    if (!sugarCrackleBuffer) {
-        sugarCrackleBuffer = _audioCtx.createBuffer(1, Math.floor(_audioCtx.sampleRate * 0.13), _audioCtx.sampleRate);
-        const noise = sugarCrackleBuffer.getChannelData(0);
-        for (let i = 0; i < noise.length; i++) noise[i] = Math.random() * 2 - 1;
-    }
-    const grain = _audioCtx.createBufferSource();
-    grain.buffer = sugarCrackleBuffer;
-    grain.playbackRate.value = 0.93 + Math.random() * 0.19;
-    const filter = _audioCtx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 2260 + Math.random() * 920;
-    filter.Q.value = 0.83;
-    const gain = _audioCtx.createGain();
-    const now = _audioCtx.currentTime;
-    gain.gain.setValueAtTime(0, now);
-    for (const [offset, volume] of [[0,0.38],[0.018,0.24],[0.041,0.16],[0.064,0.072]]) {
-        gain.gain.setValueAtTime(0.001, now + offset);
-        gain.gain.linearRampToValueAtTime(volume * level * (0.72 + Math.min(pieces, 8) * 0.035), now + offset + 0.001);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.014);
-    }
-    grain.connect(filter).connect(gain).connect(_audioCtx.destination);
-    grain.start();
 }
 
 const HOLD_MS=800,CIRC=175.9;
@@ -3506,6 +3493,7 @@ renderer.domElement.addEventListener('pointerdown',e=>{
         const { key } = hit.fd;
         startHold(key, hit.idx, e.clientX, e.clientY);
         const model = pools[key].list[hit.idx].model;
+        playFruitClick(key, sugarCoatings.has(model));
         const time = performance.now();
         if (key !== 'watermelon') hold.fruitPress = pressFruit(model, key, hit.intersection, time);
         hold.dent = pressFruitDent(model, key, hit.intersection, time);
@@ -3528,7 +3516,6 @@ renderer.domElement.addEventListener('pointerup',e=>{
         const model=pool.list[idx].model;
         moveCameraTo(model);
         const _gain=Math.floor(fd.clickVal*CLICK_SCORE_MULTI());score+=_gain;scoreEl.innerText=fmtN(score);
-        playFruitClick(key);
         if (_manureMulti > 1) playEffectItemMotion(_manureModel, 'boost');
         writeSave();createPopup(_gain,fd.color);if(anyShopOpen())updateAllUIImmediate();scheduleFruitIdle(model);
     }
