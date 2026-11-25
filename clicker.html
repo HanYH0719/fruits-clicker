@@ -715,6 +715,23 @@ const _coconutTapUrls = ['./Tap-Coconut-01.m4a', './Tap-Coconut-02.m4a', './Tap-
 const _fruitTapUrls = [..._orangeTapUrls, ..._coconutTapUrls];
 const _orangeSugarTapUrls = ['./Tap-Sugar-Orange-01.m4a', './Tap-Sugar-Orange-02.m4a', './Tap-Sugar-Orange-03.m4a', './Tap-Sugar-Orange-04.m4a'];
 const _sugarTapUrls = ['./Tap-Sugar-01.m4a', './Tap-Sugar-02.m4a', './Tap-Sugar-03.m4a', './Tap-Sugar-04.m4a', ..._orangeSugarTapUrls];
+const _mixedFruitTapUrl = './Tap-Mixed-Fruit.m4a';
+const _mixedSugarTapUrl = './Tap-Mixed-Sugar.m4a';
+
+// Each recorded tap uses its own time slice within a shared audio file.
+function tapClips(url, ranges) {
+    return ranges.map(([offset, duration]) => ({ url, offset, duration }));
+}
+
+const _fruitTapClips = [..._fruitTapUrls, ...tapClips(_mixedFruitTapUrl, [
+    [0, 0.191], [0.231, 0.199], [0.470, 0.204], [0.714, 0.212],
+    [0.966, 0.193], [1.199, 0.170], [1.409, 0.196], [1.645, 0.196],
+])];
+const _sugarTapClips = [..._sugarTapUrls, ...tapClips(_mixedSugarTapUrl, [
+    [0, 0.202], [0.242, 0.190], [0.472, 0.178], [0.690, 0.188],
+    [0.918, 0.210], [1.168, 0.185], [1.393, 0.195], [1.628, 0.203],
+    [1.871, 0.199], [2.110, 0.198], [2.348, 0.150], [2.538, 0.198], [2.776, 0.208],
+])];
 const _itemTapUrls = ['./Click1.m4a', './Click2.m4a', './Click4.m4a', './Clcik3.m4a'];
 const _uiSoundUrls    = ['./UIClick.m4a', './UIClick2.m4a', './UIClick3.m4a'];
 const _bgmUrls        = [
@@ -758,9 +775,10 @@ function _resumeAudioCtx() {
 }
 
 // 배열에서 랜덤 선택 후 재생
-function _playRandom(urls, volume = 1.0, rate = 1.0) {
+function _playRandom(clips, volume = 1.0, rate = 1.0) {
     _resumeAudioCtx();
-    const url = urls[Math.floor(Math.random() * urls.length)];
+    const clip = clips[Math.floor(Math.random() * clips.length)];
+    const url = typeof clip === 'string' ? clip : clip.url;
     _loadAudio(url).then(buf => {
         if (!buf || document.hidden) return;
         const src  = _audioCtx.createBufferSource();
@@ -770,7 +788,8 @@ function _playRandom(urls, volume = 1.0, rate = 1.0) {
         src.playbackRate.value = rate;
         src.connect(gain);
         gain.connect(_audioCtx.destination);
-        src.start(0);
+        if (typeof clip === 'string') src.start(0);
+        else src.start(0, clip.offset, clip.duration);
     });
 }
 
@@ -788,11 +807,10 @@ let _bgmVolume    = Math.min(Math.max(Number(_settings.bgmVolume ?? 0.6), 0), 1)
 function playFruitClick(key, coated = false) {
     if (!_fruitSoundOn) return;
     if (coated) {
-        _playRandom(key === 'orange' ? _orangeSugarTapUrls : _sugarTapUrls, 0.69);
+        _playRandom(_sugarTapClips, 0.69);
         return;
     }
-    const sounds = key === 'orange' ? _orangeTapUrls : key === 'coconut' ? _coconutTapUrls
-        : key ? _fruitTapUrls : _itemTapUrls;
+    const sounds = key ? _fruitTapClips : _itemTapUrls;
     _playRandom(sounds, 0.7, FRUIT_PRESS_PROFILES[key]?.soundRate ?? 1);
 }
 
@@ -861,7 +879,10 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // 페이지 로드 시 모든 사운드 미리 디코딩
-[..._fruitTapUrls, ..._sugarTapUrls, ..._itemTapUrls, ..._uiSoundUrls, './Showup.m4a', './Bee.m4a'].forEach(u => _loadAudio(u));
+[
+    ..._fruitTapUrls, ..._sugarTapUrls, _mixedFruitTapUrl, _mixedSugarTapUrl,
+    ..._itemTapUrls, ..._uiSoundUrls, './Showup.m4a', './Bee.m4a',
+].forEach(url => _loadAudio(url));
 // ═══════════════════════════════════════════════════════════
 
 const FRUIT_DEFS = [
