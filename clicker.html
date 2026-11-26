@@ -732,6 +732,33 @@ const _sugarTapClips = [..._sugarTapUrls, ...tapClips(_mixedSugarTapUrl, [
     [0.918, 0.210], [1.168, 0.185], [1.393, 0.195], [1.628, 0.203],
     [1.871, 0.199], [2.110, 0.198], [2.348, 0.150], [2.538, 0.198], [2.776, 0.208],
 ])];
+// Fruit-specific variations, using the matching recording when available.
+const _fruitTapsByKey = {
+    apple: [_fruitTapClips[0], _fruitTapClips[13]],
+    watermelon: [_fruitTapClips[8], _fruitTapClips[11]],
+    orange: [..._orangeTapUrls, _fruitTapClips[11]],
+    blueberry: [_fruitTapClips[10]],
+    avocado: [_fruitTapClips[3], _fruitTapClips[9]],
+    cherry: [_fruitTapClips[12], _fruitTapClips[13]],
+    pineapple: [_fruitTapClips[2], _fruitTapClips[4]],
+    lemon: [_fruitTapClips[7], _fruitTapClips[8]],
+    coconut: _coconutTapUrls,
+    kiwi: [_fruitTapClips[9], _fruitTapClips[10]],
+    strawberry: [_fruitTapClips[6]],
+};
+const _sugarTapsByKey = {
+    apple: [_sugarTapClips[18], _sugarTapClips[20]],
+    watermelon: [_sugarTapClips[2], _sugarTapClips[19]],
+    orange: _orangeSugarTapUrls,
+    blueberry: _sugarTapClips.slice(14, 16),
+    avocado: _sugarTapClips.slice(16, 18),
+    cherry: [_sugarTapClips[1], _sugarTapClips[15]],
+    pineapple: [_sugarTapClips[3], _sugarTapClips[20]],
+    lemon: _sugarTapClips.slice(12, 14),
+    coconut: [_sugarTapClips[0], _sugarTapClips[17]],
+    kiwi: [_sugarTapClips[2], _sugarTapClips[16]],
+    strawberry: _sugarTapClips.slice(8, 12),
+};
 const _itemTapUrls = ['./Click1.m4a', './Click2.m4a', './Click4.m4a', './Clcik3.m4a'];
 const _uiSoundUrls    = ['./UIClick.m4a', './UIClick2.m4a', './UIClick3.m4a'];
 const _bgmUrls        = [
@@ -807,10 +834,10 @@ let _bgmVolume    = Math.min(Math.max(Number(_settings.bgmVolume ?? 0.6), 0), 1)
 function playFruitClick(key, coated = false) {
     if (!_fruitSoundOn) return;
     if (coated) {
-        _playRandom(_sugarTapClips, 0.69);
+        _playRandom(_sugarTapsByKey[key] ?? _sugarTapClips, 0.69);
         return;
     }
-    const sounds = key ? _fruitTapClips : _itemTapUrls;
+    const sounds = key ? (_fruitTapsByKey[key] ?? _fruitTapClips) : _itemTapUrls;
     _playRandom(sounds, 0.7, FRUIT_PRESS_PROFILES[key]?.soundRate ?? 1);
 }
 
