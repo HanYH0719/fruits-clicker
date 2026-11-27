@@ -701,7 +701,7 @@ const _sugarTapClips = [..._sugarTapUrls, ...tapClips(_mixedSugarTapUrl, [
     [1.871, 0.199], [2.110, 0.198], [2.348, 0.150], [2.538, 0.198], [2.776, 0.208],
 ])];
 const _itemTapUrls = ['./Click1.m4a', './Click2.m4a', './Click4.m4a', './Clcik3.m4a'];
-const _uiSoundUrls    = ['./UIClick.m4a', './UIClick2.m4a', './UIClick3.m4a'];
+const _uiSoundUrls = ['./UIClick-Video-01.m4a', './UIClick-Video-02.m4a'];
 
 const _audioCtx   = new (window.AudioContext || window.webkitAudioContext)();
 const _audioCache = new Map();
@@ -810,7 +810,7 @@ function playFruitClick(key, coated = false, event) {
     _playRandom(sounds, 0.7, FRUIT_PRESS_PROFILES[key]?.soundRate ?? 1, event);
 }
 
-/** UI 버튼 클릭 시 재생 (UIClick1~3 랜덤) */
+/** UI 버튼 클릭 시 효과음 무작위 재생 */
 function playUIClick()    { if (_uiSoundOn) _playRandom(_uiSoundUrls, 0.6); }
 
 /** 과일·박스 등장/사라질 때 재생 */
