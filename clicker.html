@@ -40,9 +40,9 @@
             --shadow:   0 4px 20px rgba(0,0,0,.18);
             --shadow-lg:0 8px 40px rgba(0,0,0,.26);
             --radius:   20px;
-            --radius-sm:20px;
+            --radius-sm:25px;
         }
-        * { corner-shape:superellipse(2); }
+        * { corner-shape:superellipse(1.35); }
         * { box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
         body { margin:0; overflow:hidden; background:var(--bg); font-family:'Cafe24PROSlim','Apple SD Gothic Neo',sans-serif; font-weight:400; touch-action:none; color:var(--text); }
         .ui-icon { width:1.15em; height:1.15em; vertical-align:-.19em; margin-inline-end:.25em; }
@@ -163,8 +163,8 @@
         #settings-overlay.open { display:flex; }
 
         .settings-panel {
-            background:var(--white); border-radius:38px;
-            width:420px; max-width:90vw; max-height:88vh; overflow:hidden;
+            background:var(--white); border-radius:48px;
+            overflow:hidden; min-height:0;
             display:flex; flex-direction:column;
         }
 
@@ -248,8 +248,8 @@
         .shop-overlay.open { display:flex; }
 
         .shop-panel {
-            background:var(--white); border-radius:38px;
-            width:560px; max-width:94vw; max-height:88vh; overflow:hidden;
+            background:var(--white); border-radius:48px;
+            overflow:hidden; min-height:0;
             display:flex; flex-direction:column;
         }
 
@@ -265,8 +265,9 @@
         }
         :is(#settings-overlay, .shop-overlay).visible::before { opacity:1; }
 
-        :is(.settings-panel, .shop-panel) {
-            position:relative;
+        .popup-motion {
+            position:relative; display:flex; flex-direction:column;
+            width:min(560px,94vw); border-radius:48px;
             box-shadow:0 18px 38px rgba(0,0,0,.22);
             max-height:min(88vh, calc(100% - var(--popup-top, 12px) - var(--popup-bottom, 12px)));
             margin-top:var(--popup-top, 12px); margin-bottom:var(--popup-bottom, 12px);
@@ -274,16 +275,23 @@
             transform:translateY(16px) scale(.955);
             transition:opacity .22s ease-in, transform .22s ease-in;
         }
-        .visible > :is(.settings-panel, .shop-panel) {
+        #settings-overlay > .popup-motion { width:min(420px,90vw); }
+        .visible > .popup-motion {
             opacity:1;
             transform:none;
-            transition:transform .38s cubic-bezier(.22,1.55,.36,1);
+            transition:none;
+            animation:popup-enter .38s cubic-bezier(.22,1.48,.36,1) both;
+        }
+        @keyframes popup-enter {
+            from { transform:translateY(16px) scale(.955); }
+            to { transform:none; }
         }
         @media (prefers-reduced-motion: reduce) {
             :is(#settings-overlay, .shop-overlay)::before { transition:none; }
-            :is(.settings-panel, .shop-panel), .visible > :is(.settings-panel, .shop-panel) {
+            .popup-motion, .visible > .popup-motion {
                 transform:none;
                 transition:none;
+                animation:none;
             }
         }
 
@@ -322,29 +330,38 @@
         .shop-section-label { font-size:clamp(12px,2.4vw,13px); letter-spacing:1px; color:#aaa; margin:0 0 12px 2px; font-weight:400; }
         .shop-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 
+        .shop-card {
+            display:flex; min-width:0; border-radius:34px;
+            transition:box-shadow .18s ease-out;
+        }
         .shop-item {
-            background:var(--bg); border:2px solid var(--border); border-radius:25px;
+            position:relative; top:0; flex:1; min-width:0;
+            background:var(--bg); border:2px solid var(--border); border-radius:34px;
             padding:14px 14px; display:flex; flex-direction:column; align-items:flex-start; gap:0;
-            transition:background-color .18s, border-color .18s;
+            transition:top .18s ease-out, background-color .18s, border-color .18s;
         }
         @media (hover:hover) {
-            .shop-item:hover:not(.locked) { border-color:#ddd; background-color:#f2f2f2; }
+            .shop-card:hover { box-shadow:0 5px 13px rgba(0,0,0,.09); }
+            .shop-card:hover .shop-item:not(.locked) {
+                top:-3px; border-color:#ddd; background-color:#f2f2f2;
+            }
+        }
+        @media (prefers-reduced-motion:reduce) {
+            .shop-card:hover .shop-item:not(.locked) { top:0; transition:none; }
         }
         .shop-item.locked { opacity:.4; }
 
         .shop-item-art { width:100%; margin-bottom:8px; }
-        .shop-item-art img { width:100%; max-width:190px; height:clamp(86px, 29vw, 190px); object-fit:contain; display:block; margin:0 auto; border-radius:17px; }
-        #box-shop-grid { position:relative; }
+        .shop-item-art img { width:100%; max-width:190px; height:clamp(86px, 29vw, 190px); object-fit:contain; display:block; margin:0 auto; border-radius:22px; }
+        .box-tip-motion {
+            position:absolute; z-index:15; width:min(190px, calc(100% - 32px));
+            border-radius:26px; box-shadow:0 8px 24px rgba(0,0,0,.14);
+        }
         .box-probabilities {
-            position:absolute; z-index:15; width:min(190px,100%); overflow:auto;
-            transform-origin:var(--box-tip-origin, 50%) top;
-            animation:box-tip-in .23s cubic-bezier(.22,1.35,.36,1); background:var(--white); border:1px solid var(--border);
-            border-radius:20px; padding:12px 16px; font-size:13px; line-height:1.7;
+            overflow:auto; overscroll-behavior:contain; touch-action:pan-y;
+            background:var(--white); border-radius:26px;
+            padding:12px 16px; font-size:13px; line-height:1.7;
         }
-        @keyframes box-tip-in {
-            from { opacity:0; transform:translateY(-5px) scale(.94); }
-        }
-        @media (prefers-reduced-motion:reduce) { .box-probabilities { animation:none; } }
         .box-probabilities > strong { display:block; margin-bottom:5px; }
         .bucket-body { display:flex; flex-direction:column; align-items:center; gap:14px; }
         .bucket-art { width:clamp(112px, 36vw, 170px); aspect-ratio:1; object-fit:contain; flex:none; }
@@ -1589,13 +1606,20 @@ window.__buySlot=function(){
     moveCameraTo(slotHighlight);
 };
 
+function appendShopCard(grid, card) {
+    const hitArea = document.createElement('div');
+    hitArea.className = 'shop-card';
+    hitArea.append(card);
+    grid.append(hitArea);
+}
+
 function buildFruitShopUI(){
     const grid=document.getElementById('fruit-shop-grid');grid.innerHTML='';
     for(const fd of FRUIT_DEFS){
         const isFree=fd.buyPrice===0,card=document.createElement('div');card.className='shop-item';card.id=`fsi-${fd.key}`;
         card.innerHTML=`<div class="shop-item-art"><img src="${fd.icon}" alt="${fd.name}"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${fd.name}</div><div class="shop-item-clickval">클릭 +${fd.clickVal}</div></div><button class="shop-buy-btn${isFree?' free':''}" id="fsb-${fd.key}">${isFree?'무료 획득':fmtN(fd.buyPrice)}</button>`;
         card.querySelector('button').addEventListener('click', () => buyFruit(fd));
-        grid.appendChild(card);
+        appendShopCard(grid, card);
     }
     updateAllUI();
 }
@@ -1645,16 +1669,16 @@ function buildBeeShopUI(){
     for(const bd of BEE_DEFS){
         const card=document.createElement('div');card.className='shop-item';card.id=`bsi-${bd.key}`;
         card.innerHTML=`<div class="shop-item-art"><img src="${bd.icon}" alt="${bd.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"><span class="shop-art-fallback">${uiIcon(bd.key)}</span></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${bd.name}</div><div class="shop-item-clickval">초당 ÷${bd.divisor}</div></div><button class="shop-buy-btn bee-btn" id="bsb-${bd.key}" onclick="window.__buyBee('${bd.key}')">${fmtN(bd.buyPrice)}</button>`;
-        grid.appendChild(card);
+        appendShopCard(grid, card);
     }
     // ★ 아이템 그리드 (꽃, 비료 등)
     const itemsGrid=document.getElementById('bee-shop-items-grid');if(itemsGrid){itemsGrid.innerHTML='';
     const flowerCard=document.createElement('div');flowerCard.className='shop-item';flowerCard.id='bsi-flower';
     flowerCard.innerHTML=`<div class="shop-item-art"><img src="./Flower.png" alt="꽃"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">꽃</div><div class="shop-item-clickval">벌 수입 15초간 ×2배</div><div class="shop-item-info2" style="color:#b04f8b;margin-top:3px;">환생 1회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-flower" onclick="window.__buyFlower()">${fmtN(FLOWER_PRICE)}</button>`;
-    itemsGrid.appendChild(flowerCard);
+    appendShopCard(itemsGrid, flowerCard);
     const manureCard=document.createElement('div');manureCard.className='shop-item';manureCard.id='bsi-manure';
     manureCard.innerHTML=`<div class="shop-item-art"><img src="./Manure.png" alt="비료"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">비료</div><div class="shop-item-clickval">전체 수입 15초간 ×2배</div><div class="shop-item-info2" style="color:#8B6914;margin-top:3px;">환생 2회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-manure" onclick="window.__buyManure()">${fmtN(MANURE_PRICE)}</button>`;
-    itemsGrid.appendChild(manureCard);
+    appendShopCard(itemsGrid, manureCard);
     const sugarCard = document.createElement('div');
     sugarCard.className = 'shop-item';
     sugarCard.innerHTML = `<div class="shop-item-art"><div class="sugar-shop-icon" aria-hidden="true">${uiIcon('candy')}</div></div>
@@ -1662,7 +1686,7 @@ function buildBeeShopUI(){
         <div class="shop-item-clickval">과일 1개 · 누르면 얇은 코팅에 금이 가요</div></div>
         <button type="button" class="shop-buy-btn bee-btn" id="bsb-sugar">${fmtN(SUGAR_COATING_PRICE)}</button>`;
     sugarCard.querySelector('button').addEventListener('click', beginSugarSelection);
-    itemsGrid.appendChild(sugarCard);}
+    appendShopCard(itemsGrid, sugarCard);}
     updateAllUI();
 }
 function updateBeeShopUI(){
@@ -2167,7 +2191,7 @@ function buildBoxShopUI(){
         <div class="shop-item-art"><img src="./RandomBox.png" alt="과일박스"></div>
         <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">과일박스</div><div class="shop-item-clickval">오렌지~체리 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">${uiIcon('warning')}판매 시 0점</div></div>
         <button class="shop-buy-btn" id="box-buy-btn" style="background:linear-gradient(135deg,#ff6b8a,#ff4757);box-shadow:0 3px 12px rgba(255,71,87,.35);width:100%;" onclick="window.__buyBox()">${fmtN(BOX_PRICE)}</button>`;
-    grid.appendChild(card);
+    appendShopCard(grid, card);
 
     // ★ 과일 플러스 박스 카드
     const plusTotal=PLUS_BOX_REWARDS.reduce((s,r)=>s+r.weight,0);
@@ -2183,12 +2207,7 @@ function buildBoxShopUI(){
         <div class="shop-item-art"><img src="./FruitsPlusBox.png" alt="과일플러스박스"></div>
         <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">플러스 박스</div><div class="shop-item-clickval">체리~코코넛 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">${uiIcon('warning')}판매 시 0점</div></div>
         <button class="shop-buy-btn" id="plusbox-buy-btn" style="background:linear-gradient(135deg,#5bbf7a,#28a745);box-shadow:0 3px 12px rgba(40,167,69,.35);width:100%;" onclick="window.__buyPlusBox()">${fmtN(PLUS_BOX_PRICE)}</button>`;
-    grid.appendChild(plusCard);
-    const probabilities = document.createElement('div');
-    probabilities.className = 'box-probabilities';
-    probabilities.id = 'box-probabilities';
-    probabilities.hidden = true;
-    grid.append(probabilities);
+    appendShopCard(grid, plusCard);
     const buttons = grid.querySelectorAll('[aria-controls="box-probabilities"]');
     const panels = [
         ['과일박스 뽑기 확률', probRows],
@@ -2197,44 +2216,67 @@ function buildBoxShopUI(){
     buttons.forEach((button, index) => {
         button.addEventListener('click', () => {
             const open = button.getAttribute('aria-expanded') !== 'true';
-            buttons.forEach(item => item.setAttribute('aria-expanded', String(open && item === button)));
-            probabilities.hidden = !open;
-            if (open) {
-                const [title, rows] = panels[index];
-                probabilities.innerHTML = `<strong>${title}</strong>${rows}`;
-                const body = grid.closest('.shop-body');
-                const bodyBounds = body.getBoundingClientRect();
-                const gridBounds = grid.getBoundingClientRect();
-                const bounds = button.getBoundingClientRect();
-                const scale = gridBounds.width / grid.offsetWidth || 1;
-                const anchorX = (bounds.left + bounds.width / 2 - gridBounds.left) / scale;
-                const bottom = (bodyBounds.bottom - gridBounds.top) / scale;
-                const top = (bodyBounds.top - gridBounds.top) / scale;
-                probabilities.style.maxHeight = Math.max(32, bottom - top - 12) + 'px';
-                const width = probabilities.offsetWidth, height = probabilities.offsetHeight;
-                const left = Math.max(0, Math.min(grid.offsetWidth - width, anchorX - width / 2));
-                const below = (bounds.bottom - gridBounds.top) / scale + 6;
-                const above = (bounds.top - gridBounds.top) / scale - height - 6;
-                probabilities.style.left = left + 'px';
-                probabilities.style.top = Math.max(top + 6, Math.min(bottom - height - 6,
-                    below + height < bottom - 6 ? below : above)) + 'px';
-                probabilities.style.setProperty('--box-tip-origin', (anchorX - left) + 'px');
-                for (const animation of probabilities.getAnimations()) {
-                    if (animation.animationName === 'box-tip-in') animation.currentTime = 0;
-                }
-
-            }
+            closeBoxProbabilities();
+            if (open) showBoxProbabilities(button, ...panels[index]);
         });
     });
     updateBoxShopUI();
 }
-function closeBoxProbabilities() {
-    const tip = document.getElementById('box-probabilities');
-    if (tip) tip.hidden = true;
-    document.querySelector('#box-shop-grid [aria-expanded="true"]')?.setAttribute('aria-expanded', 'false');
+
+const boxShopOverlay = document.getElementById('box-shop-overlay');
+const boxShopBody = boxShopOverlay.querySelector('.shop-body');
+const boxTipMotion = document.createElement('div');
+boxTipMotion.className = 'box-tip-motion';
+boxTipMotion.hidden = true;
+const probabilities = document.createElement('div');
+probabilities.className = 'box-probabilities';
+probabilities.id = 'box-probabilities';
+boxTipMotion.append(probabilities);
+boxShopOverlay.append(boxTipMotion);
+let boxTipAnimation;
+
+function showBoxProbabilities(button, title, rows) {
+    const panel = boxShopOverlay.querySelector('.shop-panel');
+    const viewport = boxShopOverlay.getBoundingClientRect();
+    const panelBounds = panel.getBoundingClientRect();
+    const bounds = button.getBoundingClientRect();
+    // Reserve room for the full animation and keep the tip inside the dialog's
+    // horizontal footprint even while the dialog itself is still bouncing.
+    const gutter = 12;
+    const leftEdge = Math.max(viewport.left + gutter, panelBounds.left + gutter);
+    const rightEdge = Math.min(viewport.right - gutter, panelBounds.right - gutter);
+    const topEdge = Math.max(panelBounds.top + gutter, boxShopBody.getBoundingClientRect().top + 4);
+    const bottomEdge = Math.min(viewport.bottom - gutter, panelBounds.bottom - gutter);
+    const anchorX = bounds.left + bounds.width / 2;
+
+    button.setAttribute('aria-expanded', 'true');
+    probabilities.innerHTML = `<strong>${title}</strong>${rows}`;
+    probabilities.style.maxHeight = Math.max(32, bottomEdge - topEdge) + 'px';
+    boxTipMotion.hidden = false;
+    updateRoundedUi(probabilities);
+    const width = boxTipMotion.offsetWidth, height = boxTipMotion.offsetHeight;
+    const left = Math.max(leftEdge, Math.min(rightEdge - width, anchorX - width / 2));
+    const below = bounds.bottom + 7;
+    const above = bounds.top - height - 7;
+    const top = Math.max(topEdge, Math.min(bottomEdge - height, below + height <= bottomEdge ? below : above));
+    boxTipMotion.style.left = (left - viewport.left) + 'px';
+    boxTipMotion.style.top = (top - viewport.top) + 'px';
+    boxTipMotion.style.transformOrigin = `${Math.max(0, Math.min(width, anchorX - left))}px ${Math.max(0, Math.min(height, bounds.bottom - top))}px`;
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        boxTipAnimation = boxTipMotion.animate([
+            {opacity:0, transform:'translateY(-4px) scale(.94)'},
+            {opacity:1, transform:'scale(1.025)', offset:.7},
+            {opacity:1, transform:'none'},
+        ], {duration:245, easing:'ease-out'});
+    }
 }
-const boxShopBody = document.querySelector('#box-shop-overlay .shop-body');
-boxShopBody.addEventListener('click', event => {
+
+function closeBoxProbabilities() {
+    boxTipAnimation?.cancel();
+    boxTipMotion.hidden = true;
+    boxShopOverlay.querySelector('[aria-expanded="true"]')?.setAttribute('aria-expanded', 'false');
+}
+boxShopOverlay.addEventListener('click', event => {
     if (!event.target.closest('#box-probabilities, [aria-controls="box-probabilities"]')) closeBoxProbabilities();
 });
 boxShopBody.addEventListener('scroll', closeBoxProbabilities, {passive:true});
@@ -2412,7 +2454,7 @@ function continuousCornerPath(width, height, radius) {
     };
     const corners = Array.from({length:4}, (_, turn) => {
         const p = (x, y) => point(x, y, turn);
-        return `L ${p(0,1)} C ${p(0,.65)} ${p(0,.42)} ${p(.21,.21)} C ${p(.42,0)} ${p(.65,0)} ${p(1,0)}`;
+        return `L ${p(0,1)} C ${p(0,.72)} ${p(0,.50)} ${p(.25,.25)} C ${p(.50,0)} ${p(.72,0)} ${p(1,0)}`;
     });
     return `M ${r} 0 ${corners.join(' ')} Z`;
 }
@@ -2428,7 +2470,7 @@ const roundedUi = [
 
 const originalUiRadii = new WeakMap();
 function updateRoundedUi(element) {
-    if (CSS.supports('corner-shape', 'superellipse(2)')) return;
+    if (CSS.supports('corner-shape', 'superellipse(1.35)')) return;
     const width = element.offsetWidth, height = element.offsetHeight;
     if (!width || !height) return;
     const style = getComputedStyle(element);
@@ -2463,17 +2505,22 @@ new MutationObserver(records => {
     }
 }).observe(document.body, {childList:true, subtree:true});
 
+// Keep the moving layer separate from the panel's continuous clipping path.
+document.querySelectorAll('.settings-panel, .shop-panel').forEach(panel => {
+    const motion = document.createElement('div');
+    motion.className = 'popup-motion';
+    panel.before(motion);
+    motion.append(panel);
+});
+
 const popupCloseTimers = new WeakMap();
 function openShop(id){
     playUIClick(); // 🔊 UI 클릭음 (상점 열기)
     const ov = document.getElementById(id);
     clearTimeout(popupCloseTimers.get(ov));
     popupCloseTimers.delete(ov);
-    if (!ov.classList.contains('open')) {
-        ov.classList.add('open');
-        // Commit the starting style before making the popup visible.
-        updateRoundedUi(ov.firstElementChild);
-    }
+    ov.classList.add('open');
+    updateRoundedUi(ov.querySelector('.settings-panel, .shop-panel'));
     ov.classList.add('visible');
     if (id === 'settings-overlay') return;
     updateAllUI();
