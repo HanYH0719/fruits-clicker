@@ -914,8 +914,8 @@ const SAVE_KEY = tossPlatform ? tossPlatform.saveKey : 'fc_v16';
 const SUGAR_COATING_PRICE = 250;
 const SUGAR_PRESS_RESPONSE = {
     fruitDepthScale: 0.91, shellDepthScale: 1.40,
-    fruitRadiusScale: 1.16, shellRadiusScale: 1.25, crackSpread: 0.35, shellSpread: 0.42,
-    seamOpening: 0.117, seamStep: 0.207,
+    fruitRadiusScale: 1.16, shellRadiusScale: 1.36, crackSpread: 0.42, shellSpread: 0.49,
+    seamOpening: 0.158, seamStep: 0.23,
     motion: 0.44, rebound: 0.25,
 };
 const sugarCoatings = new WeakMap();
@@ -3382,7 +3382,7 @@ function crackSugarCoating(model, key, dent, time) {
     const offsets = [];
     const fresh = [];
     const { rest } = coating;
-    for (const { id, distance } of local.slice(0, 12)) {
+    for (const { id, distance } of local.slice(0, 15)) {
         const cell = coating.cells[id];
         const cracksHere = distance < crackSpread;
         if (cracksHere && !coating.broken.has(id) && !coating.cracking.has(id)) {
@@ -3394,7 +3394,7 @@ function crackSugarCoating(model, key, dent, time) {
         const plateStep = cracksHere && id !== local[0].id && id % 2
             ? shellDepth * SUGAR_PRESS_RESPONSE.seamStep * (1 - 0.45 * central) : 0;
         const cellDepth = (shellDepth * (0.70 + central * 0.18 + (id % 3) * 0.035) - plateStep) * edge;
-        const seam = cracksHere ? SUGAR_PRESS_RESPONSE.seamOpening : 0;
+        const seam = SUGAR_PRESS_RESPONSE.seamOpening * (cracksHere ? 1 : 0.45 * edge);
         for (const index of cell.vertices) {
             const i = index * 3;
             const x = rest[i], y = rest[i + 1], z = rest[i + 2];
@@ -3414,13 +3414,13 @@ function crackSugarCoating(model, key, dent, time) {
     }
     // Keep the jagged patch visible after a short tap, then restore the fruit and shell together.
     dent.patches.push({ position: coating.position, offsets });
-    dent.peakHoldMs = Math.max(dent.peakHoldMs, 100);
+    dent.peakHoldMs = Math.max(dent.peakHoldMs, 125);
     dent.recoveryMs = Math.max(dent.recoveryMs, 350);
     if (!fresh.length) return;
 
-    sugarBursts.push({ coating, ids: fresh.slice(0, 3), normal, at: time + 26, crumbs: 2 });
+    sugarBursts.push({ coating, ids: fresh.slice(0, 3), normal, at: time + 26, crumbs: Math.min(3, fresh.length + 1) });
     if (fresh.length > 3) {
-        sugarBursts.push({ coating, ids: fresh.slice(3), normal, at: time + 65, crumbs: 1 });
+        sugarBursts.push({ coating, ids: fresh.slice(3), normal, at: time + 65, crumbs: Math.min(2, fresh.length - 3) });
     }
 }
 
