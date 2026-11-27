@@ -2474,7 +2474,8 @@ function updateAllUIImmediate(){
 // into the straight edges. Rebuild the contour only when a panel resizes.
 function continuousCornerPath(width, height, radius, inset = 0) {
     const w = width - 2 * inset, h = height - 2 * inset;
-    const r = Math.min(Math.max(0, radius - inset), w / 2, h / 2);
+    // Extra runout makes the gradual turn visible at phone sizes.
+    const r = Math.min(Math.max(0, radius * 1.25 - inset), w / 2, h / 2);
     const coords = (x, y) => `${(inset + x).toFixed(3)} ${(inset + y).toFixed(3)}`;
     const point = (x, y, turn) => {
         const a = x * r, b = y * r;
@@ -2487,7 +2488,7 @@ function continuousCornerPath(width, height, radius, inset = 0) {
     };
     const corners = Array.from({length:4}, (_, turn) => {
         const p = (x, y) => point(x, y, turn);
-        return `L ${p(0,1)} C ${p(0,.72)} ${p(0,.50)} ${p(.25,.25)} C ${p(.50,0)} ${p(.72,0)} ${p(1,0)}`;
+        return `L ${p(0,1)} C ${p(0,.67)} ${p(0,.42)} ${p(.21,.21)} C ${p(.42,0)} ${p(.67,0)} ${p(1,0)}`;
     });
     return `M ${coords(r, 0)} ${corners.join(' ')} Z`;
 }
@@ -2503,7 +2504,6 @@ const roundedUi = [
 
 const originalUiRadii = new WeakMap();
 function updateRoundedUi(element) {
-    if (CSS.supports('corner-shape', 'superellipse(1.35)')) return;
     if (!element.offsetWidth || !element.offsetHeight) return;
     const style = getComputedStyle(element);
     const width = parseFloat(style.width) || element.offsetWidth;
@@ -2515,7 +2515,7 @@ function updateRoundedUi(element) {
     originalUiRadii.set(element, radius);
     const lineWidth = parseFloat(style.borderTopWidth);
     const drawOutline = lineWidth && element.matches('.shop-item, .slot-buy-row');
-    // Controls with a regular CSS border keep their native curve on older engines.
+    // Keep native borders for controls whose outline is painted by the browser.
     if (lineWidth && !drawOutline) return;
     const path = continuousCornerPath(width, height, pixels);
     const clip = `path("${path}")`;
