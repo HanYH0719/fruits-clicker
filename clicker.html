@@ -185,7 +185,11 @@
         #tutorial[open] { animation:popup-enter .36s cubic-bezier(.22,1.4,.36,1) both; }
         #tutorial::backdrop { background:#2d23365c; backdrop-filter:blur(5px); }
         #tutorial[data-step="1"] { --tutorial-accent:#406d48; --tutorial-wash:#eaf6e8; }
-        #tutorial[data-step="2"] { --tutorial-accent:#745195; --tutorial-wash:#f3ebff; }
+        #tutorial[data-step="2"] { --tutorial-accent:#805b24; --tutorial-wash:#fff3d7; }
+        #tutorial[data-step="3"] { --tutorial-accent:#745195; --tutorial-wash:#f3ebff; }
+        #tutorial[data-step="4"] { --tutorial-accent:#486988; --tutorial-wash:#e8f3fa; }
+        #tutorial-page { overflow:hidden; }
+        #tutorial-details { min-height:108px; }
         .tutorial-toolbar, .tutorial-actions { display:flex; align-items:center; gap:10px; }
         .tutorial-progress { display:flex; gap:5px; margin-right:auto; }
         .tutorial-progress span { width:19px; height:5px; border-radius:5px; background:#eae6ed; }
@@ -205,6 +209,10 @@
         }
         #tutorial-image {
             position:absolute; inset:0; width:100%; height:100%; object-fit:contain; padding:8px 26px;
+        }
+        #tutorial-model {
+            position:absolute; inset:0; margin:auto; width:auto; height:100%;
+            max-width:100%; aspect-ratio:1; pointer-events:none;
         }
         #tutorial-tap {
             position:absolute; inset:0; display:flex; justify-content:center; align-items:end;
@@ -663,9 +671,6 @@
             <button class="shop-close shop-header-right" id="settings-close">✕</button>
         </div>
         <div class="settings-body">
-            <button class="tutorial-replay" id="tutorial-replay" type="button">
-                튜토리얼 다시 보기 <span aria-hidden="true">›</span>
-            </button>
             <!-- debug-code:start -->
             <div style="display:flex;flex-direction:column;gap:8px;">
                 <div class="settings-label">코드 입력</div>
@@ -728,22 +733,28 @@
                     <option value="2">×2</option>
                 </select>
             </div>
+            <button class="tutorial-replay" id="tutorial-replay" type="button">
+                튜토리얼 다시 보기 <span aria-hidden="true">›</span>
+            </button>
         </div>
     </div>
 </div>
 
 <dialog id="tutorial" aria-labelledby="tutorial-title" aria-describedby="tutorial-copy">
     <div class="tutorial-toolbar">
-        <div class="tutorial-progress" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="tutorial-progress" aria-hidden="true"></div>
         <button id="tutorial-skip" type="button">건너뛰기</button>
     </div>
-    <div id="tutorial-art">
-        <img id="tutorial-image" alt="">
-        <button id="tutorial-tap" type="button"><span>눌러보기</span></button>
-    </div>
-    <div aria-live="polite" aria-atomic="true">
-        <h2 id="tutorial-title"></h2>
-        <p id="tutorial-copy"></p>
+    <div id="tutorial-page">
+        <div id="tutorial-art">
+            <img id="tutorial-image" alt="">
+            <canvas id="tutorial-model" aria-hidden="true" hidden></canvas>
+            <button id="tutorial-tap" type="button"><span>눌러보기</span></button>
+        </div>
+        <div id="tutorial-details" aria-live="polite" aria-atomic="true">
+            <h2 id="tutorial-title"></h2>
+            <p id="tutorial-copy"></p>
+        </div>
     </div>
     <div class="tutorial-actions">
         <button id="tutorial-prev" type="button">이전</button>
@@ -2829,7 +2840,9 @@ const tutorialImage = document.getElementById('tutorial-image');
 const tutorialTap = document.getElementById('tutorial-tap');
 const tutorialNext = document.getElementById('tutorial-next');
 const tutorialPrev = document.getElementById('tutorial-prev');
-const tutorialProgress = [...tutorial.querySelectorAll('.tutorial-progress span')];
+const tutorialContent = document.getElementById('tutorial-page');
+const tutorialCanvas = document.getElementById('tutorial-model');
+const tutorialReducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const tutorialKey = `${SAVE_KEY ?? 'fc'}:tutorial-v1`;
 const tutorialPages = [
     {
@@ -2841,14 +2854,69 @@ const tutorialPages = [
         copy:'과일상점에서 사과를 무료로 받고, 모은 점수로 새 과일이나 슬롯을 열어요.',
     },
     {
-        image:'./SugarCoating.png', title:'벌과 설탕 코팅',
-        copy:'벌을 붙이면 점수가 자동으로 쌓여요. 설탕 코팅을 입힌 과일을 누르면 바삭하게 갈라져요.',
+        image:'./Bee.PNG', title:'벌이 점수를 모아줘요',
+        copy:'벌상점에서 벌을 데려오면 과일에 붙어서 점수를 자동으로 모아줘요.',
+    },
+    {
+        image:'./SugarCoating.png', title:'설탕 코팅을 깨 봐요',
+        copy:'벌상점에서 설탕 코팅을 고르고 과일 하나에 입혀요. 누르면 코팅이 바삭하게 갈라져요.',
+    },
+    {
+        image:'./FruitBucket.png', title:'과일바구니로 다시 시작해요',
+        copy:'바구니의 조건을 달성하면 환생할 수 있어요. 점수와 과일·벌은 초기화되고, 첫 환생 후에는 점수를 1.5배로 얻어요.',
     },
 ];
+const tutorialProgress = tutorialPages.map(() => document.createElement('span'));
+tutorial.querySelector('.tutorial-progress').append(...tutorialProgress);
 let tutorialPage = 0;
 let tutorialFirstRun = false;
 let tutorialSeen = false;
 let tutorialTapMotion;
+let tutorialPageMotion;
+let tutorialApplePreview;
+let tutorialAppleRequested = false;
+
+function prepareTutorialApple() {
+    if (tutorialAppleRequested) return;
+    tutorialAppleRequested = true;
+    loader.load(FRUIT_DEFS[0].file, ({scene: source}) => {
+        let previewRenderer;
+        try {
+            previewRenderer = new THREE.WebGLRenderer({
+                canvas: tutorialCanvas, alpha:true, antialias:true,
+            });
+            previewRenderer.setSize(256, 256, false);
+            previewRenderer.toneMapping = renderer.toneMapping;
+            previewRenderer.toneMappingExposure = renderer.toneMappingExposure;
+            const previewScene = new THREE.Scene();
+            const light = new THREE.DirectionalLight(0xfff2e5, 2.1);
+            light.position.set(-4, 7, -3);
+            const apple = source.clone();
+            apple.rotation.y = Math.PI;
+            const bounds = new THREE.Box3().setFromObject(apple);
+            const size = bounds.getSize(new THREE.Vector3());
+            const radius = Math.max(size.x, size.y, size.z) * .85;
+            apple.position.sub(bounds.getCenter(new THREE.Vector3()));
+            const pose = new THREE.Group();
+            pose.add(apple);
+            previewScene.add(pose, light, new THREE.HemisphereLight(0xf5f9ff, 0xd9c9b5, 1));
+            const view = new THREE.OrthographicCamera(-radius, radius, radius, -radius, .1, 20);
+            view.position.set(-3.3, 2.6, -4.6);
+            view.lookAt(0, 0, 0);
+            tutorialApplePreview = () => previewRenderer.render(previewScene, view);
+            if (tutorial.open && tutorialPage === 0) {
+                tutorialApplePreview();
+                tutorialCanvas.hidden = false;
+                tutorialImage.hidden = true;
+            }
+        } catch {
+            previewRenderer?.dispose();
+            tutorialApplePreview = undefined;
+        }
+    }, undefined, () => {
+        tutorialAppleRequested = false;
+    });
+}
 
 function tutorialWasSeen() {
     try { return tutorialSeen || localStorage.getItem(tutorialKey) === '1'; }
@@ -2858,7 +2926,12 @@ function tutorialWasSeen() {
 function renderTutorial() {
     const page = tutorialPages[tutorialPage];
     tutorial.dataset.step = String(tutorialPage);
+    const showModel = tutorialPage === 0 && Boolean(tutorialApplePreview);
     tutorialImage.src = page.image;
+    tutorialImage.hidden = showModel;
+    tutorialCanvas.hidden = !showModel;
+    if (showModel) tutorialApplePreview();
+    else if (tutorialPage === 0) prepareTutorialApple();
     document.getElementById('tutorial-title').textContent = page.title;
     document.getElementById('tutorial-copy').textContent = page.copy;
     tutorialTap.hidden = tutorialPage !== 0;
@@ -2883,6 +2956,8 @@ function finishTutorial(showShop = false) {
     try { localStorage.setItem(tutorialKey, '1'); } catch {}
     const firstRun = tutorialFirstRun;
     tutorialTapMotion?.cancel();
+    tutorialPageMotion?.cancel();
+    tutorialPageMotion = undefined;
     tutorial.close();
     if (showShop) {
         openShop('fruit-shop-overlay');
@@ -2906,29 +2981,55 @@ tutorial.addEventListener('cancel', event => {
     event.preventDefault();
     finishTutorial();
 });
-tutorialPrev.addEventListener('click', () => {
+async function turnTutorialPage(direction) {
+    if (tutorialPageMotion) return;
+    const nextPage = tutorialPage + direction;
+    if (nextPage < 0 || nextPage >= tutorialPages.length) return;
     playUIClick();
-    tutorialPage--;
     tutorialTapMotion?.cancel();
+    if (!tutorialReducedMotion.matches) {
+        const outgoing = tutorialContent.animate([
+            {opacity:1, transform:'none'},
+            {opacity:0, transform:`translateX(${-direction * 10}px)`},
+        ], {duration:100, easing:'ease-in', fill:'both'});
+        tutorialPageMotion = outgoing;
+        try { await outgoing.finished; } catch { return; }
+        if (tutorialPageMotion !== outgoing) return;
+        outgoing.cancel();
+    }
+
+    tutorialPage = nextPage;
     renderTutorial();
     if (tutorialPrev.hidden) tutorialNext.focus({preventScroll:true});
-});
+    if (tutorialReducedMotion.matches) {
+        tutorialPageMotion = undefined;
+        return;
+    }
+    const incoming = tutorialContent.animate([
+        {opacity:0, transform:`translateX(${direction * 14}px)`},
+        {opacity:1, transform:'none'},
+    ], {duration:210, easing:'cubic-bezier(.2,.75,.3,1)'});
+    tutorialPageMotion = incoming;
+    try { await incoming.finished; } catch {}
+    if (tutorialPageMotion === incoming) tutorialPageMotion = undefined;
+}
+
+tutorialPrev.addEventListener('click', () => turnTutorialPage(-1));
 tutorialNext.addEventListener('click', () => {
+    if (tutorialPageMotion) return;
     if (tutorialPage === tutorialPages.length - 1) {
         if (!tutorialFirstRun) playUIClick();
         finishTutorial(tutorialFirstRun);
-        return;
+    } else {
+        turnTutorialPage(1);
     }
-    playUIClick();
-    tutorialPage++;
-    tutorialTapMotion?.cancel();
-    renderTutorial();
 });
 tutorialTap.addEventListener('click', event => {
     playFruitClick('apple', false, event);
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (tutorialReducedMotion.matches) return;
     tutorialTapMotion?.cancel();
-    tutorialTapMotion = tutorialImage.animate([
+    const art = tutorialCanvas.hidden ? tutorialImage : tutorialCanvas;
+    tutorialTapMotion = art.animate([
         { transform:'none' },
         { transform:'scale(1.10,.86)', offset:.25 },
         { transform:'scale(.99,1.04)', offset:.65 },
