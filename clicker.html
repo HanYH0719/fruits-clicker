@@ -216,13 +216,29 @@
         }
         #tutorial-tap {
             position:absolute; inset:0; display:flex; justify-content:center; align-items:end;
-            background:none; border:0; border-radius:inherit; padding:5px;
+            background:none; border:0; border-radius:inherit; padding:5px; touch-action:none;
         }
         #tutorial-tap span {
             background:var(--white); color:var(--tutorial-accent); font-size:13px; font-weight:700;
             border-radius:9px; padding:3px 9px;
         }
-        #tutorial-tap[hidden], #tutorial-prev[hidden] { display:none; }
+        #tutorial-tap[hidden], #tutorial-prev[hidden], #tutorial-restore[hidden], #tutorial-model-status[hidden] { display:none; }
+        #tutorial-model-status { color:var(--tutorial-accent); }
+        #tutorial-practice-score {
+            position:absolute; top:9px; left:10px; padding:3px 8px; border-radius:8px;
+            color:var(--tutorial-accent); background:white; font-size:13px; font-weight:700;
+            pointer-events:none;
+        }
+        #tutorial-restore {
+            position:absolute; padding:8px 12px; border:0; border-radius:12px;
+            color:var(--tutorial-accent); background:white;
+        }
+        #tutorial-plus {
+            position:absolute; z-index:1; transform:translate(-50%,-50%);
+            color:#8f3346; text-shadow:0 1px 3px white;
+            font-size:23px; font-weight:700; pointer-events:none;
+        }
+        #tutorial:not([data-step="0"]) #tutorial-practice-score { display:none; }
         #tutorial-title { font-size:clamp(22px, 6vw, 28px); margin:0 0 7px; line-height:1.15; }
         #tutorial-copy { margin:0 0 15px; color:#57515f; font-size:16px; line-height:1.5; }
         #tutorial-next {
@@ -749,7 +765,11 @@
         <div id="tutorial-art">
             <img id="tutorial-image" alt="">
             <canvas id="tutorial-model" aria-hidden="true" hidden></canvas>
-            <button id="tutorial-tap" type="button"><span>눌러보기</span></button>
+            <span id="tutorial-model-status" role="status" hidden>사과를 불러오는 중…</span>
+            <output id="tutorial-practice-score" aria-live="polite">연습 점수 0</output>
+            <span id="tutorial-plus" aria-hidden="true" hidden>+1</span>
+            <button id="tutorial-tap" type="button" hidden><span>눌러보기</span></button>
+            <button id="tutorial-restore" type="button" hidden>사과 다시 놓기</button>
         </div>
         <div id="tutorial-details" aria-live="polite" aria-atomic="true">
             <h2 id="tutorial-title"></h2>
@@ -2846,8 +2866,8 @@ const tutorialReducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const tutorialKey = `${SAVE_KEY ?? 'fc'}:tutorial-v1`;
 const tutorialPages = [
     {
-        image:'./Apple.png', title:'과일을 톡톡 눌러요',
-        copy:'과일을 누를 때마다 점수가 쌓여요. 길게 누르면 과일을 판매할 수 있어요.',
+        title:'과일을 톡톡 눌러요',
+        copy:'사과를 톡 누르면 +1점! 길게 눌러 사과를 없애 보세요. 실제 게임에서는 길게 눌러 과일을 판매해요.',
     },
     {
         image:'./FruitStore.PNG', title:'첫 사과는 무료예요',
@@ -2871,7 +2891,17 @@ tutorial.querySelector('.tutorial-progress').append(...tutorialProgress);
 let tutorialPage = 0;
 let tutorialFirstRun = false;
 let tutorialSeen = false;
-let tutorialTapMotion;
+const tutorialRestore = document.getElementById('tutorial-restore');
+const tutorialPlus = document.getElementById('tutorial-plus');
+const tutorialScore = document.getElementById('tutorial-practice-score');
+const tutorialModelStatus = document.getElementById('tutorial-model-status');
+let tutorialPracticeScore = 0;
+let tutorialHold;
+let tutorialRemoval;
+let tutorialPointsMotion;
+let tutorialAppleDirty = false;
+const tutorialRay = new THREE.Raycaster();
+const tutorialPointer = new THREE.Vector2();
 let tutorialPageMotion;
 let tutorialApplePreview;
 let tutorialAppleRequested = false;
@@ -2892,29 +2922,32 @@ function prepareTutorialApple() {
             const light = new THREE.DirectionalLight(0xfff2e5, 2.1);
             light.position.set(-4, 7, -3);
             const apple = source.clone();
-            apple.rotation.y = Math.PI;
+            fixMesh(apple, true);
             const bounds = new THREE.Box3().setFromObject(apple);
+            prepareFruitPress(apple, bounds);
+            apple.rotation.y = Math.PI;
             const size = bounds.getSize(new THREE.Vector3());
             const radius = Math.max(size.x, size.y, size.z) * .85;
-            apple.position.sub(bounds.getCenter(new THREE.Vector3()));
+            apple.position.sub(bounds.getCenter(new THREE.Vector3()).applyAxisAngle(new THREE.Vector3(0,1,0), Math.PI));
             const pose = new THREE.Group();
             pose.add(apple);
             previewScene.add(pose, light, new THREE.HemisphereLight(0xf5f9ff, 0xd9c9b5, 1));
             const view = new THREE.OrthographicCamera(-radius, radius, radius, -radius, .1, 20);
             view.position.set(-3.3, 2.6, -4.6);
             view.lookAt(0, 0, 0);
-            tutorialApplePreview = () => previewRenderer.render(previewScene, view);
-            if (tutorial.open && tutorialPage === 0) {
-                tutorialApplePreview();
-                tutorialCanvas.hidden = false;
-                tutorialImage.hidden = true;
-            }
+            view.updateMatrixWorld();
+            tutorialApplePreview = {
+                apple, view, render: () => previewRenderer.render(previewScene, view),
+            };
+            if (tutorial.open && tutorialPage === 0) renderTutorialApple();
         } catch {
             previewRenderer?.dispose();
             tutorialApplePreview = undefined;
+            tutorialModelStatus.textContent = '3D 사과를 불러오지 못했어요';
         }
     }, undefined, () => {
         tutorialAppleRequested = false;
+        tutorialModelStatus.textContent = '3D 사과를 불러오지 못했어요';
     });
 }
 
@@ -2926,15 +2959,21 @@ function tutorialWasSeen() {
 function renderTutorial() {
     const page = tutorialPages[tutorialPage];
     tutorial.dataset.step = String(tutorialPage);
-    const showModel = tutorialPage === 0 && Boolean(tutorialApplePreview);
-    tutorialImage.src = page.image;
-    tutorialImage.hidden = showModel;
-    tutorialCanvas.hidden = !showModel;
-    if (showModel) tutorialApplePreview();
-    else if (tutorialPage === 0) prepareTutorialApple();
+    if (tutorialPage === 0) {
+        tutorialImage.hidden = true;
+        if (!tutorialAppleRequested) tutorialModelStatus.textContent = '사과를 불러오는 중…';
+        renderTutorialApple();
+        prepareTutorialApple();
+    } else {
+        tutorialImage.src = page.image;
+        tutorialImage.hidden = false;
+        tutorialCanvas.hidden = true;
+        tutorialTap.hidden = true;
+        tutorialRestore.hidden = true;
+        tutorialModelStatus.hidden = true;
+    }
     document.getElementById('tutorial-title').textContent = page.title;
     document.getElementById('tutorial-copy').textContent = page.copy;
-    tutorialTap.hidden = tutorialPage !== 0;
     tutorialPrev.hidden = tutorialPage === 0;
     tutorialProgress.forEach((step, index) => step.classList.toggle('current', index <= tutorialPage));
     tutorialNext.textContent = tutorialPage < tutorialPages.length - 1
@@ -2945,6 +2984,9 @@ function renderTutorial() {
 function openTutorial(firstRun = false) {
     if (tutorial.open) return;
     tutorialFirstRun = firstRun;
+    tutorialPracticeScore = 0;
+    tutorialScore.textContent = '연습 점수 0';
+    resetTutorialApple();
     tutorialPage = 0;
     renderTutorial();
     tutorial.showModal();
@@ -2955,7 +2997,7 @@ function finishTutorial(showShop = false) {
     tutorialSeen = true;
     try { localStorage.setItem(tutorialKey, '1'); } catch {}
     const firstRun = tutorialFirstRun;
-    tutorialTapMotion?.cancel();
+    stopTutorialPractice();
     tutorialPageMotion?.cancel();
     tutorialPageMotion = undefined;
     tutorial.close();
@@ -2986,7 +3028,7 @@ async function turnTutorialPage(direction) {
     const nextPage = tutorialPage + direction;
     if (nextPage < 0 || nextPage >= tutorialPages.length) return;
     playUIClick();
-    tutorialTapMotion?.cancel();
+    stopTutorialPractice();
     if (!tutorialReducedMotion.matches) {
         const outgoing = tutorialContent.animate([
             {opacity:1, transform:'none'},
@@ -3024,17 +3066,131 @@ tutorialNext.addEventListener('click', () => {
         turnTutorialPage(1);
     }
 });
-tutorialTap.addEventListener('click', event => {
+function renderTutorialApple() {
+    const apple = tutorialApplePreview?.apple;
+    tutorialCanvas.hidden = !apple;
+    tutorialModelStatus.hidden = Boolean(apple);
+    tutorialTap.hidden = !apple?.visible;
+    tutorialRestore.hidden = !apple || apple.visible;
+    if (apple) tutorialApplePreview.render();
+}
+
+function resetTutorialApple() {
+    tutorialRemoval?.stop();
+    const apple = tutorialApplePreview?.apple;
+    if (apple) {
+        apple.visible = true;
+        apple.scale.setScalar(1);
+    }
+}
+
+function releaseTutorialHold() {
+    if (!tutorialHold) return;
+    const {timer, press, dent} = tutorialHold;
+    clearTimeout(timer);
+    const time = performance.now();
+    releaseFruitPress(press, time);
+    releaseFruitPress(dent, time);
+    tutorialHold = undefined;
+}
+
+function stopTutorialPractice() {
+    releaseTutorialHold();
+    tutorialPointsMotion?.cancel();
+    tutorialPlus.hidden = true;
+}
+
+function findTutorialAppleHit(x, y) {
+    const { apple, view } = tutorialApplePreview;
+    const rect = tutorialCanvas.getBoundingClientRect();
+    tutorialPointer.set((x - rect.left) / rect.width * 2 - 1, 1 - (y - rect.top) / rect.height * 2);
+    tutorialRay.setFromCamera(tutorialPointer, view);
+    return tutorialRay.intersectObject(apple, true)[0];
+}
+
+function showTutorialPoint(x, y) {
+    tutorialScore.textContent = `연습 점수 ${++tutorialPracticeScore}`;
+    const bounds = document.getElementById('tutorial-art').getBoundingClientRect();
+    tutorialPlus.style.left = `${Math.min(bounds.width - 22, Math.max(22, x - bounds.left))}px`;
+    tutorialPlus.style.top = `${Math.max(27, y - bounds.top)}px`;
+    tutorialPointsMotion?.cancel();
+    tutorialPlus.hidden = false;
+    tutorialPointsMotion = tutorialPlus.animate([
+        {opacity:1, translate:'0 0'},
+        {opacity:0, translate:tutorialReducedMotion.matches ? '0 0' : '0 -24px'},
+    ], {duration:570, easing:'ease-out'});
+    tutorialPointsMotion.onfinish = () => { tutorialPlus.hidden = true; };
+}
+
+function startTutorialHold(hit, x, y, pointerId, event) {
+    const {apple} = tutorialApplePreview;
+    const press = pressFruit(apple, 'apple', hit);
+    const dent = pressFruitDent(apple, 'apple', hit);
     playFruitClick('apple', false, event);
-    if (tutorialReducedMotion.matches) return;
-    tutorialTapMotion?.cancel();
-    const art = tutorialCanvas.hidden ? tutorialImage : tutorialCanvas;
-    tutorialTapMotion = art.animate([
-        { transform:'none' },
-        { transform:'scale(1.10,.86)', offset:.25 },
-        { transform:'scale(.99,1.04)', offset:.65 },
-        { transform:'none' },
-    ], { duration:310, easing:'ease-out' });
+    const timer = setTimeout(() => {
+        releaseTutorialHold();
+        tutorialTap.hidden = true;
+        playShowup();
+        const remove = () => {
+            apple.visible = false;
+            if (tutorial.open && tutorialPage === 0) {
+                renderTutorialApple();
+                tutorialRestore.focus({preventScroll:true});
+            }
+        };
+        if (tutorialReducedMotion.matches) remove();
+        else {
+            tutorialRemoval = new TWEEN.Tween(apple.scale).to({x:0,y:0,z:0},160)
+                .easing(TWEEN.Easing.Cubic.In)
+                .onUpdate(() => { tutorialAppleDirty = true; })
+                .onComplete(remove).start();
+        }
+    }, HOLD_MS);
+    tutorialHold = {pointerId, x, y, press, dent, timer};
+}
+
+tutorialTap.addEventListener('pointerdown', event => {
+    if (!event.isPrimary || event.button !== 0 || tutorialHold || tutorialPageMotion) return;
+    const hit = findTutorialAppleHit(event.clientX, event.clientY);
+    if (!hit) return;
+    tutorialTap.setPointerCapture(event.pointerId);
+    startTutorialHold(hit, event.clientX, event.clientY, event.pointerId, event);
+});
+tutorialTap.addEventListener('pointerup', event => {
+    if (tutorialHold?.pointerId !== event.pointerId) return;
+    releaseTutorialHold();
+    showTutorialPoint(event.clientX, event.clientY);
+});
+tutorialTap.addEventListener('pointermove', event => {
+    if (tutorialHold?.pointerId !== event.pointerId) return;
+    if (Math.hypot(event.clientX - tutorialHold.x, event.clientY - tutorialHold.y) > 18) releaseTutorialHold();
+});
+for (const type of ['pointercancel', 'lostpointercapture']) {
+    tutorialTap.addEventListener(type, event => {
+        if (tutorialHold?.pointerId === event.pointerId) releaseTutorialHold();
+    });
+}
+tutorialTap.addEventListener('keydown', event => {
+    if (event.key !== ' ' && event.key !== 'Enter') return;
+    event.preventDefault();
+    if (tutorialHold || event.repeat || tutorialPageMotion) return;
+    const rect = tutorialCanvas.getBoundingClientRect();
+    const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
+    startTutorialHold(findTutorialAppleHit(x, y), x, y, null);
+});
+tutorialTap.addEventListener('keyup', event => {
+    if ((event.key !== ' ' && event.key !== 'Enter') || tutorialHold?.pointerId !== null) return;
+    event.preventDefault();
+    const {x, y} = tutorialHold;
+    releaseTutorialHold();
+    showTutorialPoint(x, y);
+});
+tutorialTap.addEventListener('blur', releaseTutorialHold);
+window.addEventListener('blur', releaseTutorialHold);
+tutorialRestore.addEventListener('click', () => {
+    resetTutorialApple();
+    renderTutorialApple();
+    tutorialTap.focus({preventScroll:true});
 });
 
 const anyShopOpen=()=>
@@ -4353,11 +4509,19 @@ function updateFruitIdle(time) {
 let lastT=0,_lastScoreUpdate=0,_frameCount=0;
 function animate(t=performance.now()){
     requestAnimationFrame(animate);
+    const previewApple = tutorialApplePreview?.apple;
+    const previewWasMoving = previewApple && (
+        activeFruitPresses.has(previewApple) || activeFruitDentSurfaces.has(fruitDentSurfaces.get(previewApple))
+    );
     TWEEN.update(t);
     updateEffectItemMotion(_flowerModel, t);
     updateEffectItemMotion(_manureModel, t);
     updateFruitPresses(t);
     updateFruitDents(t);
+    if (tutorial.open && tutorialPage === 0 && (previewWasMoving || tutorialAppleDirty)) {
+        tutorialApplePreview.render();
+        tutorialAppleDirty = false;
+    }
     const dt=Math.min(t-lastT,50);lastT=t;_frameCount++;
     updateSugarCoatings(t, dt);
     if(t-_lastScoreUpdate>150){scoreEl.innerText=fmtN(score);_lastScoreUpdate=t;}
