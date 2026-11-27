@@ -181,23 +181,8 @@
             display:flex; align-items:center; justify-content:space-between;
             padding:0 4px;
         }
-        .settings-group {
-            display:flex; flex-direction:column; gap:10px;
-            padding:0 4px;
-        }
-        .settings-group-head {
-            display:flex; align-items:center; justify-content:space-between;
-            gap:16px;
-        }
-        .settings-volume {
-            display:flex; flex-direction:column; gap:6px;
-            padding-left:2px;
-        }
         .settings-label {
             font-size:clamp(15px,3.2vw,18px); font-weight:700; color:var(--text);
-        }
-        .settings-sub {
-            font-size:clamp(12px,2.5vw,13px); color:var(--text-sub); font-weight:400;
         }
 
         .toggle-switch {
@@ -234,21 +219,6 @@
             cursor:pointer; outline:none; transition:border-color .2s; flex-shrink:0;
         }
         .settings-select:focus { border-color:var(--blue); }
-        .settings-range {
-            width:100%; appearance:none; -webkit-appearance:none; height:8px;
-            border-radius:999px; background:linear-gradient(90deg, var(--green) 0%, var(--green) var(--range-fill, 60%), #e5e5e5 var(--range-fill, 60%), #e5e5e5 100%);
-            outline:none;
-        }
-        .settings-range::-webkit-slider-thumb {
-            -webkit-appearance:none; appearance:none; width:22px; height:22px;
-            border-radius:50%; background:#fff; border:2px solid var(--green);
-            box-shadow:0 2px 8px rgba(0,0,0,.15); cursor:pointer;
-        }
-        .settings-range::-moz-range-thumb {
-            width:22px; height:22px; border-radius:50%;
-            background:#fff; border:2px solid var(--green);
-            box-shadow:0 2px 8px rgba(0,0,0,.15); cursor:pointer;
-        }
 
         .settings-code-btn {
             background:var(--blue); color:#fff; border:none; padding:10px 0;
@@ -535,23 +505,6 @@
                 </label>
             </div>
 
-            <div class="settings-group">
-                <div class="settings-group-head">
-                    <span class="settings-label">배경음악</span>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="toggle-bgm" checked>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-                <div class="settings-volume">
-                    <div class="settings-row" style="padding:0;">
-                        <span class="settings-sub">음량</span>
-                        <span class="settings-sub" id="bgm-volume-value">60%</span>
-                    </div>
-                    <input type="range" id="bgm-volume" class="settings-range" min="0" max="100" step="1" value="60">
-                </div>
-            </div>
-
             <div style="height:1px;background:var(--border);"></div>
             <div style="font-size:clamp(11px,2.2vw,12px);letter-spacing:1px;color:#aaa;font-weight:400;">그래픽</div>
 
@@ -734,23 +687,9 @@ const _sugarTapClips = [..._sugarTapUrls, ...tapClips(_mixedSugarTapUrl, [
 ])];
 const _itemTapUrls = ['./Click1.m4a', './Click2.m4a', './Click4.m4a', './Clcik3.m4a'];
 const _uiSoundUrls    = ['./UIClick.m4a', './UIClick2.m4a', './UIClick3.m4a'];
-const _bgmUrls        = [
-    './bgm-01.mp3',
-    './bgm-02.mp3',
-    './bgm-03.mp3',
-    './bgm-04.mp3',
-    './bgm-05.mp3',
-    './bgm-06.mp3',
-    './bgm-07.mp3',
-    './bgm-08.mp3',
-    './bgm-09.mp3',
-    './bgm-10.mp3'
-];
 
 const _audioCtx   = new (window.AudioContext || window.webkitAudioContext)();
 const _audioCache = new Map();   // url → Promise<AudioBuffer | null>
-const _bgmAudio   = new Audio();
-let _bgmQueue = [];
 
 // 오디오 파일 디코딩 & 캐싱
 function _loadAudio(url) {
@@ -771,16 +710,43 @@ function _loadAudio(url) {
 
 // 모바일 자동재생 정책 대응: 첫 터치 시 컨텍스트 resume
 function _resumeAudioCtx() {
-    if (!document.hidden && _audioCtx.state !== 'running') _audioCtx.resume().catch(() => {});
+    if (!document.hidden && _audioCtx.state !== 'running') {
+        _audioCtx.resume().catch(() => {});
+    }
+}
+
+function _waitForAudio() {
+    if (document.hidden) return Promise.resolve(false);
+    if (_audioCtx.state === 'running') return Promise.resolve(true);
+    return new Promise(resolve => {
+        const finish = ready => {
+            clearTimeout(timeout);
+            _audioCtx.removeEventListener('statechange', onStateChange);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+            resolve(ready);
+        };
+        const onStateChange = () => {
+            if (_audioCtx.state === 'running') finish(true);
+        };
+        const onVisibilityChange = () => {
+            if (document.hidden) finish(false);
+        };
+        const timeout = setTimeout(() => finish(false), 400);
+        _audioCtx.addEventListener('statechange', onStateChange);
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        _resumeAudioCtx();
+    });
 }
 
 // 배열에서 랜덤 선택 후 재생
 function _playRandom(clips, volume = 1.0, rate = 1.0) {
-    _resumeAudioCtx();
+    const requestedAt = performance.now();
+    const resumed = _waitForAudio();
     const clip = clips[Math.floor(Math.random() * clips.length)];
     const url = typeof clip === 'string' ? clip : clip.url;
-    _loadAudio(url).then(buf => {
-        if (!buf || document.hidden) return;
+    Promise.all([_loadAudio(url), resumed]).then(([buf, ready]) => {
+        if (!buf || !ready || document.hidden || _audioCtx.state !== 'running') return;
+        if (performance.now() - requestedAt > 400) return;
         const src  = _audioCtx.createBufferSource();
         const gain = _audioCtx.createGain();
         gain.gain.value = volume;
@@ -801,8 +767,6 @@ function _saveSettings(s) { localStorage.setItem(_settingsKey, JSON.stringify(s)
 const _settings = _loadSettings();
 let _fruitSoundOn = _settings.fruitSound !== false;   // 기본 켬
 let _uiSoundOn    = _settings.uiSound    !== false;   // 기본 켬
-let _bgmOn        = _settings.bgmOn      !== false;   // 기본 켬
-let _bgmVolume    = Math.min(Math.max(Number(_settings.bgmVolume ?? 0.6), 0), 1);
 
 function playFruitClick(key, coated = false) {
     if (!_fruitSoundOn) return;
@@ -823,60 +787,10 @@ function playShowup()     { if (_uiSoundOn) _playRandom(['./Showup.m4a'], 0.75);
 /** 벌 등장/사라질 때 재생 */
 function playBeeSound()   { if (_fruitSoundOn) _playRandom(['./Bee.m4a'], 0.75); }
 
-function _applyBgmVolume() {
-    _bgmAudio.volume = _bgmVolume;
+// Touch browsers can grant audio activation on release, after a press has queued its sound.
+for (const event of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) {
+    window.addEventListener(event, _resumeAudioCtx, { capture: true, passive: true });
 }
-
-function _shuffleBgmQueue() {
-    _bgmQueue = [..._bgmUrls];
-    for (let i = _bgmQueue.length - 1; i > 0; i -= 1) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [_bgmQueue[i], _bgmQueue[j]] = [_bgmQueue[j], _bgmQueue[i]];
-    }
-}
-
-function _setNextBgmTrack() {
-    if (_bgmUrls.length === 0) return;
-    if (_bgmQueue.length === 0) _shuffleBgmQueue();
-    _bgmAudio.src = _bgmQueue.shift();
-    _bgmAudio.load();
-    _applyBgmVolume();
-}
-
-function _tryPlayBgm() {
-    if (document.hidden || !_bgmOn || !_bgmUrls.length) return;
-    if (!_bgmAudio.src) _setNextBgmTrack();
-    _bgmAudio.play().catch(() => {});
-}
-
-function _stopBgm() {
-    _bgmAudio.pause();
-}
-
-_bgmAudio.preload = 'auto';
-_bgmAudio.addEventListener('ended', () => {
-    _setNextBgmTrack();
-    _tryPlayBgm();
-});
-_applyBgmVolume();
-_setNextBgmTrack();
-
-let _audioUnlocked = false;
-const _unlockBgmPlayback = () => {
-    _audioUnlocked = true;
-    _resumeAudioCtx();
-    _tryPlayBgm();
-};
-window.addEventListener('pointerdown', _unlockBgmPlayback, { passive: true });
-window.addEventListener('keydown', _unlockBgmPlayback, { passive: true });
-document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-        _bgmAudio.pause();
-        _audioCtx.suspend().catch(() => {});
-    } else if (_audioUnlocked) {
-        _unlockBgmPlayback();
-    }
-});
 
 // 페이지 로드 시 모든 사운드 미리 디코딩
 [
@@ -2295,9 +2209,6 @@ document.getElementById('bucket-overlay').addEventListener('click',e=>{if(e.targ
     const settingsOverlay = document.getElementById('settings-overlay');
     const toggleFruit = document.getElementById('toggle-fruit-sound');
     const toggleUI    = document.getElementById('toggle-ui-sound');
-    const toggleBGM   = document.getElementById('toggle-bgm');
-    const rangeBGM    = document.getElementById('bgm-volume');
-    const bgmVolumeValue = document.getElementById('bgm-volume-value');
     const toggleShadow = document.getElementById('toggle-shadow');
     const selectShadowQ = document.getElementById('select-shadow-quality');
     const toggleAA = document.getElementById('toggle-antialias');
@@ -2306,15 +2217,7 @@ document.getElementById('bucket-overlay').addEventListener('click',e=>{if(e.targ
     // 저장된 상태 반영
     toggleFruit.checked = _fruitSoundOn;
     toggleUI.checked    = _uiSoundOn;
-    toggleBGM.checked   = _bgmOn;
-    rangeBGM.value      = String(Math.round(_bgmVolume * 100));
 
-    function updateBgmSliderUI() {
-        const value = `${rangeBGM.value}%`;
-        rangeBGM.style.setProperty('--range-fill', value);
-        bgmVolumeValue.textContent = value;
-    }
-    updateBgmSliderUI();
 
     // 그래픽 설정 로드
     const gs = _loadSettings();
@@ -2374,19 +2277,6 @@ document.getElementById('bucket-overlay').addEventListener('click',e=>{if(e.targ
         _uiSoundOn = toggleUI.checked;
         const s = _loadSettings(); s.uiSound = _uiSoundOn; _saveSettings(s);
     });
-    toggleBGM.addEventListener('change', () => {
-        _bgmOn = toggleBGM.checked;
-        const s = _loadSettings(); s.bgmOn = _bgmOn; _saveSettings(s);
-        if (_bgmOn) _tryPlayBgm();
-        else _stopBgm();
-    });
-    rangeBGM.addEventListener('input', () => {
-        _bgmVolume = Number(rangeBGM.value) / 100;
-        _applyBgmVolume();
-        updateBgmSliderUI();
-        const s = _loadSettings(); s.bgmVolume = _bgmVolume; _saveSettings(s);
-    });
-
     toggleShadow.addEventListener('change', () => {
         _applyShadow(toggleShadow.checked);
         const s = _loadSettings(); s.shadowOn = toggleShadow.checked; _saveSettings(s);

@@ -99,8 +99,7 @@ try {
 
     const game = module[1]
         .replace(standalonePlatform, 'const tossPlatform = await initTossPlatform();')
-        .replace(/\/\/ debug-handler:start[\s\S]*?\/\/ debug-handler:end/, '')
-        .replace(/(bgm-\d{2})\.mp3/g, '$1.m4a');
+        .replace(/\/\/ debug-handler:start[\s\S]*?\/\/ debug-handler:end/, '');
     await build({
         stdin: {
             contents: "import { initTossPlatform } from './apps-in-toss/platform.js';\n" + game,
@@ -116,16 +115,12 @@ try {
     });
 
     const referenced = new Set(
-        Array.from((source).matchAll(/\.\/([\w-]+\.(?:glb|png|svg|m4a|mp3|woff2))/gi), match => match[1]),
+        Array.from((source).matchAll(/\.\/([\w-]+\.(?:glb|png|svg|m4a|woff2))/gi), match => match[1]),
     );
     for (const filename of referenced) {
         const input = new URL(filename, project);
         if (filename.endsWith('.glb')) {
             await writeFile(new URL(filename, staged), await packModel(filename));
-        } else if (filename.endsWith('.mp3')) {
-            const output = new URL(filename.replace(/\.mp3$/, '.m4a'), staged);
-            await run('ffmpeg', ['-v', 'error', '-nostdin', '-i', fileURLToPath(input), '-map', '0:a:0', '-c:a', 'aac',
-                '-b:a', '144k', '-map_metadata', '-1', '-movflags', '+faststart', fileURLToPath(output)]);
         } else {
             await copyFile(input, new URL(filename, staged));
         }
