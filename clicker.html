@@ -389,6 +389,7 @@
             .shop-grid { gap:9px; grid-template-columns:repeat(2,minmax(0,1fr)); }
             .shop-item { padding:9px; }
             .shop-item-art { margin-bottom:5px; }
+            #fruit-shop-grid .shop-item-art img { transform:scale(1.18); }
             .shop-item-info { margin-bottom:7px; }
             .shop-section-label { margin-bottom:8px; }
         }
@@ -399,6 +400,7 @@
         .price-paid { color:#b07800; font-size:clamp(12px,2.4vw,13px); font-weight:400; }
         .shop-item-count { color:var(--text-sub); font-size:clamp(12px,2.4vw,13px); font-weight:400; }
         .shop-item-info2 { color:#bbb; font-size:clamp(11px,2.2vw,12px); margin-top:2px; font-weight:400; }
+        .shop-item-requirement { color:#b04f8b; margin-top:3px; }
         .shop-item-clickval { color:#888; font-size:clamp(14px,2.8vw,16px); margin-top:3px; font-weight:400; }
 
         .shop-buy-btn {
@@ -1709,21 +1711,25 @@ function buildBeeShopUI(){
         appendShopCard(grid, card);
     }
     // ★ 아이템 그리드 (꽃, 비료 등)
-    const itemsGrid=document.getElementById('bee-shop-items-grid');if(itemsGrid){itemsGrid.innerHTML='';
-    const flowerCard=document.createElement('div');flowerCard.className='shop-item';flowerCard.id='bsi-flower';
-    flowerCard.innerHTML=`<div class="shop-item-art"><img src="./Flower.png" alt="꽃"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">꽃</div><div class="shop-item-clickval">벌 수입 15초간 ×2배</div><div class="shop-item-info2" style="color:#b04f8b;margin-top:3px;">환생 1회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-flower" onclick="window.__buyFlower()">${fmtN(FLOWER_PRICE)}</button>`;
-    appendShopCard(itemsGrid, flowerCard);
-    const manureCard=document.createElement('div');manureCard.className='shop-item';manureCard.id='bsi-manure';
-    manureCard.innerHTML=`<div class="shop-item-art"><img src="./Manure.png" alt="비료"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">비료</div><div class="shop-item-clickval">전체 수입 15초간 ×2배</div><div class="shop-item-info2" style="color:#8B6914;margin-top:3px;">환생 2회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-manure" onclick="window.__buyManure()">${fmtN(MANURE_PRICE)}</button>`;
-    appendShopCard(itemsGrid, manureCard);
-    const sugarCard = document.createElement('div');
-    sugarCard.className = 'shop-item';
-    sugarCard.innerHTML = `<div class="shop-item-art"><img src="./SugarCoating.png" alt=""></div>
-        <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">설탕 코팅</div>
-        <div class="shop-item-clickval">과일 1개 · 누르면 얇은 코팅에 금이 가요</div></div>
-        <button type="button" class="shop-buy-btn bee-btn" id="bsb-sugar">${fmtN(SUGAR_COATING_PRICE)}</button>`;
-    sugarCard.querySelector('button').addEventListener('click', beginSugarSelection);
-    appendShopCard(itemsGrid, sugarCard);}
+    const itemsGrid = document.getElementById('bee-shop-items-grid');
+    if (itemsGrid) {
+        itemsGrid.replaceChildren();
+        const sugarCard = document.createElement('div');
+        sugarCard.className = 'shop-item';
+        sugarCard.innerHTML = `<div class="shop-item-art"><img src="./SugarCoating.png" alt=""></div>
+            <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">설탕 코팅</div>
+            <div class="shop-item-clickval">누르면 얇은 코팅에 금이 가요</div>
+            <div class="shop-item-info2 shop-item-requirement">과일 1개</div></div>
+            <button type="button" class="shop-buy-btn bee-btn" id="bsb-sugar">${fmtN(SUGAR_COATING_PRICE)}</button>`;
+        sugarCard.querySelector('button').addEventListener('click', beginSugarSelection);
+        appendShopCard(itemsGrid, sugarCard);
+        const flowerCard=document.createElement('div');flowerCard.className='shop-item';flowerCard.id='bsi-flower';
+        flowerCard.innerHTML=`<div class="shop-item-art"><img src="./Flower.png" alt="꽃"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">꽃</div><div class="shop-item-clickval">벌 수입 15초간 ×2배</div><div class="shop-item-info2 shop-item-requirement">환생 1회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-flower" onclick="window.__buyFlower()">${fmtN(FLOWER_PRICE)}</button>`;
+        appendShopCard(itemsGrid, flowerCard);
+        const manureCard=document.createElement('div');manureCard.className='shop-item';manureCard.id='bsi-manure';
+        manureCard.innerHTML=`<div class="shop-item-art"><img src="./Manure.png" alt="비료"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">비료</div><div class="shop-item-clickval">전체 수입 15초간 ×2배</div><div class="shop-item-info2" style="color:#8B6914;margin-top:3px;">환생 2회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-manure" onclick="window.__buyManure()">${fmtN(MANURE_PRICE)}</button>`;
+        appendShopCard(itemsGrid, manureCard);
+    }
     updateAllUI();
 }
 function updateBeeShopUI(){
