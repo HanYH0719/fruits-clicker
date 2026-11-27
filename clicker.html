@@ -689,7 +689,10 @@ const _itemTapUrls = ['./Click1.m4a', './Click2.m4a', './Click4.m4a', './Clcik3.
 const _uiSoundUrls    = ['./UIClick.m4a', './UIClick2.m4a', './UIClick3.m4a'];
 
 const _audioCtx   = new (window.AudioContext || window.webkitAudioContext)();
-const _audioCache = new Map();   // url → Promise<AudioBuffer | null>
+const _audioCache = new Map();
+const _decodedAudio = new Map();
+const _mediaAudio = new Map();
+let _pendingTouchSound = null;
 
 // 오디오 파일 디코딩 & 캐싱
 function _loadAudio(url) {
@@ -700,6 +703,10 @@ function _loadAudio(url) {
                 return response.arrayBuffer();
             })
             .then(raw => _audioCtx.decodeAudioData(raw))
+            .then(buffer => {
+                _decodedAudio.set(url, buffer);
+                return buffer;
+            })
             .catch(() => {
                 _audioCache.delete(url);
                 return null;
@@ -715,48 +722,58 @@ function _resumeAudioCtx() {
     }
 }
 
-function _waitForAudio() {
-    if (document.hidden) return Promise.resolve(false);
-    if (_audioCtx.state === 'running') return Promise.resolve(true);
-    return new Promise(resolve => {
-        const finish = ready => {
-            clearTimeout(timeout);
-            _audioCtx.removeEventListener('statechange', onStateChange);
-            document.removeEventListener('visibilitychange', onVisibilityChange);
-            resolve(ready);
-        };
-        const onStateChange = () => {
-            if (_audioCtx.state === 'running') finish(true);
-        };
-        const onVisibilityChange = () => {
-            if (document.hidden) finish(false);
-        };
-        const timeout = setTimeout(() => finish(false), 400);
-        _audioCtx.addEventListener('statechange', onStateChange);
-        document.addEventListener('visibilitychange', onVisibilityChange);
-        _resumeAudioCtx();
-    });
+// Play inside the input handler when possible. Media playback gives WebKit a
+// second path when Web Audio is interrupted or a clip is still decoding.
+function _playMediaSound(url, volume, rate) {
+    if (!_mediaAudio.has(url)) _mediaAudio.set(url, new Audio(url));
+    const audio = _mediaAudio.get(url);
+    audio.volume = volume;
+    audio.playbackRate = rate;
+    if (audio.readyState > 0) audio.currentTime = 0;
+    audio.play().catch(() => {});
 }
 
-// 배열에서 랜덤 선택 후 재생
-function _playRandom(clips, volume = 1.0, rate = 1.0) {
-    const requestedAt = performance.now();
-    const resumed = _waitForAudio();
+function _playBuffer(buf, clip, volume, rate) {
+    const src = _audioCtx.createBufferSource();
+    const gain = _audioCtx.createGain();
+    gain.gain.value = volume;
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    src.connect(gain);
+    gain.connect(_audioCtx.destination);
+    src.onended = () => { src.disconnect(); gain.disconnect(); };
+    if (typeof clip === 'string') src.start(0);
+    else src.start(0, clip.offset, clip.duration);
+}
+
+function _playRandom(clips, volume = 1.0, rate = 1.0, event) {
+    if (document.hidden) return;
     const clip = clips[Math.floor(Math.random() * clips.length)];
     const url = typeof clip === 'string' ? clip : clip.url;
-    Promise.all([_loadAudio(url), resumed]).then(([buf, ready]) => {
-        if (!buf || !ready || document.hidden || _audioCtx.state !== 'running') return;
-        if (performance.now() - requestedAt > 400) return;
-        const src  = _audioCtx.createBufferSource();
-        const gain = _audioCtx.createGain();
-        gain.gain.value = volume;
-        src.buffer = buf;
-        src.playbackRate.value = rate;
-        src.connect(gain);
-        gain.connect(_audioCtx.destination);
-        if (typeof clip === 'string') src.start(0);
-        else src.start(0, clip.offset, clip.duration);
-    });
+    const play = allowMedia => {
+        _resumeAudioCtx();
+        const buffer = _decodedAudio.get(url);
+        if (_audioCtx.state === 'running' && buffer) {
+            _playBuffer(buffer, clip, volume, rate);
+        } else if (allowMedia) {
+            // Sliced clips have gaps and other taps in the same file. Use a
+            // standalone recording from the same pool for the media fallback.
+            const mediaUrl = typeof clip === 'string' ? clip : clips.find(item => typeof item === 'string');
+            _playMediaSound(mediaUrl, volume, rate);
+        } else {
+            const requestedAt = performance.now();
+            _loadAudio(url).then(buffer => {
+                if (buffer && !document.hidden && _audioCtx.state === 'running' &&
+                    performance.now() - requestedAt < 400) _playBuffer(buffer, clip, volume, rate);
+            });
+        }
+    };
+    if (event?.isTrusted && event.pointerType === 'touch' && event.type === 'pointerdown' &&
+        (_audioCtx.state !== 'running' || !_decodedAudio.has(url))) {
+        _pendingTouchSound = play;
+    } else {
+        play(event?.isTrusted || navigator.userActivation?.isActive);
+    }
 }
 
 // ── 설정: 사운드 토글 (localStorage에 저장) ──
@@ -768,14 +785,14 @@ const _settings = _loadSettings();
 let _fruitSoundOn = _settings.fruitSound !== false;   // 기본 켬
 let _uiSoundOn    = _settings.uiSound    !== false;   // 기본 켬
 
-function playFruitClick(key, coated = false) {
+function playFruitClick(key, coated = false, event) {
     if (!_fruitSoundOn) return;
     if (coated) {
-        _playRandom(_sugarTapClips, 0.69);
+        _playRandom(_sugarTapClips, 0.69, 1, event);
         return;
     }
     const sounds = key ? _fruitTapClips : _itemTapUrls;
-    _playRandom(sounds, 0.7, FRUIT_PRESS_PROFILES[key]?.soundRate ?? 1);
+    _playRandom(sounds, 0.7, FRUIT_PRESS_PROFILES[key]?.soundRate ?? 1, event);
 }
 
 /** UI 버튼 클릭 시 재생 (UIClick1~3 랜덤) */
@@ -787,10 +804,25 @@ function playShowup()     { if (_uiSoundOn) _playRandom(['./Showup.m4a'], 0.75);
 /** 벌 등장/사라질 때 재생 */
 function playBeeSound()   { if (_fruitSoundOn) _playRandom(['./Bee.m4a'], 0.75); }
 
-// Touch browsers can grant audio activation on release, after a press has queued its sound.
-for (const event of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) {
+for (const event of ['pointerdown', 'pointerup', 'click', 'keydown']) {
     window.addEventListener(event, _resumeAudioCtx, { capture: true, passive: true });
 }
+window.addEventListener('touchend', event => {
+    if (!event.isTrusted || event.touches.length) return;
+    const play = _pendingTouchSound;
+    _pendingTouchSound = null;
+    if (play && _fruitSoundOn && !document.hidden) play(true);
+    else _resumeAudioCtx();
+}, { capture: true, passive: true });
+function _clearPendingTouchSound() { _pendingTouchSound = null; }
+window.addEventListener('touchstart', event => {
+    if (event.touches.length > 1) _clearPendingTouchSound();
+}, { capture: true, passive: true });
+window.addEventListener('touchcancel', _clearPendingTouchSound, { capture: true, passive: true });
+window.addEventListener('blur', _clearPendingTouchSound);
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) _clearPendingTouchSound();
+});
 
 // 페이지 로드 시 모든 사운드 미리 디코딩
 [
@@ -1902,9 +1934,9 @@ function spawnBox(slotIdx,animate,cb){
     },undefined,err=>console.error('BoxGLB 실패',err));
 }
 
-function clickBox(inst){
+function clickBox(inst, event){
     inst.clicks++;moveCameraTo(inst.model);
-    playFruitClick(); // 🔊 과일 클릭음 (박스도 같은 클릭 피드백)
+    playFruitClick(undefined, false, event); // 🔊 과일 클릭음 (박스도 같은 클릭 피드백)
     const s=1.0;
     new TWEEN.Tween(inst.model.scale).to({x:1.25,y:0.72,z:1.25},80).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(inst.model.scale).to({x:0.88,y:1.18,z:0.88},100).easing(TWEEN.Easing.Quadratic.InOut).chain(new TWEEN.Tween(inst.model.scale).to({x:s,y:s,z:s},260).easing(TWEEN.Easing.Elastic.Out))).start();
     createPopup(inst.clicks+'/5','#ff6b8a');
@@ -1944,9 +1976,9 @@ function spawnPlusBox(slotIdx,animate,cb){
     },undefined,err=>console.error('PlusBoxGLB 실패',err));
 }
 
-function clickPlusBox(inst){
+function clickPlusBox(inst, event){
     inst.clicks++;moveCameraTo(inst.model);
-    playFruitClick(); // 🔊 과일 클릭음 (플러스박스도 동일한 클릭 피드백)
+    playFruitClick(undefined, false, event); // 🔊 과일 클릭음 (플러스박스도 동일한 클릭 피드백)
     const s=1.0;
     new TWEEN.Tween(inst.model.scale).to({x:1.25,y:0.72,z:1.25},80).easing(TWEEN.Easing.Quadratic.Out).chain(new TWEEN.Tween(inst.model.scale).to({x:0.88,y:1.18,z:0.88},100).easing(TWEEN.Easing.Quadratic.InOut).chain(new TWEEN.Tween(inst.model.scale).to({x:s,y:s,z:s},260).easing(TWEEN.Easing.Elastic.Out))).start();
     createPopup(inst.clicks+'/5','#5bbf7a');
@@ -3463,14 +3495,14 @@ renderer.domElement.addEventListener('pointerdown',e=>{
         startHold(hit.isFlower ? '__flower__' : '__manure__', 0, e.clientX, e.clientY);
         playEffectItemMotion(hit.isFlower ? _flowerModel : _manureModel, 'tap');
     } else if (hit.isBox) {
-        clickBox(hit.boxInst);
+        clickBox(hit.boxInst, e);
     } else if (hit.isPlusBox) {
-        clickPlusBox(hit.boxInst);
+        clickPlusBox(hit.boxInst, e);
     } else {
         const { key } = hit.fd;
         startHold(key, hit.idx, e.clientX, e.clientY);
         const model = pools[key].list[hit.idx].model;
-        playFruitClick(key, sugarCoatings.has(model));
+        playFruitClick(key, sugarCoatings.has(model), e);
         const time = performance.now();
         if (key !== 'watermelon') hold.fruitPress = pressFruit(model, key, hit.intersection, time);
         hold.dent = pressFruitDent(model, key, hit.intersection, time);
@@ -3485,7 +3517,7 @@ renderer.domElement.addEventListener('pointerup',e=>{
             const model = key === '__flower__' ? _flowerModel : _manureModel;
             if (model) {
                 moveCameraTo(model);
-                playFruitClick();
+                playFruitClick(undefined, false, e);
             }
             return;
         }
