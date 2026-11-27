@@ -666,6 +666,11 @@ const tossPlatform = null;
 const _orangeTapUrls = ['./Tap-Orange-01.m4a', './Tap-Orange-02.m4a', './Tap-Orange-03.m4a'];
 const _coconutTapUrls = ['./Tap-Coconut-01.m4a', './Tap-Coconut-02.m4a', './Tap-Coconut-03.m4a'];
 const _fruitTapUrls = [..._orangeTapUrls, ..._coconutTapUrls];
+const _freshFruitTapUrls = [
+    './Tap-Fruit-Fresh-01.m4a', './Tap-Fruit-Fresh-02.m4a', './Tap-Fruit-Fresh-03.m4a',
+    './Tap-Fruit-Fresh-04.m4a', './Tap-Fruit-Fresh-05.m4a', './Tap-Fruit-Fresh-06.m4a',
+    './Tap-Fruit-Fresh-07.m4a', './Tap-Fruit-Fresh-08.m4a', './Tap-Fruit-Fresh-09.m4a',
+];
 const _orangeSugarTapUrls = ['./Tap-Sugar-Orange-01.m4a', './Tap-Sugar-Orange-02.m4a', './Tap-Sugar-Orange-03.m4a', './Tap-Sugar-Orange-04.m4a'];
 const _sugarTapUrls = [
     './Tap-Sugar-01.m4a', './Tap-Sugar-02.m4a', './Tap-Sugar-03.m4a', './Tap-Sugar-04.m4a',
@@ -686,6 +691,10 @@ const _fruitTapClips = [..._fruitTapUrls, ...tapClips(_mixedFruitTapUrl, [
     [0, 0.191], [0.231, 0.199], [0.470, 0.204], [0.714, 0.212],
     [0.966, 0.193], [1.199, 0.170], [1.409, 0.196], [1.645, 0.196],
 ])];
+const _freshFruitTapClips = [..._fruitTapClips, ..._freshFruitTapUrls];
+const _freshTapFruitKeys = new Set([
+    'apple', 'watermelon', 'orange', 'blueberry', 'avocado', 'cherry', 'lemon', 'kiwi', 'strawberry',
+]);
 const _sugarTapClips = [..._sugarTapUrls, ...tapClips(_mixedSugarTapUrl, [
     [0, 0.202], [0.242, 0.190], [0.472, 0.178], [0.690, 0.188],
     [0.918, 0.210], [1.168, 0.185], [1.393, 0.195], [1.628, 0.203],
@@ -797,7 +806,7 @@ function playFruitClick(key, coated = false, event) {
         _playRandom(_sugarTapClips, 0.69, 1, event);
         return;
     }
-    const sounds = key ? _fruitTapClips : _itemTapUrls;
+    const sounds = _freshTapFruitKeys.has(key) ? _freshFruitTapClips : (key ? _fruitTapClips : _itemTapUrls);
     _playRandom(sounds, 0.7, FRUIT_PRESS_PROFILES[key]?.soundRate ?? 1, event);
 }
 
@@ -832,7 +841,7 @@ document.addEventListener('visibilitychange', () => {
 
 // 페이지 로드 시 모든 사운드 미리 디코딩
 [
-    ..._fruitTapUrls, ..._sugarTapUrls, _mixedFruitTapUrl, _mixedSugarTapUrl,
+    ..._fruitTapUrls, ..._freshFruitTapUrls, ..._sugarTapUrls, _mixedFruitTapUrl, _mixedSugarTapUrl,
     ..._itemTapUrls, ..._uiSoundUrls, './Showup.m4a', './Bee.m4a',
 ].forEach(url => _loadAudio(url));
 // ═══════════════════════════════════════════════════════════
