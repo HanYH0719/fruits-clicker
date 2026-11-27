@@ -44,6 +44,7 @@
             --card-radius:34px;
             --purchase-radius:999px;
             --popup-radius:38px;
+            --popup-bg:#f3f3f3;
         }
         * { corner-shape:superellipse(1.35); --g2-radius:initial; }
         * { box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
@@ -158,7 +159,7 @@
         #settings-overlay.open { display:flex; }
 
         .settings-panel {
-            background:var(--white); --g2-radius:var(--popup-radius); border-radius:var(--g2-radius);
+            background:var(--popup-bg); --g2-radius:var(--popup-radius); border-radius:var(--g2-radius);
             overflow:hidden; min-height:0;
             display:flex; flex-direction:column;
         }
@@ -244,7 +245,7 @@
         .shop-overlay.open { display:flex; }
 
         .shop-panel {
-            background:var(--white); --g2-radius:var(--popup-radius); border-radius:var(--g2-radius);
+            background:var(--popup-bg); --g2-radius:var(--popup-radius); border-radius:var(--g2-radius);
             overflow:hidden; min-height:0;
             display:flex; flex-direction:column;
         }
@@ -289,7 +290,7 @@
 
         .toss-layout { --popup-top:calc(var(--toss-safe-top, 0px) + 58px); --popup-bottom:calc(var(--toss-safe-bottom, 0px) + 12px); }
         .shop-header {
-            background:var(--white);
+            background:inherit;
             padding:26px 22px 28px;
             display:flex; align-items:center; flex-shrink:0;
             position:relative; z-index:10;
@@ -335,7 +336,7 @@
             pointer-events:none; transition:background-color .18s;
         }
         .shop-item {
-            --g2-surface-color:var(--bg);
+            --g2-surface-color:var(--white);
             position:relative; top:0; flex:1; min-width:0;
             background:var(--g2-surface-color); --g2-radius:var(--card-radius); border-radius:var(--g2-radius);
             padding:14px 14px; display:flex; flex-direction:column; align-items:flex-start; gap:0;
@@ -344,7 +345,7 @@
         @media (hover:hover) {
             .shop-card:hover { box-shadow:0 5px 13px rgba(0,0,0,.09); }
             .shop-card:hover .shop-item:not(.locked) {
-                top:-3px; --g2-surface-color:#f0f0f0;
+                top:-3px; --g2-surface-color:#fcfcfc;
             }
         }
         @media (prefers-reduced-motion:reduce) {
@@ -435,12 +436,12 @@
 
         .slot-buy-row {
             position:relative; --slot-ink:#714d9d; --slot-accent:#8054bb;
-            --g2-surface-color:#f1e8fc;
+            --g2-surface-color:var(--white);
             background:var(--g2-surface-color); --g2-radius:var(--slot-radius); border-radius:var(--g2-radius);
             padding:14px 16px; display:flex; align-items:center; gap:14px; transition:background-color .18s;
         }
         @media (hover:hover) {
-            .slot-buy-row:hover { --g2-surface-color:#ece0fa; }
+            .slot-buy-row:hover { --g2-surface-color:#fcf9ff; }
         }
         .slot-buy-icon { color:var(--slot-ink); font-size:32px; width:48px; text-align:center; flex-shrink:0; }
         .slot-buy-info  { flex:1; }
@@ -687,7 +688,7 @@
                     점수·과일·벌이 모두 초기화돼요
                 </div>
             </div>
-            <div id="rebirth-conditions" style="width:100%;background:var(--bg);border-radius:20px;padding:14px 18px;display:flex;flex-direction:column;gap:8px;">
+            <div id="rebirth-conditions" style="width:100%;background:var(--white);border-radius:20px;padding:14px 18px;display:flex;flex-direction:column;gap:8px;">
                 <div class="rebirth-cond" id="cond-cherry">체리 보유</div>
                 <div class="rebirth-cond" id="cond-full">3×3 그리드 꽉 채우기</div>
                 <div class="rebirth-cond" id="cond-score">60,000점 이상</div>
