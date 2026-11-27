@@ -151,14 +151,10 @@
         #camera-lock-btn:focus-visible { outline:2px solid #224d7a; outline-offset:3px; }
 
         #settings-overlay {
-            position:fixed; inset:0; background:rgba(60,40,40,.18);
-            backdrop-filter:blur(12px) saturate(1.5);
-            -webkit-backdrop-filter:blur(12px) saturate(1.5);
+            position:fixed; inset:0;
             z-index:500; display:none; align-items:center; justify-content:center;
-            opacity:0; transition:opacity .22s;
         }
-        #settings-overlay.open    { display:flex; }
-        #settings-overlay.visible { opacity:1; }
+        #settings-overlay.open { display:flex; }
 
         .settings-panel {
             background:var(--white); border-radius:28px;
@@ -238,34 +234,44 @@
         #fruit-shop-btn, #bee-shop-btn, #bucket-btn, #box-shop-btn { background:none; box-shadow:none; }
 
         .shop-overlay {
-            position:fixed; inset:0; background:rgba(60,40,40,.18);
-            backdrop-filter:blur(12px) saturate(1.5);
-            -webkit-backdrop-filter:blur(12px) saturate(1.5);
+            position:fixed; inset:0;
             z-index:500; display:none; align-items:center; justify-content:center;
-            opacity:0; transition:opacity .22s;
         }
-        .shop-overlay.open    { display:flex; }
-        .shop-overlay.visible { opacity:1; }
+        .shop-overlay.open { display:flex; }
 
         .shop-panel {
             background:var(--white); border-radius:28px;
             width:560px; max-width:94vw; max-height:88vh; overflow:hidden;
             display:flex; flex-direction:column;
             box-shadow:0 24px 60px rgba(0,0,0,.30);
-            position:relative;
         }
 
+        :is(#settings-overlay, .shop-overlay)::before {
+            content:"";
+            position:absolute; inset:0;
+            background:rgba(60,40,40,.18);
+            -webkit-backdrop-filter:blur(12px) saturate(1.5);
+            backdrop-filter:blur(12px) saturate(1.5);
+            pointer-events:none;
+            opacity:0;
+            transition:opacity .22s ease;
+        }
+        :is(#settings-overlay, .shop-overlay).visible::before { opacity:1; }
+
         :is(.settings-panel, .shop-panel) {
-            border:2px solid #000;
+            position:relative;
+            border:1px solid #000;
+            opacity:0;
             transform:translateY(16px) scale(.955);
-            transition:transform .22s ease-in;
+            transition:opacity .22s ease-in, transform .22s ease-in;
         }
         .visible > :is(.settings-panel, .shop-panel) {
+            opacity:1;
             transform:none;
             transition:transform .38s cubic-bezier(.22,1.55,.36,1);
         }
         @media (prefers-reduced-motion: reduce) {
-            #settings-overlay, .shop-overlay { transition:none; }
+            :is(#settings-overlay, .shop-overlay)::before { transition:none; }
             :is(.settings-panel, .shop-panel), .visible > :is(.settings-panel, .shop-panel) {
                 transform:none;
                 transition:none;
@@ -273,12 +279,10 @@
         }
 
         .shop-header {
-            background: rgba(255,255,255,0.55);
-            -webkit-backdrop-filter: blur(20px) saturate(2);
-            backdrop-filter: blur(20px) saturate(2);
-            border-radius:26px 26px 0 0; padding:26px 22px 28px;
+            background:var(--white);
+            padding:26px 22px 28px;
             display:flex; align-items:center; flex-shrink:0;
-            position:sticky; top:0; z-index:10;
+            position:relative; z-index:10;
         }
         .shop-title {
             position:absolute !important; left:50%; transform:translateX(-50%);
