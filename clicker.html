@@ -48,7 +48,7 @@
         body { margin:0; overflow:hidden; background:var(--bg); font-family:'Cafe24PROSlim','Apple SD Gothic Neo',sans-serif; font-weight:400; touch-action:none; color:var(--text); }
         .ui-icon { width:1.15em; height:1.15em; vertical-align:-.19em; margin-inline-end:.25em; }
         .shop-art-fallback { display:none; height:190px; place-items:center; font-size:72px; }
-        .shop-art-fallback .ui-icon, .slot-buy-icon .ui-icon, .sugar-shop-icon .ui-icon { margin:0; }
+        .shop-art-fallback .ui-icon, .slot-buy-icon .ui-icon { margin:0; }
 
         #score-wrapper { position:absolute; top:calc(40px + var(--toss-safe-top, env(safe-area-inset-top, 0px))); width:100%; display:flex; flex-direction:column; align-items:center; pointer-events:none; z-index:10; }
         #score-container { font-size:clamp(66px,11.8vw,94px); font-weight:700; }
@@ -104,14 +104,6 @@
             color:#724ba1; background:#f4eafc; border:0; padding:6px 10px;
             border-radius:999px; cursor:pointer; font:inherit;
         }
-        .sugar-shop-icon {
-            display:grid; place-items:center; width:86px; height:86px;
-            margin:1rem auto; border-radius:42% 55% 48% 43%; font-size:42px;
-            background:conic-gradient(from 45deg,#ffecb5,#f9bee1,#c4ebff,#e3d1ff,#ffecb5);
-            box-shadow:inset -5px -6px 10px #9a6bbd25,inset 7px 6px 8px #ffffffbb;
-        }
-        .sugar-shop-icon .ui-icon { width:52px; height:52px; }
-
         #flower-badge {
             display:inline-flex; align-items:center; gap:3px; margin-left:6px; vertical-align:middle;
             font-size:clamp(16px,3vw,22px); font-weight:700; line-height:1; color:#b04f8b;
@@ -331,20 +323,36 @@
             display:flex; min-width:0; border-radius:34px;
             transition:box-shadow .18s ease-out;
         }
+        .g2-outline::before, .g2-outline::after {
+            content:""; position:absolute; inset:calc(-1 * var(--g2-line-width));
+            pointer-events:none; transition:background-color .18s;
+        }
+        .g2-outline::before {
+            z-index:-1;
+            background:var(--g2-surface-color); clip-path:var(--g2-surface-path);
+        }
+        .g2-outline::after {
+            background:var(--g2-line-color); clip-path:var(--g2-outline-path);
+        }
         .shop-item {
+            --g2-line-color:var(--border);
+            --g2-surface-color:var(--bg);
             position:relative; top:0; flex:1; min-width:0;
-            background:var(--bg); border:2px solid var(--border); border-radius:34px;
+            background:var(--g2-surface-color); border:2px solid var(--g2-line-color); border-radius:34px;
             padding:14px 14px; display:flex; flex-direction:column; align-items:flex-start; gap:0;
             transition:top .18s ease-out, background-color .18s, border-color .18s;
         }
         @media (hover:hover) {
             .shop-card:hover { box-shadow:0 5px 13px rgba(0,0,0,.09); }
             .shop-card:hover .shop-item:not(.locked) {
-                top:-3px; border-color:#ddd; background-color:#f2f2f2;
+                top:-3px; --g2-line-color:#ddd; --g2-surface-color:#f2f2f2;
             }
         }
         @media (prefers-reduced-motion:reduce) {
             .shop-card:hover .shop-item:not(.locked) { top:0; transition:none; }
+        }
+        .shop-item.g2-outline, .slot-buy-row.g2-outline {
+            isolation:isolate; border-color:transparent; background:transparent;
         }
         .shop-item.locked { opacity:.4; }
 
@@ -421,12 +429,13 @@
         .shop-buy-btn:disabled { opacity:1; cursor:not-allowed; transform:none; background:#d8d8d8; box-shadow:none; color:#aaa; font-size:clamp(11px,2.2vw,13px); font-weight:400; }
 
         .slot-buy-row {
-            --slot-ink:#714d9d; --slot-accent:#8054bb;
-            background:#f1e8fc; border:2px solid #b696da; border-radius:var(--radius-sm);
+            position:relative; --slot-ink:#714d9d; --slot-accent:#8054bb;
+            --g2-line-color:#b696da; --g2-surface-color:#f1e8fc;
+            background:var(--g2-surface-color); border:2px solid var(--g2-line-color); border-radius:var(--radius-sm);
             padding:14px 16px; display:flex; align-items:center; gap:14px; transition:border-color .18s;
         }
         @media (hover:hover) {
-            .slot-buy-row:hover { border-color:#9164e3; }
+            .slot-buy-row:hover { --g2-line-color:#9164e3; }
         }
         .slot-buy-icon { color:var(--slot-ink); font-size:32px; width:48px; text-align:center; flex-shrink:0; }
         .slot-buy-info  { flex:1; }
@@ -1568,7 +1577,14 @@ try { initGame(); } catch(e) { console.error('initGame error:', e); finishInit()
 setTimeout(()=>{if(document.getElementById('loading-overlay'))finishInit();},8000);
 
 const popupArea=document.getElementById('popup-area');
+const slotIcons = {
+    'slot-box': `<path d="m3 7 9-4 9 4v10l-9 4-9-4Z" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m3 7 9 4 9-4M12 11v10M7.5 5l9 4v3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>`,
+    'slot-coin': `<circle cx="12" cy="12" r="8.7" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.7"/><path d="M12 7.5v9m-2.8-7.3H13a1.5 1.5 0 1 1 0 3h-2a1.5 1.5 0 1 0 0 3h3.8" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round"/>`,
+    'slot-check': `<circle cx="12" cy="12" r="9" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.7"/><path d="m8 12 2.7 2.7L16 9.3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>`,
+};
 function uiIcon(name) {
+    const slotIcon = slotIcons[name];
+    if (slotIcon) return `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">${slotIcon}</svg>`;
     return `<svg class="ui-icon" aria-hidden="true"><use href="./ui-icons.svg#${name}"/></svg>`;
 }
 
@@ -1699,7 +1715,7 @@ function buildBeeShopUI(){
     appendShopCard(itemsGrid, manureCard);
     const sugarCard = document.createElement('div');
     sugarCard.className = 'shop-item';
-    sugarCard.innerHTML = `<div class="shop-item-art"><div class="sugar-shop-icon" aria-hidden="true">${uiIcon('candy')}</div></div>
+    sugarCard.innerHTML = `<div class="shop-item-art"><img src="./SugarCoating.png" alt=""></div>
         <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">설탕 코팅</div>
         <div class="shop-item-clickval">과일 1개 · 누르면 얇은 코팅에 금이 가요</div></div>
         <button type="button" class="shop-buy-btn bee-btn" id="bsb-sugar">${fmtN(SUGAR_COATING_PRICE)}</button>`;
@@ -2360,7 +2376,6 @@ function updateBucketUI() {
     if (condFull)   condFull.classList.toggle('met', isFull);
     if (condScore)  { condScore.textContent = `${fmtN(tier.score)}점 이상`; condScore.classList.toggle('met', hasScore); }
     const canRebirth = hasFruit && isFull && hasScore;
-    btn.disabled = !canRebirth;
     btn.style.background = canRebirth ? 'linear-gradient(135deg,#ff6b8a,#a57bff)' : '#ccc';
     btn.style.boxShadow  = canRebirth ? '0 4px 20px rgba(165,123,255,.4)' : 'none';
     btn.style.cursor     = canRebirth ? 'pointer' : 'not-allowed';
@@ -2368,7 +2383,7 @@ function updateBucketUI() {
         ? `바구니에 담기 ${rebirthCount+1}회차 (×${(REBIRTH_MULTI()+0.5).toFixed(1)})`
         : `환생 (×${REBIRTH_MULTI().toFixed(1)})`;
     const disabledLabel = rebirthCount > 0 ? `조건 미충족 (현재 ×${REBIRTH_MULTI().toFixed(1)})` : '조건 미충족';
-    setIconText(btn, canRebirth ? rebirthLabel : disabledLabel, canRebirth ? 'sparkle' : null);
+    updatePurchaseButton(btn, !canRebirth, canRebirth ? rebirthLabel : disabledLabel);
 }
 
 window.__rebirth = async function() {
@@ -2457,26 +2472,28 @@ function updateAllUIImmediate(){
 
 // The mirrored cubic pairs meet with matching curvature and run flat
 // into the straight edges. Rebuild the contour only when a panel resizes.
-function continuousCornerPath(width, height, radius) {
-    const r = Math.min(radius, width / 2, height / 2);
+function continuousCornerPath(width, height, radius, inset = 0) {
+    const w = width - 2 * inset, h = height - 2 * inset;
+    const r = Math.min(Math.max(0, radius - inset), w / 2, h / 2);
+    const coords = (x, y) => `${(inset + x).toFixed(3)} ${(inset + y).toFixed(3)}`;
     const point = (x, y, turn) => {
         const a = x * r, b = y * r;
         switch (turn) {
-            case 0: return `${width - b} ${a}`;
-            case 1: return `${width - a} ${height - b}`;
-            case 2: return `${b} ${height - a}`;
-            default: return `${a} ${b}`;
+            case 0: return coords(w - b, a);
+            case 1: return coords(w - a, h - b);
+            case 2: return coords(b, h - a);
+            default: return coords(a, b);
         }
     };
     const corners = Array.from({length:4}, (_, turn) => {
         const p = (x, y) => point(x, y, turn);
         return `L ${p(0,1)} C ${p(0,.72)} ${p(0,.50)} ${p(.25,.25)} C ${p(.50,0)} ${p(.72,0)} ${p(1,0)}`;
     });
-    return `M ${r} 0 ${corners.join(' ')} Z`;
+    return `M ${coords(r, 0)} ${corners.join(' ')} Z`;
 }
 
 const roundedUi = [
-    '#sell-toast', '#sugar-target', '#sugar-target-cancel', '.sugar-shop-icon',
+    '#sell-toast', '#sugar-target', '#sugar-target-cancel',
     '#camera-lock-btn', '#flower-badge', '.settings-panel', '.shop-panel',
     '.settings-code-input', '.settings-select', '.settings-code-btn', '.shop-score-badge',
     '.shop-close', '.shop-item', '.shop-item-art img', '.box-probabilities',
@@ -2487,18 +2504,33 @@ const roundedUi = [
 const originalUiRadii = new WeakMap();
 function updateRoundedUi(element) {
     if (CSS.supports('corner-shape', 'superellipse(1.35)')) return;
-    const width = element.offsetWidth, height = element.offsetHeight;
-    if (!width || !height) return;
+    if (!element.offsetWidth || !element.offsetHeight) return;
     const style = getComputedStyle(element);
+    const width = parseFloat(style.width) || element.offsetWidth;
+    const height = parseFloat(style.height) || element.offsetHeight;
     const radius = originalUiRadii.get(element) ?? style.borderTopLeftRadius;
     const value = parseFloat(radius);
     if (!value) return;
     const pixels = radius.endsWith('%') ? Math.min(width, height) * value / 100 : value;
     originalUiRadii.set(element, radius);
-    // Leave enough corner paint beneath the continuous clip on older WebViews.
-    const paintRadius = parseFloat(style.borderTopWidth) ? Math.min(pixels, width / 2, height / 2) * .65 : 0;
-    element.style.borderRadius = paintRadius + 'px';
-    const clip = `path("${continuousCornerPath(width, height, pixels)}")`;
+    const lineWidth = parseFloat(style.borderTopWidth);
+    const drawOutline = lineWidth && element.matches('.shop-item, .slot-buy-row');
+    // Controls with a regular CSS border keep their native curve on older engines.
+    if (lineWidth && !drawOutline) return;
+    const path = continuousCornerPath(width, height, pixels);
+    const clip = `path("${path}")`;
+    if (drawOutline) {
+        const inside = continuousCornerPath(width, height, pixels, lineWidth);
+        const outline = `path(evenodd, "${path} ${inside}")`;
+        if (element.style.getPropertyValue('--g2-outline-path') !== outline) {
+            element.style.setProperty('--g2-surface-path', clip);
+            element.style.setProperty('--g2-outline-path', outline);
+            element.style.setProperty('--g2-line-width', lineWidth + 'px');
+        }
+        element.classList.add('g2-outline');
+        return;
+    }
+    if (element.style.borderRadius !== '0px') element.style.borderRadius = '0px';
     if (element.style.clipPath !== clip) element.style.clipPath = clip;
 }
 
