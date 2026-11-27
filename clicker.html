@@ -3260,10 +3260,10 @@ function buildSugarCells(part) {
     const away = new THREE.Vector3();
     for (const [index, vertex] of vertices.entries()) {
         if (part.isSugarDetail) {
-            vertex.addScaledVector(normals[index], 0.0075);
+            vertex.addScaledVector(normals[index], 0.010);
         } else {
             away.copy(vertex).sub(center).normalize();
-            vertex.addScaledVector(away, 0.0175);
+            vertex.addScaledVector(away, 0.024);
         }
     }
     return { cells: cells.filter(cell => cell.triangles.length), vertices, normals };
@@ -3478,7 +3478,7 @@ function updateSugarCoatings(time, elapsed) {
         const size = part.size * Math.min(1, (380 - age) / 100);
         sugarDustPose.position.copy(part.position);
         sugarDustPose.rotation.set(age * 0.013, part.spin + age * 0.010, part.spin * 0.43);
-        sugarDustPose.scale.set(size, size * 0.66, size * 0.64);
+        sugarDustPose.scale.set(size, size * 0.66, size * 0.46);
         sugarDustPose.updateMatrix();
         sugarDust.setMatrixAt(dustCount++, sugarDustPose.matrix);
     }
