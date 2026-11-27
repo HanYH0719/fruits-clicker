@@ -42,6 +42,7 @@
             --radius:   20px;
             --radius-sm:14px;
         }
+        * { corner-shape:superellipse(2); }
         * { box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
         body { margin:0; overflow:hidden; background:var(--bg); font-family:'Cafe24PROSlim','Apple SD Gothic Neo',sans-serif; font-weight:400; touch-action:none; color:var(--text); }
         .ui-icon { width:1.15em; height:1.15em; vertical-align:-.19em; margin-inline-end:.25em; }
@@ -153,15 +154,7 @@
         #camera-lock-btn[aria-pressed="true"] { background:var(--blue-lt); color:#224d7a; border-color:var(--blue); }
         #camera-lock-btn span { width:12px; }
         #camera-lock-btn[aria-pressed="false"] span { visibility:hidden; }
-        #slot-marker {
-            position:fixed; z-index:110; pointer-events:none; transform:translate(-50%,-50%);
-            background:#f2eaff; color:#654095; border:1px solid #a677ef; border-radius:999px;
-            padding:5px 10px; font-size:14px; font-weight:700; white-space:nowrap;
-        }
-        #slot-marker:not([hidden]) { animation:slot-marker-in .25s ease-out; }
-        @keyframes slot-marker-in { from { opacity:0; } }
-        @media (prefers-reduced-motion:reduce) { #slot-marker { animation:none !important; } }
-        #camera-lock-btn:focus-visible { outline:2px solid #224d7a; outline-offset:3px; }
+        #camera-lock-btn:focus-visible { outline:2px solid #224d7a; outline-offset:-3px; }
 
         #settings-overlay {
             position:fixed; inset:0;
@@ -198,13 +191,12 @@
             position:absolute; inset:0; background:#ccc; border-radius:999px;
             cursor:pointer; transition:background .25s;
         }
-        .toggle-slider::before {
-            content:''; position:absolute; width:24px; height:24px;
+        .toggle-knob { position:absolute; width:24px; height:24px;
             left:3px; bottom:3px; background:#fff; border-radius:50%;
             transition:transform .25s; box-shadow:0 1px 4px rgba(0,0,0,.15);
         }
         .toggle-switch input:checked + .toggle-slider { background:var(--green); }
-        .toggle-switch input:checked + .toggle-slider::before { transform:translateX(22px); }
+        .toggle-switch input:checked + .toggle-slider .toggle-knob { transform:translateX(22px); }
 
         .settings-code-input {
             width:100%; padding:12px 16px; border:2px solid var(--border);
@@ -271,7 +263,6 @@
 
         :is(.settings-panel, .shop-panel) {
             position:relative;
-            border:1px solid #000;
             box-shadow:0 18px 38px rgba(0,0,0,.22);
             max-height:min(88vh, calc(100% - var(--popup-top, 12px) - var(--popup-bottom, 12px)));
             margin-top:var(--popup-top, 12px); margin-bottom:var(--popup-bottom, 12px);
@@ -293,8 +284,6 @@
         }
 
         .toss-layout { --popup-top:calc(var(--toss-safe-top, 0px) + 58px); --popup-bottom:calc(var(--toss-safe-bottom, 0px) + 12px); }
-        .popup-contour { position:absolute; inset:-1px; width:calc(100% + 2px); height:calc(100% + 2px); pointer-events:none; z-index:20; }
-        .has-popup-contour { border-color:transparent !important; }
         .shop-header {
             background:var(--white);
             padding:26px 22px 28px;
@@ -339,10 +328,17 @@
 
         .shop-item-art { width:100%; margin-bottom:8px; }
         .shop-item-art img { width:100%; max-width:190px; height:clamp(86px, 29vw, 190px); object-fit:contain; display:block; margin:0 auto; border-radius:12px; }
+        #box-shop-grid { position:relative; }
         .box-probabilities {
-            grid-column:1 / -1; background:var(--white); border:1px solid var(--border);
+            position:absolute; z-index:15; width:min(190px,100%); overflow:auto;
+            transform-origin:var(--box-tip-origin, 50%) top;
+            animation:box-tip-in .23s cubic-bezier(.22,1.35,.36,1); background:var(--white); border:1px solid var(--border);
             border-radius:14px; padding:12px 16px; font-size:13px; line-height:1.7;
         }
+        @keyframes box-tip-in {
+            from { opacity:0; transform:translateY(-5px) scale(.94); }
+        }
+        @media (prefers-reduced-motion:reduce) { .box-probabilities { animation:none; } }
         .box-probabilities > strong { display:block; margin-bottom:5px; }
         .bucket-body { display:flex; flex-direction:column; align-items:center; gap:14px; }
         .bucket-art { width:clamp(112px, 36vw, 170px); aspect-ratio:1; object-fit:contain; flex:none; }
@@ -523,7 +519,6 @@
 </button>
 <button id="camera-lock-btn" type="button" aria-pressed="false">시점 고정 <span aria-hidden="true">✓</span></button>
 </div>
-<div id="slot-marker" hidden></div>
 
 <!-- 설정 오버레이 -->
 <div id="settings-overlay">
@@ -548,7 +543,7 @@
                 <span class="settings-label">과일 클릭음</span>
                 <label class="toggle-switch">
                     <input type="checkbox" id="toggle-fruit-sound" checked>
-                    <span class="toggle-slider"></span>
+                    <span class="toggle-slider"><span class="toggle-knob"></span></span>
                 </label>
             </div>
 
@@ -556,7 +551,7 @@
                 <span class="settings-label">UI 클릭음</span>
                 <label class="toggle-switch">
                     <input type="checkbox" id="toggle-ui-sound" checked>
-                    <span class="toggle-slider"></span>
+                    <span class="toggle-slider"><span class="toggle-knob"></span></span>
                 </label>
             </div>
 
@@ -567,7 +562,7 @@
                 <span class="settings-label">그림자</span>
                 <label class="toggle-switch">
                     <input type="checkbox" id="toggle-shadow" checked>
-                    <span class="toggle-slider"></span>
+                    <span class="toggle-slider"><span class="toggle-knob"></span></span>
                 </label>
             </div>
 
@@ -584,7 +579,7 @@
                 <span class="settings-label">안티앨리어싱</span>
                 <label class="toggle-switch">
                     <input type="checkbox" id="toggle-antialias" checked>
-                    <span class="toggle-slider"></span>
+                    <span class="toggle-slider"><span class="toggle-knob"></span></span>
                 </label>
             </div>
 
@@ -1241,32 +1236,48 @@ function removeFruitAt(key, idx, refund) {
     compactGrid(slot); updateAllUI(); writeSave(); return true;
 }
 
-const slotMarker = document.getElementById('slot-marker');
-const slotMarkerPosition = new THREE.Vector3();
-const slotMarkerProjection = new THREE.Vector3();
-let slotMarkerUntil = 0;
-let slotMarkerTop = 86;
+const slotHighlight = new THREE.Group();
+const slotTile = new THREE.Mesh(
+    new THREE.PlaneGeometry(GAP * .8, GAP * .8),
+    new THREE.MeshBasicMaterial({color:0xb98aff, transparent:true, depthWrite:false}),
+);
+const slotFrameShape = new THREE.Shape();
+const slotFrameHole = new THREE.Path();
+const frameSide = GAP * .41;
+slotFrameShape.moveTo(-frameSide, -frameSide);
+slotFrameShape.lineTo(frameSide, -frameSide);
+slotFrameShape.lineTo(frameSide, frameSide);
+slotFrameShape.lineTo(-frameSide, frameSide);
+slotFrameShape.closePath();
+const innerSide = frameSide - .04;
+slotFrameHole.moveTo(-innerSide, -innerSide);
+slotFrameHole.lineTo(-innerSide, innerSide);
+slotFrameHole.lineTo(innerSide, innerSide);
+slotFrameHole.lineTo(innerSide, -innerSide);
+slotFrameHole.closePath();
+slotFrameShape.holes.push(slotFrameHole);
+const slotFrame = new THREE.Mesh(new THREE.ShapeGeometry(slotFrameShape),
+    new THREE.MeshBasicMaterial({color:0x9250e6, transparent:true, depthWrite:false}));
+slotFrame.position.z = .003;
+slotTile.raycast = slotFrame.raycast = () => {};
+slotHighlight.add(slotTile, slotFrame);
+slotHighlight.rotation.x = -Math.PI / 2;
+slotHighlight.visible = false;
+scene.add(slotHighlight);
+let slotHighlightStarted = 0;
+let slotHighlightSteady = false;
 
-function updateSlotMarker(time) {
-    if (!slotMarkerUntil) return;
-    if (time >= slotMarkerUntil) {
-        slotMarkerUntil = 0;
-        slotMarker.hidden = true;
+function updateSlotHighlight(time) {
+    if (!slotHighlight.visible) return;
+    const elapsed = Math.max(0, time - slotHighlightStarted);
+    if (elapsed >= 2250) {
+        slotHighlight.visible = false;
         return;
     }
-    camera.updateMatrixWorld();
-    slotMarkerProjection.copy(slotMarkerPosition).project(camera);
-    const x = (slotMarkerProjection.x + 1) * innerWidth / 2;
-    const y = (1 - slotMarkerProjection.y) * innerHeight / 2;
-    const left = 72, right = Math.max(left, innerWidth - 72);
-    const top = Math.max(86, slotMarkerTop);
-    const bottom = Math.max(top, innerHeight - 112);
-    const arrow = x < left ? '← ' : x > right ? '→ ' : y < top ? '↑ ' : y > bottom ? '↓ ' : '';
-    const label = arrow + '새 슬롯';
-    if (slotMarker.textContent !== label) slotMarker.textContent = label;
-    slotMarker.style.left = Math.min(right, Math.max(left, x)) + 'px';
-    slotMarker.style.top = Math.min(bottom, Math.max(top, y)) + 'px';
-    slotMarker.hidden = false;
+    const pulse = slotHighlightSteady ? 1 : .5 + .5 * Math.cos(elapsed * Math.PI / 425);
+    const fade = Math.min(1, (2250 - elapsed) / 350);
+    slotTile.material.opacity = (.07 + .18 * pulse) * fade;
+    slotFrame.material.opacity = (.25 + .65 * pulse) * fade;
 }
 
 function moveCameraTo(model) {
@@ -1558,10 +1569,12 @@ window.__buySlot=function(){
     closeShop('fruit-shop-overlay');
     showSellToast(`슬롯 확장 완료! ${unlockedSlots} / ${MAX_SLOTS}칸`, 'bottom', 'check');
     const {x,z} = gridPos(nextIdx);
-    slotMarkerPosition.set(x, (floorY ?? 0) + .1, z);
-    slotMarkerTop = document.getElementById('view-actions').getBoundingClientRect().bottom + 16;
-    slotMarkerUntil = performance.now() + 3200;
-    moveCameraTo({position:slotMarkerPosition});
+    slotHighlight.position.set(x, (floorY ?? 0) + .014, z);
+    slotHighlightStarted = performance.now();
+    slotHighlightSteady = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    slotHighlight.visible = true;
+    updateSlotHighlight(slotHighlightStarted);
+    moveCameraTo(slotHighlight);
 };
 
 function buildFruitShopUI(){
@@ -2163,7 +2176,7 @@ function buildBoxShopUI(){
     probabilities.className = 'box-probabilities';
     probabilities.id = 'box-probabilities';
     probabilities.hidden = true;
-    grid.prepend(probabilities);
+    grid.append(probabilities);
     const buttons = grid.querySelectorAll('[aria-controls="box-probabilities"]');
     const panels = [
         ['과일박스 뽑기 확률', probRows],
@@ -2177,12 +2190,44 @@ function buildBoxShopUI(){
             if (open) {
                 const [title, rows] = panels[index];
                 probabilities.innerHTML = `<strong>${title}</strong>${rows}`;
-                probabilities.scrollIntoView({block:'nearest'});
+                const body = grid.closest('.shop-body');
+                const bodyBounds = body.getBoundingClientRect();
+                const gridBounds = grid.getBoundingClientRect();
+                const bounds = button.getBoundingClientRect();
+                const scale = gridBounds.width / grid.offsetWidth || 1;
+                const anchorX = (bounds.left + bounds.width / 2 - gridBounds.left) / scale;
+                const bottom = (bodyBounds.bottom - gridBounds.top) / scale;
+                const top = (bodyBounds.top - gridBounds.top) / scale;
+                probabilities.style.maxHeight = Math.max(32, bottom - top - 12) + 'px';
+                const width = probabilities.offsetWidth, height = probabilities.offsetHeight;
+                const left = Math.max(0, Math.min(grid.offsetWidth - width, anchorX - width / 2));
+                const below = (bounds.bottom - gridBounds.top) / scale + 6;
+                const above = (bounds.top - gridBounds.top) / scale - height - 6;
+                probabilities.style.left = left + 'px';
+                probabilities.style.top = Math.max(top + 6, Math.min(bottom - height - 6,
+                    below + height < bottom - 6 ? below : above)) + 'px';
+                probabilities.style.setProperty('--box-tip-origin', (anchorX - left) + 'px');
+                for (const animation of probabilities.getAnimations()) {
+                    if (animation.animationName === 'box-tip-in') animation.currentTime = 0;
+                }
+
             }
         });
     });
     updateBoxShopUI();
 }
+function closeBoxProbabilities() {
+    const tip = document.getElementById('box-probabilities');
+    if (tip) tip.hidden = true;
+    document.querySelector('#box-shop-grid [aria-expanded="true"]')?.setAttribute('aria-expanded', 'false');
+}
+const boxShopBody = document.querySelector('#box-shop-overlay .shop-body');
+boxShopBody.addEventListener('click', event => {
+    if (!event.target.closest('#box-probabilities, [aria-controls="box-probabilities"]')) closeBoxProbabilities();
+});
+boxShopBody.addEventListener('scroll', closeBoxProbabilities, {passive:true});
+window.addEventListener('resize', closeBoxProbabilities);
+
 function updateBoxShopUI(){
     const disp=document.getElementById('box-shop-score');if(disp)disp.innerText=`${fmtN(score)}점`;
     const full=nextFreeSlot()===-1;
@@ -2342,8 +2387,8 @@ function updateAllUIImmediate(){
 
 // The mirrored cubic pairs meet with matching curvature and run flat
 // into the straight edges. Rebuild the contour only when a panel resizes.
-function popupContourPath(width, height) {
-    const r = Math.min(30, width / 2, height / 2);
+function continuousCornerPath(width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
     const point = (x, y, turn) => {
         const a = x * r, b = y * r;
         switch (turn) {
@@ -2360,33 +2405,51 @@ function popupContourPath(width, height) {
     return `M ${r} 0 ${corners.join(' ')} Z`;
 }
 
-const popupContours = new WeakMap();
-function updatePopupContour(panel) {
-    const width = panel.offsetWidth, height = panel.offsetHeight;
+const roundedUi = [
+    '#sell-toast', '#sugar-target', '#sugar-target-cancel', '.sugar-shop-icon',
+    '#camera-lock-btn', '#flower-badge', '.settings-panel', '.shop-panel', '.toggle-slider', '.toggle-knob',
+    '.settings-code-input', '.settings-select', '.settings-code-btn', '.shop-score-badge',
+    '.shop-close', '.shop-item', '.shop-item-art img', '.box-probabilities',
+    '.shop-buy-btn', '.slot-buy-row', '.slot-buy-btn', '.loading-bar-wrap', '.loading-bar',
+    '[style*="border-radius"]',
+].join(',');
+
+const originalUiRadii = new WeakMap();
+function updateRoundedUi(element) {
+    if (CSS.supports('corner-shape', 'superellipse(2)')) return;
+    const width = element.offsetWidth, height = element.offsetHeight;
     if (!width || !height) return;
-    let contour = popupContours.get(panel);
-    if (!contour) {
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.classList.add('popup-contour');
-        svg.setAttribute('aria-hidden', 'true');
-        contour = document.createElementNS(svg.namespaceURI, 'path');
-        contour.setAttribute('fill', 'none');
-        contour.setAttribute('stroke', '#000');
-        contour.setAttribute('stroke-width', '2');
-        svg.append(contour);
-        panel.append(svg);
-        popupContours.set(panel, contour);
-    }
-    const path = popupContourPath(width, height);
-    contour.setAttribute('d', path);
-    panel.style.clipPath = `path("${path}")`;
-    panel.classList.add('has-popup-contour');
+    const style = getComputedStyle(element);
+    const radius = originalUiRadii.get(element) ?? style.borderTopLeftRadius;
+    const value = parseFloat(radius);
+    if (!value) return;
+    const pixels = radius.endsWith('%') ? Math.min(width, height) * value / 100 : value;
+    originalUiRadii.set(element, radius);
+    // Leave enough corner paint beneath the continuous clip on older WebViews.
+    const paintRadius = parseFloat(style.borderTopWidth) ? Math.min(pixels, width / 2, height / 2) * .65 : 0;
+    element.style.borderRadius = paintRadius + 'px';
+    element.style.clipPath = `path("${continuousCornerPath(width, height, pixels)}")`;
 }
 
-const popupResizeObserver = new ResizeObserver(entries => {
-    entries.forEach(({target}) => updatePopupContour(target));
+const roundedUiObserver = new ResizeObserver(entries => {
+    entries.forEach(({target}) => updateRoundedUi(target));
 });
-document.querySelectorAll('.settings-panel, .shop-panel').forEach(panel => popupResizeObserver.observe(panel));
+function observeRoundedUi(root) {
+    if (!(root instanceof Element)) return;
+    if (root.matches(roundedUi)) roundedUiObserver.observe(root, {box:'border-box'});
+    root.querySelectorAll(roundedUi).forEach(element => roundedUiObserver.observe(element, {box:'border-box'}));
+}
+observeRoundedUi(document.body);
+new MutationObserver(records => {
+    for (const record of records) {
+        record.addedNodes.forEach(observeRoundedUi);
+        record.removedNodes.forEach(node => {
+            if (!(node instanceof Element)) return;
+            if (node.matches(roundedUi)) roundedUiObserver.unobserve(node);
+            node.querySelectorAll(roundedUi).forEach(element => roundedUiObserver.unobserve(element));
+        });
+    }
+}).observe(document.body, {childList:true, subtree:true});
 
 const popupCloseTimers = new WeakMap();
 function openShop(id){
@@ -2397,7 +2460,7 @@ function openShop(id){
     if (!ov.classList.contains('open')) {
         ov.classList.add('open');
         // Commit the starting style before making the popup visible.
-        updatePopupContour(ov.firstElementChild);
+        updateRoundedUi(ov.firstElementChild);
     }
     ov.classList.add('visible');
     if (id === 'settings-overlay') return;
@@ -2409,10 +2472,7 @@ function closeShop(id){
     const ov = document.getElementById(id);
     if (!ov.classList.contains('visible')) return;
     ov.classList.remove('visible');
-    if (id === 'box-shop-overlay') {
-        document.getElementById('box-probabilities').hidden = true;
-        ov.querySelector('[aria-expanded="true"]')?.setAttribute('aria-expanded', 'false');
-    }
+    if (id === 'box-shop-overlay') closeBoxProbabilities();
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         ov.classList.remove('open');
         return;
@@ -3857,7 +3917,7 @@ function animate(t=performance.now()){
     if (_frameCount % 4 === 0) updateFruitIdle(t);
     updateFruitContactShadows();
     if (!cameraLocked) controls.update();
-    updateSlotMarker(t);
+    updateSlotHighlight(t);
     renderer.render(scene,camera);
 }
 animate();
