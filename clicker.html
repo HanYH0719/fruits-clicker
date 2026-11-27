@@ -40,10 +40,12 @@
             --shadow:   0 4px 20px rgba(0,0,0,.18);
             --shadow-lg:0 8px 40px rgba(0,0,0,.26);
             --radius:   20px;
-            --radius-sm:25px;
+            --slot-radius:25px;
+            --card-radius:34px;
+            --purchase-radius:999px;
             --popup-radius:38px;
         }
-        * { corner-shape:superellipse(1.35); }
+        * { corner-shape:superellipse(1.35); --g2-radius:initial; }
         * { box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
         body { margin:0; overflow:hidden; background:var(--bg); font-family:'Cafe24PROSlim','Apple SD Gothic Neo',sans-serif; font-weight:400; touch-action:none; color:var(--text); }
         .ui-icon { width:1.15em; height:1.15em; vertical-align:-.19em; margin-inline-end:.25em; }
@@ -81,7 +83,7 @@
             background:var(--white); color:var(--pink);
             font-size:clamp(19px,4.1vw,24px);
             padding:16px 28px; font-weight:400;
-            border-radius:999px; border:2.5px solid var(--pink-lt);
+            border-radius:999px;
             box-shadow:var(--shadow-lg);
             z-index:1100; pointer-events:none; opacity:0;
             transition:all .25s cubic-bezier(.34,1.56,.64,1);
@@ -96,7 +98,7 @@
             position:fixed; z-index:140; left:50%; transform:translateX(-50%);
             bottom:calc(108px + var(--toss-safe-bottom, env(safe-area-inset-bottom, 0px)));
             display:flex; gap:10px; align-items:center; padding:8px 10px 8px 15px;
-            background:#fff; border:2px solid #eadcf5; border-radius:999px;
+            background:#f9f3ff; border:0; border-radius:999px;
             box-shadow:var(--shadow); white-space:nowrap; font-size:15px;
         }
         #sugar-target[hidden] { display:none; }
@@ -118,7 +120,7 @@
             position:fixed; bottom:90px; left:50%; transform:translateX(-50%);
             background:var(--white); color:#777;
             font-size:clamp(14px,2.9vw,15px); padding:9px 20px; border-radius:999px;
-            pointer-events:none; z-index:50; border:2px solid var(--border);
+            pointer-events:none; z-index:50;
             box-shadow:var(--shadow); opacity:0; transition:opacity .4s; font-weight:400;
         }
         #hold-hint.visible { opacity:1; }
@@ -140,11 +142,11 @@
         #camera-lock-btn {
             display:flex; align-items:center; justify-content:center; gap:4px;
             min-width:76px; min-height:44px; padding:0 8px;
-            background:var(--white); color:var(--text); border:1.5px solid var(--border); border-radius:999px;
+            background:var(--white); color:var(--text); border:0; border-radius:999px;
             box-shadow:0 2px 8px rgba(0,0,0,.10); font:inherit; font-size:14px; font-weight:700; cursor:pointer;
         }
-        #camera-lock-btn { transition:background-color .18s, color .18s, border-color .18s; }
-        #camera-lock-btn[aria-pressed="true"] { background:var(--blue-lt); color:#224d7a; border-color:var(--blue); }
+        #camera-lock-btn { transition:background-color .18s, color .18s; }
+        #camera-lock-btn[aria-pressed="true"] { background:var(--blue-lt); color:#224d7a; }
         #camera-lock-btn span { width:12px; }
         #camera-lock-btn[aria-pressed="false"] span { visibility:hidden; }
         #camera-lock-btn:focus-visible { outline:2px solid #224d7a; outline-offset:-3px; }
@@ -156,7 +158,7 @@
         #settings-overlay.open { display:flex; }
 
         .settings-panel {
-            background:var(--white); border-radius:var(--popup-radius);
+            background:var(--white); --g2-radius:var(--popup-radius); border-radius:var(--g2-radius);
             overflow:hidden; min-height:0;
             display:flex; flex-direction:column;
         }
@@ -194,23 +196,24 @@
         .toggle-switch input:checked + .toggle-slider::before { transform:translateX(22px); }
 
         .settings-code-input {
-            width:100%; padding:12px 16px; border:2px solid var(--border);
+            width:100%; padding:12px 16px; border:0;
             border-radius:20px; font-family:inherit; font-size:clamp(14px,2.8vw,16px);
             color:var(--text); background:var(--bg); outline:none;
-            transition:border-color .2s;
+            transition:background-color .2s;
         }
-        .settings-code-input:focus { border-color:var(--blue); }
+        :is(.settings-code-input,.settings-select):focus {
+            outline:2px solid var(--blue); outline-offset:-3px;
+        }
         .settings-code-input::placeholder { color:#bbb; }
 
         .settings-select {
             appearance:none; -webkit-appearance:none;
             background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23aaa' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 12px center;
-            border:2px solid var(--border); border-radius:15px;
+            border:0; border-radius:15px;
             padding:7px 32px 7px 12px; font-family:inherit;
             font-size:clamp(13px,2.6vw,15px); color:var(--text);
-            cursor:pointer; outline:none; transition:border-color .2s; flex-shrink:0;
+            cursor:pointer; flex-shrink:0;
         }
-        .settings-select:focus { border-color:var(--blue); }
 
         .settings-code-btn {
             background:var(--blue); color:#fff; border:none; padding:10px 0;
@@ -241,7 +244,7 @@
         .shop-overlay.open { display:flex; }
 
         .shop-panel {
-            background:var(--white); border-radius:var(--popup-radius);
+            background:var(--white); --g2-radius:var(--popup-radius); border-radius:var(--g2-radius);
             overflow:hidden; min-height:0;
             display:flex; flex-direction:column;
         }
@@ -320,40 +323,34 @@
         .shop-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 
         .shop-card {
-            display:flex; min-width:0; border-radius:34px;
+            display:flex; min-width:0; border-radius:var(--card-radius);
             transition:box-shadow .18s ease-out;
         }
-        .g2-outline::before, .g2-outline::after {
-            content:""; position:absolute; inset:calc(-1 * var(--g2-line-width));
+        .g2-surface {
+            isolation:isolate; background:transparent;
+        }
+        .g2-surface::before {
+            content:""; position:absolute; inset:0; z-index:-1;
+            background:var(--g2-surface-color); clip-path:var(--g2-surface-path);
             pointer-events:none; transition:background-color .18s;
         }
-        .g2-outline::before {
-            z-index:-1;
-            background:var(--g2-surface-color); clip-path:var(--g2-surface-path);
-        }
-        .g2-outline::after {
-            background:var(--g2-line-color); clip-path:var(--g2-outline-path);
-        }
         .shop-item {
-            --g2-line-color:var(--border);
             --g2-surface-color:var(--bg);
             position:relative; top:0; flex:1; min-width:0;
-            background:var(--g2-surface-color); border:2px solid var(--g2-line-color); border-radius:34px;
+            background:var(--g2-surface-color); --g2-radius:var(--card-radius); border-radius:var(--g2-radius);
             padding:14px 14px; display:flex; flex-direction:column; align-items:flex-start; gap:0;
-            transition:top .18s ease-out, background-color .18s, border-color .18s;
+            transition:top .18s ease-out, background-color .18s;
         }
         @media (hover:hover) {
             .shop-card:hover { box-shadow:0 5px 13px rgba(0,0,0,.09); }
             .shop-card:hover .shop-item:not(.locked) {
-                top:-3px; --g2-line-color:#ddd; --g2-surface-color:#f2f2f2;
+                top:-3px; --g2-surface-color:#f0f0f0;
             }
         }
         @media (prefers-reduced-motion:reduce) {
             .shop-card:hover .shop-item:not(.locked) { top:0; transition:none; }
         }
-        .shop-item.g2-outline, .slot-buy-row.g2-outline {
-            isolation:isolate; border-color:transparent; background:transparent;
-        }
+        :is(.shop-item,.slot-buy-row).g2-surface { background:transparent; }
         .shop-item.locked { opacity:.4; }
 
         .shop-item-art { width:100%; margin-bottom:8px; }
@@ -378,6 +375,12 @@
         .bucket-body { display:flex; flex-direction:column; align-items:center; gap:14px; }
         .bucket-art { width:clamp(112px, 36vw, 170px); aspect-ratio:1; object-fit:contain; flex:none; }
         @media (max-width:600px) {
+            :root {
+                --popup-radius:24px;
+                --slot-radius:15px;
+                --card-radius:19px;
+                --purchase-radius:11px;
+            }
             .shop-header { padding:12px 13px; min-height:58px; }
             .shop-title { font-size:clamp(21px, 7vw, 34px); }
             .shop-score-badge { padding:5px 10px; font-size:13px; }
@@ -399,7 +402,7 @@
         .shop-item-clickval { color:#888; font-size:clamp(14px,2.8vw,16px); margin-top:3px; font-weight:400; }
 
         .shop-buy-btn {
-            background:var(--blue); color:#fff; border:none; padding:10px 0; border-radius:999px;
+            background:var(--blue); color:#fff; border:none; padding:10px 0; --g2-radius:var(--purchase-radius); border-radius:var(--g2-radius);
             cursor:pointer; font-family:inherit; font-size:clamp(13px,2.6vw,15px); font-weight:700;
             white-space:nowrap; width:100%;
             --buy-shadow:0 3px 12px rgba(91,159,255,.35); text-align:center;
@@ -430,12 +433,12 @@
 
         .slot-buy-row {
             position:relative; --slot-ink:#714d9d; --slot-accent:#8054bb;
-            --g2-line-color:#b696da; --g2-surface-color:#f1e8fc;
-            background:var(--g2-surface-color); border:2px solid var(--g2-line-color); border-radius:var(--radius-sm);
-            padding:14px 16px; display:flex; align-items:center; gap:14px; transition:border-color .18s;
+            --g2-surface-color:#f1e8fc;
+            background:var(--g2-surface-color); --g2-radius:var(--slot-radius); border-radius:var(--g2-radius);
+            padding:14px 16px; display:flex; align-items:center; gap:14px; transition:background-color .18s;
         }
         @media (hover:hover) {
-            .slot-buy-row:hover { --g2-line-color:#9164e3; }
+            .slot-buy-row:hover { --g2-surface-color:#ece0fa; }
         }
         .slot-buy-icon { color:var(--slot-ink); font-size:32px; width:48px; text-align:center; flex-shrink:0; }
         .slot-buy-info  { flex:1; }
@@ -444,7 +447,7 @@
         .slot-buy-price { color:var(--slot-ink); font-size:clamp(13px,2.9vw,14px); font-weight:400; }
         .slot-buy-count { color:var(--text-sub); font-size:clamp(13px,2.9vw,14px); font-weight:400; }
         .slot-buy-btn {
-            background:var(--slot-accent); color:#fff; border:none; padding:9px 17px; border-radius:999px;
+            background:var(--slot-accent); color:#fff; border:none; padding:9px 17px; --g2-radius:var(--purchase-radius); border-radius:var(--g2-radius);
             cursor:pointer; font-family:inherit; font-size:clamp(14px,2.9vw,15px); font-weight:700;
             white-space:nowrap; flex-shrink:0; min-width:72px;
             --buy-shadow:0 3px 12px rgba(128,84,187,.28);
@@ -2472,11 +2475,10 @@ function updateAllUIImmediate(){
 
 // The mirrored cubic pairs meet with matching curvature and run flat
 // into the straight edges. Rebuild the contour only when a panel resizes.
-function continuousCornerPath(width, height, radius, inset = 0) {
-    const w = width - 2 * inset, h = height - 2 * inset;
+function continuousCornerPath(w, h, radius) {
     // Extra runout makes the gradual turn visible at phone sizes.
-    const r = Math.min(Math.max(0, radius * 1.25 - inset), w / 2, h / 2);
-    const coords = (x, y) => `${(inset + x).toFixed(3)} ${(inset + y).toFixed(3)}`;
+    const r = Math.min(radius * 1.25, w / 2, h / 2);
+    const coords = (x, y) => `${x.toFixed(3)} ${y.toFixed(3)}`;
     const point = (x, y, turn) => {
         const a = x * r, b = y * r;
         switch (turn) {
@@ -2508,26 +2510,18 @@ function updateRoundedUi(element) {
     const style = getComputedStyle(element);
     const width = parseFloat(style.width) || element.offsetWidth;
     const height = parseFloat(style.height) || element.offsetHeight;
-    const radius = originalUiRadii.get(element) ?? style.borderTopLeftRadius;
+    const radius = style.getPropertyValue('--g2-radius').trim() || originalUiRadii.get(element) || style.borderTopLeftRadius;
     const value = parseFloat(radius);
     if (!value) return;
     const pixels = radius.endsWith('%') ? Math.min(width, height) * value / 100 : value;
     originalUiRadii.set(element, radius);
-    const lineWidth = parseFloat(style.borderTopWidth);
-    const drawOutline = lineWidth && element.matches('.shop-item, .slot-buy-row');
-    // Keep native borders for controls whose outline is painted by the browser.
-    if (lineWidth && !drawOutline) return;
-    const path = continuousCornerPath(width, height, pixels);
-    const clip = `path("${path}")`;
-    if (drawOutline) {
-        const inside = continuousCornerPath(width, height, pixels, lineWidth);
-        const outline = `path(evenodd, "${path} ${inside}")`;
-        if (element.style.getPropertyValue('--g2-outline-path') !== outline) {
+    if (parseFloat(style.borderTopWidth)) return;
+    const clip = `path("${continuousCornerPath(width, height, pixels)}")`;
+    if (element.matches('.shop-item, .slot-buy-row')) {
+        if (element.style.getPropertyValue('--g2-surface-path') !== clip) {
             element.style.setProperty('--g2-surface-path', clip);
-            element.style.setProperty('--g2-outline-path', outline);
-            element.style.setProperty('--g2-line-width', lineWidth + 'px');
         }
-        element.classList.add('g2-outline');
+        element.classList.add('g2-surface');
         return;
     }
     if (element.style.borderRadius !== '0px') element.style.borderRadius = '0px';
@@ -2560,6 +2554,10 @@ document.querySelectorAll('.settings-panel, .shop-panel').forEach(panel => {
     motion.className = 'popup-motion';
     panel.before(motion);
     motion.append(panel);
+});
+
+matchMedia('(max-width:600px)').addEventListener('change', () => {
+    document.querySelectorAll(roundedUi).forEach(updateRoundedUi);
 });
 
 const popupCloseAnimations = new WeakMap();
