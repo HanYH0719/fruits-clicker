@@ -163,6 +163,66 @@
             display:flex; flex-direction:column;
         }
 
+        .tutorial-replay {
+            display:flex; align-items:center; justify-content:space-between; gap:12px;
+            min-height:44px; padding:10px 15px; border:0; border-radius:16px;
+            background:#eee8fa; color:#593986; font:inherit; font-weight:700; cursor:pointer;
+        }
+        #tutorial {
+            --tutorial-accent:#a84c5a; --tutorial-wash:#ffebee;
+            --tutorial-bottom:max(14px, var(--toss-safe-bottom, env(safe-area-inset-bottom, 0px)));
+            position:fixed; inset:0; margin:auto;
+            width:min(408px, calc(100% - 32px)); max-width:none;
+            max-height:calc(100% - var(--tutorial-top, 16px) - var(--tutorial-bottom));
+            padding:20px; border:0; border-radius:26px; background:var(--white); color:var(--text);
+            overflow:auto; overscroll-behavior:contain; touch-action:pan-y;
+            box-shadow:0 18px 54px #30273845;
+        }
+        .toss-layout #tutorial {
+            --tutorial-top:calc(var(--toss-safe-top, 0px) + 58px);
+            top:var(--tutorial-top); bottom:var(--tutorial-bottom); max-height:none;
+        }
+        #tutorial[open] { animation:popup-enter .36s cubic-bezier(.22,1.4,.36,1) both; }
+        #tutorial::backdrop { background:#2d23365c; backdrop-filter:blur(5px); }
+        #tutorial[data-step="1"] { --tutorial-accent:#406d48; --tutorial-wash:#eaf6e8; }
+        #tutorial[data-step="2"] { --tutorial-accent:#745195; --tutorial-wash:#f3ebff; }
+        .tutorial-toolbar, .tutorial-actions { display:flex; align-items:center; gap:10px; }
+        .tutorial-progress { display:flex; gap:5px; margin-right:auto; }
+        .tutorial-progress span { width:19px; height:5px; border-radius:5px; background:#eae6ed; }
+        .tutorial-progress span.current { background:var(--tutorial-accent); }
+        #tutorial button { font:inherit; cursor:pointer; }
+        #tutorial button:focus-visible, .tutorial-replay:focus-visible {
+            outline:2px solid #593986; outline-offset:-3px;
+        }
+        #tutorial-skip, #tutorial-prev {
+            background:transparent; color:#625a6d; border:0; border-radius:12px; min-height:44px;
+            white-space:nowrap; padding:0 10px;
+        }
+        #tutorial-art {
+            margin:4px 0 15px; min-height:112px; height:clamp(112px, 26dvh, 194px);
+            position:relative; display:grid; place-items:center; border-radius:19px;
+            background:radial-gradient(ellipse at 50% 45%, white, var(--tutorial-wash) 76%);
+        }
+        #tutorial-image {
+            position:absolute; inset:0; width:100%; height:100%; object-fit:contain; padding:8px 26px;
+        }
+        #tutorial-tap {
+            position:absolute; inset:0; display:flex; justify-content:center; align-items:end;
+            background:none; border:0; border-radius:inherit; padding:5px;
+        }
+        #tutorial-tap span {
+            background:var(--white); color:var(--tutorial-accent); font-size:13px; font-weight:700;
+            border-radius:9px; padding:3px 9px;
+        }
+        #tutorial-tap[hidden], #tutorial-prev[hidden] { display:none; }
+        #tutorial-title { font-size:clamp(22px, 6vw, 28px); margin:0 0 7px; line-height:1.15; }
+        #tutorial-copy { margin:0 0 15px; color:#57515f; font-size:16px; line-height:1.5; }
+        #tutorial-next {
+            min-height:46px; flex:1; padding:8px 14px; border:0; border-radius:14px;
+            background:var(--tutorial-accent); color:white; font-weight:700;
+        }
+        @media (prefers-reduced-motion:reduce) { #tutorial[open] { animation:none; } }
+
         .settings-body {
             padding:24px 24px 28px; display:flex; flex-direction:column; gap:20px;
             overflow-y:auto; flex:1; touch-action:pan-y; -webkit-overflow-scrolling:touch;
@@ -603,6 +663,9 @@
             <button class="shop-close shop-header-right" id="settings-close">✕</button>
         </div>
         <div class="settings-body">
+            <button class="tutorial-replay" id="tutorial-replay" type="button">
+                튜토리얼 다시 보기 <span aria-hidden="true">›</span>
+            </button>
             <!-- debug-code:start -->
             <div style="display:flex;flex-direction:column;gap:8px;">
                 <div class="settings-label">코드 입력</div>
@@ -668,6 +731,25 @@
         </div>
     </div>
 </div>
+
+<dialog id="tutorial" aria-labelledby="tutorial-title" aria-describedby="tutorial-copy">
+    <div class="tutorial-toolbar">
+        <div class="tutorial-progress" aria-hidden="true"><span></span><span></span><span></span></div>
+        <button id="tutorial-skip" type="button">건너뛰기</button>
+    </div>
+    <div id="tutorial-art">
+        <img id="tutorial-image" alt="">
+        <button id="tutorial-tap" type="button"><span>눌러보기</span></button>
+    </div>
+    <div aria-live="polite" aria-atomic="true">
+        <h2 id="tutorial-title"></h2>
+        <p id="tutorial-copy"></p>
+    </div>
+    <div class="tutorial-actions">
+        <button id="tutorial-prev" type="button">이전</button>
+        <button id="tutorial-next" type="button">다음</button>
+    </div>
+</dialog>
 
 <div id="bottom-btns">
     <button class="bottom-btn img-btn" id="box-shop-btn">
@@ -1587,13 +1669,16 @@ function finishInit(){
     if (status) status.textContent = '완료';
     setTimeout(() => {
         const ov=document.getElementById('loading-overlay');
-        if(ov){ov.classList.add('fade');setTimeout(()=>ov.remove(),700);}
+        if(ov && !ov.classList.contains('fade')){
+            ov.classList.add('fade');
+            setTimeout(() => {
+                ov.remove();
+                if (!Object.keys(save).length && !tutorialWasSeen()) openTutorial(true);
+            }, 700);
+        }
     }, 400);
-    if(!save.hint){setTimeout(()=>{document.getElementById('hold-hint').classList.add('visible');setTimeout(()=>document.getElementById('hold-hint').classList.remove('visible'),3500);},2500);}
+    if(Object.keys(save).length && !save.hint){setTimeout(()=>{document.getElementById('hold-hint').classList.add('visible');setTimeout(()=>document.getElementById('hold-hint').classList.remove('visible'),3500);},2500);}
 }
-
-try { initGame(); } catch(e) { console.error('initGame error:', e); finishInit(); }
-setTimeout(()=>{if(document.getElementById('loading-overlay'))finishInit();},8000);
 
 const popupArea=document.getElementById('popup-area');
 const slotIcons = {
@@ -2525,7 +2610,8 @@ function continuousCornerPath(w, h, radius) {
 }
 
 const roundedUi = [
-    '#sell-toast', '#sugar-target', '#sugar-target-cancel',
+    '#sell-toast', '#sugar-target', '#sugar-target-cancel', '#tutorial', '#tutorial-art',
+    '.tutorial-replay', '#tutorial-next',
     '#camera-lock-btn', '#flower-badge', '.settings-panel', '.shop-panel',
     '.settings-code-input', '.settings-select', '.settings-code-btn', '.shop-score-badge',
     '.shop-close', '.shop-item', '.shop-item-art img', '.box-probabilities',
@@ -2738,7 +2824,120 @@ document.getElementById('bucket-overlay').addEventListener('click',e=>{if(e.targ
     // debug-handler:end
 }
 
+const tutorial = document.getElementById('tutorial');
+const tutorialImage = document.getElementById('tutorial-image');
+const tutorialTap = document.getElementById('tutorial-tap');
+const tutorialNext = document.getElementById('tutorial-next');
+const tutorialPrev = document.getElementById('tutorial-prev');
+const tutorialProgress = [...tutorial.querySelectorAll('.tutorial-progress span')];
+const tutorialKey = `${SAVE_KEY ?? 'fc'}:tutorial-v1`;
+const tutorialPages = [
+    {
+        image:'./Apple.png', title:'과일을 톡톡 눌러요',
+        copy:'과일을 누를 때마다 점수가 쌓여요. 길게 누르면 과일을 판매할 수 있어요.',
+    },
+    {
+        image:'./FruitStore.PNG', title:'첫 사과는 무료예요',
+        copy:'과일상점에서 사과를 무료로 받고, 모은 점수로 새 과일이나 슬롯을 열어요.',
+    },
+    {
+        image:'./SugarCoating.png', title:'벌과 설탕 코팅',
+        copy:'벌을 붙이면 점수가 자동으로 쌓여요. 설탕 코팅을 입힌 과일을 누르면 바삭하게 갈라져요.',
+    },
+];
+let tutorialPage = 0;
+let tutorialFirstRun = false;
+let tutorialSeen = false;
+let tutorialTapMotion;
+
+function tutorialWasSeen() {
+    try { return tutorialSeen || localStorage.getItem(tutorialKey) === '1'; }
+    catch { return tutorialSeen; }
+}
+
+function renderTutorial() {
+    const page = tutorialPages[tutorialPage];
+    tutorial.dataset.step = String(tutorialPage);
+    tutorialImage.src = page.image;
+    document.getElementById('tutorial-title').textContent = page.title;
+    document.getElementById('tutorial-copy').textContent = page.copy;
+    tutorialTap.hidden = tutorialPage !== 0;
+    tutorialPrev.hidden = tutorialPage === 0;
+    tutorialProgress.forEach((step, index) => step.classList.toggle('current', index <= tutorialPage));
+    tutorialNext.textContent = tutorialPage < tutorialPages.length - 1
+        ? '다음' : tutorialFirstRun ? '과일상점 열기' : '완료';
+    tutorial.scrollTop = 0;
+}
+
+function openTutorial(firstRun = false) {
+    if (tutorial.open) return;
+    tutorialFirstRun = firstRun;
+    tutorialPage = 0;
+    renderTutorial();
+    tutorial.showModal();
+    tutorialNext.focus({preventScroll:true});
+}
+
+function finishTutorial(showShop = false) {
+    tutorialSeen = true;
+    try { localStorage.setItem(tutorialKey, '1'); } catch {}
+    const firstRun = tutorialFirstRun;
+    tutorialTapMotion?.cancel();
+    tutorial.close();
+    if (showShop) {
+        openShop('fruit-shop-overlay');
+        document.getElementById('fsb-apple')?.focus({preventScroll:true});
+    } else {
+        const button = firstRun ? 'fruit-shop-btn' : 'settings-btn';
+        document.getElementById(button).focus({preventScroll:true});
+    }
+}
+
+document.getElementById('tutorial-replay').addEventListener('click', () => {
+    playUIClick();
+    closeShop('settings-overlay');
+    openTutorial();
+});
+document.getElementById('tutorial-skip').addEventListener('click', () => {
+    playUIClick();
+    finishTutorial();
+});
+tutorial.addEventListener('cancel', event => {
+    event.preventDefault();
+    finishTutorial();
+});
+tutorialPrev.addEventListener('click', () => {
+    playUIClick();
+    tutorialPage--;
+    tutorialTapMotion?.cancel();
+    renderTutorial();
+    if (tutorialPrev.hidden) tutorialNext.focus({preventScroll:true});
+});
+tutorialNext.addEventListener('click', () => {
+    if (tutorialPage === tutorialPages.length - 1) {
+        if (!tutorialFirstRun) playUIClick();
+        finishTutorial(tutorialFirstRun);
+        return;
+    }
+    playUIClick();
+    tutorialPage++;
+    tutorialTapMotion?.cancel();
+    renderTutorial();
+});
+tutorialTap.addEventListener('click', event => {
+    playFruitClick('apple', false, event);
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    tutorialTapMotion?.cancel();
+    tutorialTapMotion = tutorialImage.animate([
+        { transform:'none' },
+        { transform:'scale(1.10,.86)', offset:.25 },
+        { transform:'scale(.99,1.04)', offset:.65 },
+        { transform:'none' },
+    ], { duration:310, easing:'ease-out' });
+});
+
 const anyShopOpen=()=>
+    tutorial.open||
     document.getElementById('fruit-shop-overlay').classList.contains('open')||
     document.getElementById('bee-shop-overlay').classList.contains('open')||
     document.getElementById('box-shop-overlay').classList.contains('open')||
@@ -2747,6 +2946,10 @@ const anyShopOpen=()=>
 
 if (tossPlatform) {
     tossPlatform.onBack(() => {
+        if (tutorial.open) {
+            finishTutorial();
+            return;
+        }
         const shop = document.querySelector('.shop-overlay.open, #settings-overlay.open');
         if (shop) {
             closeShop(shop.id);
@@ -4064,6 +4267,8 @@ function animate(t=performance.now()){
     updateSlotHighlight(t);
     renderer.render(scene,camera);
 }
+try { initGame(); } catch(e) { console.error('initGame error:', e); finishInit(); }
+setTimeout(()=>{if(document.getElementById('loading-overlay'))finishInit();},8000);
 animate();
 
 window.addEventListener('resize',()=>{const nA=window.innerWidth/window.innerHeight;camera.left=-FRUS*nA/2;camera.right=FRUS*nA/2;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight);});
