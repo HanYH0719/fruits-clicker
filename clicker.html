@@ -40,7 +40,7 @@
             --shadow:   0 4px 20px rgba(0,0,0,.18);
             --shadow-lg:0 8px 40px rgba(0,0,0,.26);
             --radius:   20px;
-            --radius-sm:14px;
+            --radius-sm:20px;
         }
         * { corner-shape:superellipse(2); }
         * { box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
@@ -163,7 +163,7 @@
         #settings-overlay.open { display:flex; }
 
         .settings-panel {
-            background:var(--white); border-radius:28px;
+            background:var(--white); border-radius:38px;
             width:420px; max-width:90vw; max-height:88vh; overflow:hidden;
             display:flex; flex-direction:column;
         }
@@ -188,19 +188,21 @@
         }
         .toggle-switch input { opacity:0; width:0; height:0; }
         .toggle-slider {
+            corner-shape:round;
             position:absolute; inset:0; background:#ccc; border-radius:999px;
             cursor:pointer; transition:background .25s;
         }
-        .toggle-knob { position:absolute; width:24px; height:24px;
+        .toggle-slider::before {
+            content:''; position:absolute; width:24px; height:24px;
             left:3px; bottom:3px; background:#fff; border-radius:50%;
             transition:transform .25s; box-shadow:0 1px 4px rgba(0,0,0,.15);
         }
         .toggle-switch input:checked + .toggle-slider { background:var(--green); }
-        .toggle-switch input:checked + .toggle-slider .toggle-knob { transform:translateX(22px); }
+        .toggle-switch input:checked + .toggle-slider::before { transform:translateX(22px); }
 
         .settings-code-input {
             width:100%; padding:12px 16px; border:2px solid var(--border);
-            border-radius:14px; font-family:inherit; font-size:clamp(14px,2.8vw,16px);
+            border-radius:20px; font-family:inherit; font-size:clamp(14px,2.8vw,16px);
             color:var(--text); background:var(--bg); outline:none;
             transition:border-color .2s;
         }
@@ -210,7 +212,7 @@
         .settings-select {
             appearance:none; -webkit-appearance:none;
             background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23aaa' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 12px center;
-            border:2px solid var(--border); border-radius:10px;
+            border:2px solid var(--border); border-radius:15px;
             padding:7px 32px 7px 12px; font-family:inherit;
             font-size:clamp(13px,2.6vw,15px); color:var(--text);
             cursor:pointer; outline:none; transition:border-color .2s; flex-shrink:0;
@@ -221,10 +223,12 @@
             background:var(--blue); color:#fff; border:none; padding:10px 0;
             border-radius:999px; cursor:pointer; font-family:inherit;
             font-size:clamp(13px,2.6vw,15px); font-weight:700; width:100%;
-            box-shadow:0 3px 12px rgba(91,159,255,.35); transition:all .18s;
+            box-shadow:0 3px 12px rgba(91,159,255,.35); transition:background-color .16s ease;
         }
-        .settings-code-btn:hover { transform:scale(1.04) translateY(-1px); filter:brightness(1.05); }
-        .settings-code-btn:active { transform:scale(.88); filter:brightness(.92); transition:all .06s; }
+        @media (hover:hover) {
+            .settings-code-btn:hover { background:#468cf0; }
+        }
+        .settings-code-btn:active { background:#3379d9; }
 
         #bottom-btns { position:fixed; bottom:calc(20px + var(--toss-safe-bottom, env(safe-area-inset-bottom, 0px))); right:calc(16px + var(--toss-safe-right, env(safe-area-inset-right, 0px))); display:flex; gap:8px; z-index:100; align-items:flex-end; }
         .bottom-btn {
@@ -244,7 +248,7 @@
         .shop-overlay.open { display:flex; }
 
         .shop-panel {
-            background:var(--white); border-radius:28px;
+            background:var(--white); border-radius:38px;
             width:560px; max-width:94vw; max-height:88vh; overflow:hidden;
             display:flex; flex-direction:column;
         }
@@ -319,7 +323,7 @@
         .shop-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 
         .shop-item {
-            background:var(--bg); border:2px solid var(--border); border-radius:18px;
+            background:var(--bg); border:2px solid var(--border); border-radius:25px;
             padding:14px 14px; display:flex; flex-direction:column; align-items:flex-start; gap:0; transition:all .18s;
         }
         .shop-item:hover:not(.locked) { border-color:#ddd; box-shadow:var(--shadow); transform:translateY(-2px); }
@@ -327,13 +331,13 @@
         .shop-item.locked { opacity:.4; }
 
         .shop-item-art { width:100%; margin-bottom:8px; }
-        .shop-item-art img { width:100%; max-width:190px; height:clamp(86px, 29vw, 190px); object-fit:contain; display:block; margin:0 auto; border-radius:12px; }
+        .shop-item-art img { width:100%; max-width:190px; height:clamp(86px, 29vw, 190px); object-fit:contain; display:block; margin:0 auto; border-radius:17px; }
         #box-shop-grid { position:relative; }
         .box-probabilities {
             position:absolute; z-index:15; width:min(190px,100%); overflow:auto;
             transform-origin:var(--box-tip-origin, 50%) top;
             animation:box-tip-in .23s cubic-bezier(.22,1.35,.36,1); background:var(--white); border:1px solid var(--border);
-            border-radius:14px; padding:12px 16px; font-size:13px; line-height:1.7;
+            border-radius:20px; padding:12px 16px; font-size:13px; line-height:1.7;
         }
         @keyframes box-tip-in {
             from { opacity:0; transform:translateY(-5px) scale(.94); }
@@ -543,7 +547,7 @@
                 <span class="settings-label">과일 클릭음</span>
                 <label class="toggle-switch">
                     <input type="checkbox" id="toggle-fruit-sound" checked>
-                    <span class="toggle-slider"><span class="toggle-knob"></span></span>
+                    <span class="toggle-slider"></span>
                 </label>
             </div>
 
@@ -551,7 +555,7 @@
                 <span class="settings-label">UI 클릭음</span>
                 <label class="toggle-switch">
                     <input type="checkbox" id="toggle-ui-sound" checked>
-                    <span class="toggle-slider"><span class="toggle-knob"></span></span>
+                    <span class="toggle-slider"></span>
                 </label>
             </div>
 
@@ -562,7 +566,7 @@
                 <span class="settings-label">그림자</span>
                 <label class="toggle-switch">
                     <input type="checkbox" id="toggle-shadow" checked>
-                    <span class="toggle-slider"><span class="toggle-knob"></span></span>
+                    <span class="toggle-slider"></span>
                 </label>
             </div>
 
@@ -579,7 +583,7 @@
                 <span class="settings-label">안티앨리어싱</span>
                 <label class="toggle-switch">
                     <input type="checkbox" id="toggle-antialias" checked>
-                    <span class="toggle-slider"><span class="toggle-knob"></span></span>
+                    <span class="toggle-slider"></span>
                 </label>
             </div>
 
@@ -627,7 +631,7 @@
                     점수·과일·벌이 모두 초기화돼요
                 </div>
             </div>
-            <div id="rebirth-conditions" style="width:100%;background:var(--bg);border-radius:14px;padding:14px 18px;display:flex;flex-direction:column;gap:8px;">
+            <div id="rebirth-conditions" style="width:100%;background:var(--bg);border-radius:20px;padding:14px 18px;display:flex;flex-direction:column;gap:8px;">
                 <div class="rebirth-cond" id="cond-cherry">체리 보유</div>
                 <div class="rebirth-cond" id="cond-full">3×3 그리드 꽉 채우기</div>
                 <div class="rebirth-cond" id="cond-score">60,000점 이상</div>
@@ -2407,7 +2411,7 @@ function continuousCornerPath(width, height, radius) {
 
 const roundedUi = [
     '#sell-toast', '#sugar-target', '#sugar-target-cancel', '.sugar-shop-icon',
-    '#camera-lock-btn', '#flower-badge', '.settings-panel', '.shop-panel', '.toggle-slider', '.toggle-knob',
+    '#camera-lock-btn', '#flower-badge', '.settings-panel', '.shop-panel',
     '.settings-code-input', '.settings-select', '.settings-code-btn', '.shop-score-badge',
     '.shop-close', '.shop-item', '.shop-item-art img', '.box-probabilities',
     '.shop-buy-btn', '.slot-buy-row', '.slot-buy-btn', '.loading-bar-wrap', '.loading-bar',
