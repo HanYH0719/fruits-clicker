@@ -324,10 +324,12 @@
 
         .shop-item {
             background:var(--bg); border:2px solid var(--border); border-radius:25px;
-            padding:14px 14px; display:flex; flex-direction:column; align-items:flex-start; gap:0; transition:all .18s;
+            padding:14px 14px; display:flex; flex-direction:column; align-items:flex-start; gap:0;
+            transition:background-color .18s, border-color .18s;
         }
-        .shop-item:hover:not(.locked) { border-color:#ddd; box-shadow:var(--shadow); transform:translateY(-2px); }
-        .shop-item:active:not(.locked){ transform:translateY(0) scale(.98); }
+        @media (hover:hover) {
+            .shop-item:hover:not(.locked) { border-color:#ddd; background-color:#f2f2f2; }
+        }
         .shop-item.locked { opacity:.4; }
 
         .shop-item-art { width:100%; margin-bottom:8px; }
@@ -370,20 +372,24 @@
         .shop-buy-btn {
             background:var(--blue); color:#fff; border:none; padding:10px 0; border-radius:999px;
             cursor:pointer; font-family:inherit; font-size:clamp(13px,2.6vw,15px); font-weight:700;
-            white-space:nowrap; transition:all .18s; width:100%;
+            white-space:nowrap; transition:opacity .18s; width:100%;
             box-shadow:0 3px 12px rgba(91,159,255,.35); text-align:center;
         }
         .shop-buy-btn.free  { background:var(--green); box-shadow:0 3px 12px rgba(91,191,122,.35); }
         .shop-buy-btn.bee-btn { background:var(--yellow); color:#5a3800; box-shadow:0 3px 12px rgba(255,184,48,.35); font-weight:700; }
-        .shop-buy-btn:hover:not(:disabled) { transform:scale(1.06) translateY(-1px); filter:brightness(1.05); }
-        .shop-buy-btn:active:not(:disabled){ transform:scale(.88); filter:brightness(.92); transition:all .06s; }
+        @media (hover:hover) {
+            .shop-buy-btn:hover:not(:disabled) { opacity:.9; }
+        }
+        .shop-buy-btn:active:not(:disabled) { opacity:.78; }
         .shop-buy-btn:disabled { opacity:1; cursor:not-allowed; transform:none; background:#d8d8d8; box-shadow:none; color:#aaa; font-size:clamp(11px,2.2vw,13px); font-weight:400; }
 
         .slot-buy-row {
             background:var(--purple-lt); border:2px solid var(--purple); border-radius:var(--radius-sm);
-            padding:14px 16px; display:flex; align-items:center; gap:14px; transition:all .18s;
+            padding:14px 16px; display:flex; align-items:center; gap:14px; transition:border-color .18s;
         }
-        .slot-buy-row:hover { box-shadow:0 4px 16px rgba(165,123,255,.2); transform:translateY(-1px); }
+        @media (hover:hover) {
+            .slot-buy-row:hover { border-color:#9164e3; }
+        }
         .slot-buy-icon { font-size:32px; width:48px; text-align:center; flex-shrink:0; }
         .slot-buy-info  { flex:1; }
         .slot-buy-name  { color:var(--text); font-size:clamp(17px,3.5vw,18px); margin-bottom:3px; font-weight:400; }
@@ -393,11 +399,13 @@
         .slot-buy-btn {
             background:var(--purple); color:#fff; border:none; padding:9px 17px; border-radius:999px;
             cursor:pointer; font-family:inherit; font-size:clamp(14px,2.9vw,15px); font-weight:700;
-            white-space:nowrap; transition:all .18s; flex-shrink:0; min-width:72px;
+            white-space:nowrap; transition:background-color .18s; flex-shrink:0; min-width:72px;
             box-shadow:0 3px 12px rgba(165,123,255,.4);
         }
-        .slot-buy-btn:hover:not(:disabled) { transform:scale(1.07) translateY(-1px); filter:brightness(1.05); }
-        .slot-buy-btn:active:not(:disabled){ transform:scale(.88); filter:brightness(.92); transition:all .06s; }
+        @media (hover:hover) {
+            .slot-buy-btn:hover:not(:disabled) { background:#9164e3; }
+        }
+        .slot-buy-btn:active:not(:disabled) { background:#8052d4; }
         .slot-buy-btn:disabled { opacity:.35; cursor:not-allowed; transform:none; background:var(--border); box-shadow:none; color:var(--text-sub); font-size:11px; }
 
         #loading-overlay {
