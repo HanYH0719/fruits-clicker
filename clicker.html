@@ -393,40 +393,53 @@
         .shop-buy-btn {
             background:var(--blue); color:#fff; border:none; padding:10px 0; border-radius:999px;
             cursor:pointer; font-family:inherit; font-size:clamp(13px,2.6vw,15px); font-weight:700;
-            white-space:nowrap; transition:opacity .18s; width:100%;
-            box-shadow:0 3px 12px rgba(91,159,255,.35); text-align:center;
+            white-space:nowrap; width:100%;
+            --buy-shadow:0 3px 12px rgba(91,159,255,.35); text-align:center;
         }
-        .shop-buy-btn.free  { background:var(--green); box-shadow:0 3px 12px rgba(91,191,122,.35); }
-        .shop-buy-btn.bee-btn { background:var(--yellow); color:#5a3800; box-shadow:0 3px 12px rgba(255,184,48,.35); font-weight:700; }
+        .shop-buy-btn.free  { background:var(--green); --buy-shadow:0 3px 12px rgba(91,191,122,.35); }
+        .shop-buy-btn.bee-btn { background:var(--yellow); color:#5a3800; --buy-shadow:0 3px 12px rgba(255,184,48,.35); font-weight:700; }
+        #box-buy-btn:not(:disabled) { background:linear-gradient(135deg,#ff6b8a,#ff4757); }
+        #plusbox-buy-btn:not(:disabled) { background:linear-gradient(135deg,#5bbf7a,#28a745); }
+        #box-buy-btn { --buy-shadow:0 3px 12px rgba(255,71,87,.35); }
+        #plusbox-buy-btn { --buy-shadow:0 3px 12px rgba(40,167,69,.35); }
+        :is(.shop-buy-btn,.slot-buy-btn):not(:disabled) {
+            box-shadow:var(--buy-shadow), inset 0 0 0 transparent, inset 0 0 0 40px var(--buy-shade, transparent);
+            transition:box-shadow .16s ease-out;
+        }
         @media (hover:hover) {
-            .shop-buy-btn:hover:not(:disabled) { opacity:.9; }
+            :is(.shop-buy-btn,.slot-buy-btn):hover:not(:disabled) { --buy-shade:rgba(31,17,52,.07); }
         }
-        .shop-buy-btn:active:not(:disabled) { opacity:.78; }
+        :is(.shop-buy-btn,.slot-buy-btn):active:not(:disabled) {
+            --buy-shade:rgba(31,17,52,.22);
+            box-shadow:0 1px 3px rgba(0,0,0,.12), inset 0 2px 5px rgba(0,0,0,.18),
+                inset 0 0 0 40px var(--buy-shade);
+            transition-duration:.055s;
+        }
+        @media (prefers-reduced-motion:reduce) {
+            :is(.shop-buy-btn,.slot-buy-btn):not(:disabled) { transition:none; }
+        }
         .shop-buy-btn:disabled { opacity:1; cursor:not-allowed; transform:none; background:#d8d8d8; box-shadow:none; color:#aaa; font-size:clamp(11px,2.2vw,13px); font-weight:400; }
 
         .slot-buy-row {
-            background:var(--purple-lt); border:2px solid var(--purple); border-radius:var(--radius-sm);
+            --slot-ink:#714d9d; --slot-accent:#8054bb;
+            background:#f1e8fc; border:2px solid #b696da; border-radius:var(--radius-sm);
             padding:14px 16px; display:flex; align-items:center; gap:14px; transition:border-color .18s;
         }
         @media (hover:hover) {
             .slot-buy-row:hover { border-color:#9164e3; }
         }
-        .slot-buy-icon { font-size:32px; width:48px; text-align:center; flex-shrink:0; }
+        .slot-buy-icon { color:var(--slot-ink); font-size:32px; width:48px; text-align:center; flex-shrink:0; }
         .slot-buy-info  { flex:1; }
-        .slot-buy-name  { color:var(--text); font-size:clamp(17px,3.5vw,18px); margin-bottom:3px; font-weight:400; }
+        .slot-buy-name  { color:var(--slot-ink); font-size:clamp(17px,3.5vw,18px); margin-bottom:3px; font-weight:400; }
         .slot-buy-meta  { display:flex; gap:8px; align-items:center; }
-        .slot-buy-price { color:var(--purple); font-size:clamp(13px,2.9vw,14px); font-weight:400; }
+        .slot-buy-price { color:var(--slot-ink); font-size:clamp(13px,2.9vw,14px); font-weight:400; }
         .slot-buy-count { color:var(--text-sub); font-size:clamp(13px,2.9vw,14px); font-weight:400; }
         .slot-buy-btn {
-            background:var(--purple); color:#fff; border:none; padding:9px 17px; border-radius:999px;
+            background:var(--slot-accent); color:#fff; border:none; padding:9px 17px; border-radius:999px;
             cursor:pointer; font-family:inherit; font-size:clamp(14px,2.9vw,15px); font-weight:700;
-            white-space:nowrap; transition:background-color .18s; flex-shrink:0; min-width:72px;
-            box-shadow:0 3px 12px rgba(165,123,255,.4);
+            white-space:nowrap; flex-shrink:0; min-width:72px;
+            --buy-shadow:0 3px 12px rgba(128,84,187,.28);
         }
-        @media (hover:hover) {
-            .slot-buy-btn:hover:not(:disabled) { background:#9164e3; }
-        }
-        .slot-buy-btn:active:not(:disabled) { background:#8052d4; }
         .slot-buy-btn:disabled { opacity:.35; cursor:not-allowed; transform:none; background:var(--border); box-shadow:none; color:var(--text-sub); font-size:11px; }
 
         #loading-overlay {
@@ -1578,17 +1591,17 @@ function showUnlockImg(src){const img=document.createElement('img');img.src=src;
 function buildSlotShopUI(){
     const grid=document.getElementById('slot-shop-grid');if(!grid)return;grid.innerHTML='';
     const nextIdx=nextLockedSlot();
-    if(nextIdx===-1){const div=document.createElement('div');div.className='slot-buy-row';div.innerHTML=`<div class="slot-buy-icon">${uiIcon('check')}</div><div class="slot-buy-info"><div class="slot-buy-name">슬롯 최대 확장 완료!</div><div class="slot-buy-meta"><span class="slot-buy-count">${MAX_SLOTS} / ${MAX_SLOTS}칸</span></div></div>`;grid.appendChild(div);return;}
+    if(nextIdx===-1){const div=document.createElement('div');div.className='slot-buy-row';div.innerHTML=`<div class="slot-buy-icon">${uiIcon('slot-check')}</div><div class="slot-buy-info"><div class="slot-buy-name">슬롯 최대 확장 완료!</div><div class="slot-buy-meta"><span class="slot-buy-count">${MAX_SLOTS} / ${MAX_SLOTS}칸</span></div></div>`;grid.appendChild(div);return;}
     const price=slotPrice(nextIdx+1);
     const row=document.createElement('div');row.className='slot-buy-row';row.id='slot-buy-row';
-    row.innerHTML=`<div class="slot-buy-icon">${uiIcon('box')}</div><div class="slot-buy-info"><div class="slot-buy-name">슬롯 확장</div><div class="slot-buy-meta"><span class="slot-buy-price">${uiIcon('coin')}${fmtN(price)}점</span><span class="slot-buy-count" id="slot-count-display">${unlockedSlots} / ${MAX_SLOTS}칸</span></div></div><button class="slot-buy-btn" id="slot-buy-btn" onclick="window.__buySlot()">확장</button>`;
+    row.innerHTML=`<div class="slot-buy-icon">${uiIcon('slot-box')}</div><div class="slot-buy-info"><div class="slot-buy-name">슬롯 확장</div><div class="slot-buy-meta"><span class="slot-buy-price">${uiIcon('slot-coin')}${fmtN(price)}점</span><span class="slot-buy-count" id="slot-count-display">${unlockedSlots} / ${MAX_SLOTS}칸</span></div></div><button class="slot-buy-btn" id="slot-buy-btn" onclick="window.__buySlot()">확장</button>`;
     grid.appendChild(row);updateSlotShopUI();
 }
 function updateSlotShopUI(){
     const nextIdx=nextLockedSlot(),countEl=document.getElementById('slot-count-display'),btnEl=document.getElementById('slot-buy-btn');
     if(countEl)countEl.innerText=`${unlockedSlots} / ${MAX_SLOTS}칸`;
     if(!btnEl)return;if(nextIdx===-1){buildSlotShopUI();return;}
-    const price=slotPrice(nextIdx+1);btnEl.disabled=score<price;btnEl.innerText=score<price?'잔액부족':'확장';
+    const price=slotPrice(nextIdx+1);updatePurchaseButton(btnEl, score<price, score<price?'잔액부족':'확장');
 }
 window.__buySlot=function(){
     const nextIdx=nextLockedSlot();if(nextIdx===-1)return;const price=slotPrice(nextIdx+1);if(score<price)return;
@@ -1632,11 +1645,12 @@ function updateFruitShopUI(){
     const full=nextFreeSlot()===-1;
     for(const fd of FRUIT_DEFS){
         const bEl=document.getElementById(`fsb-${fd.key}`),rEl=document.getElementById(`fsi-${fd.key}`);if(!bEl||!rEl)continue;
-        const isFree=fd.buyPrice===0,label=isFree?'무료 획득':fmtN(fd.buyPrice);
-        if(pendingFruitPurchases.has(fd.key)){bEl.disabled=true;bEl.innerText='불러오는 중…';bEl.className='shop-buy-btn';}
-        else if(full){bEl.disabled=true;bEl.innerText='꽉참';bEl.className='shop-buy-btn';}
-        else if(score<fd.buyPrice){bEl.disabled=true;bEl.innerText=label;bEl.className='shop-buy-btn';}
-        else{bEl.disabled=false;bEl.innerText=label;bEl.className=`shop-buy-btn${isFree?' free':''}`;}
+        const isFree = fd.buyPrice === 0;
+        const pending = pendingFruitPurchases.has(fd.key);
+        const disabled = pending || full || score < fd.buyPrice;
+        const label = pending ? '불러오는 중…' : full ? '꽉참' : isFree ? '무료 획득' : fmtN(fd.buyPrice);
+        updatePurchaseButton(bEl, disabled, label);
+        bEl.classList.toggle('free', !disabled && isFree);
     }
 }
 function buyFruit(fd) {
@@ -1696,21 +1710,21 @@ function buildBeeShopUI(){
 function updateBeeShopUI(){
     document.getElementById('bee-shop-score').innerText=`${fmtN(score)}점`;
     const hasFruit=Object.values(pools).some(p=>p.list.length>0);
+    const canAssignBee = hasFruit && hasFreeFruitForBee();
     for(const bd of BEE_DEFS){
         const bEl=document.getElementById(`bsb-${bd.key}`),rEl=document.getElementById(`bsi-${bd.key}`);if(!bEl||!rEl)continue;
-        const priceLabel=fmtN(bd.buyPrice);
-        if(!hasFruit){bEl.disabled=true;bEl.innerText='과일 없음';bEl.className='shop-buy-btn';}
-        else if(!hasFreeFruitForBee()){bEl.disabled=true;bEl.innerText='슬롯 꽉참';bEl.className='shop-buy-btn';}
-        else if(score<bd.buyPrice){bEl.disabled=true;bEl.innerText=priceLabel;bEl.className='shop-buy-btn';}
-        else{bEl.disabled=false;bEl.innerText=priceLabel;bEl.className='shop-buy-btn bee-btn';}
+        const disabled = !canAssignBee || score < bd.buyPrice;
+        const label = !hasFruit ? '과일 없음' : !canAssignBee ? '슬롯 꽉참' : fmtN(bd.buyPrice);
+        updatePurchaseButton(bEl, disabled, label);
+        bEl.classList.toggle('bee-btn', !disabled);
     }
     updateFlowerBtnUI();
     updateManureBtnUI();
     const sugarButton = document.getElementById('bsb-sugar');
     if (sugarButton) {
         const available = hasFruit && Object.values(pools).some(pool => pool.list.some(({ model }) => canCoatFruit(model)));
-        sugarButton.disabled = !available || score < SUGAR_COATING_PRICE;
-        sugarButton.textContent = available ? fmtN(SUGAR_COATING_PRICE) : '코팅할 과일 없음';
+        updatePurchaseButton(sugarButton, !available || score < SUGAR_COATING_PRICE,
+            available ? fmtN(SUGAR_COATING_PRICE) : '코팅할 과일 없음');
     }
 }
 window.__buyBee=function(key){
@@ -2194,7 +2208,7 @@ function buildBoxShopUI(){
         <button type="button" class="box-info-btn" aria-label="과일박스 뽑기 확률" aria-controls="box-probabilities" aria-expanded="false">i</button>
         <div class="shop-item-art"><img src="./RandomBox.png" alt="과일박스"></div>
         <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">과일박스</div><div class="shop-item-clickval">오렌지~체리 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">${uiIcon('warning')}판매 시 0점</div></div>
-        <button class="shop-buy-btn" id="box-buy-btn" style="background:linear-gradient(135deg,#ff6b8a,#ff4757);box-shadow:0 3px 12px rgba(255,71,87,.35);width:100%;" onclick="window.__buyBox()">${fmtN(BOX_PRICE)}</button>`;
+        <button class="shop-buy-btn" id="box-buy-btn" onclick="window.__buyBox()">${fmtN(BOX_PRICE)}</button>`;
     appendShopCard(grid, card);
 
     // ★ 과일 플러스 박스 카드
@@ -2210,7 +2224,7 @@ function buildBoxShopUI(){
         <button type="button" class="box-info-btn" aria-label="플러스 박스 뽑기 확률" aria-controls="box-probabilities" aria-expanded="false">i</button>
         <div class="shop-item-art"><img src="./FruitsPlusBox.png" alt="과일플러스박스"></div>
         <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">플러스 박스</div><div class="shop-item-clickval">체리~코코넛 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">${uiIcon('warning')}판매 시 0점</div></div>
-        <button class="shop-buy-btn" id="plusbox-buy-btn" style="background:linear-gradient(135deg,#5bbf7a,#28a745);box-shadow:0 3px 12px rgba(40,167,69,.35);width:100%;" onclick="window.__buyPlusBox()">${fmtN(PLUS_BOX_PRICE)}</button>`;
+        <button class="shop-buy-btn" id="plusbox-buy-btn" onclick="window.__buyPlusBox()">${fmtN(PLUS_BOX_PRICE)}</button>`;
     appendShopCard(grid, plusCard);
     const buttons = grid.querySelectorAll('[aria-controls="box-probabilities"]');
     const panels = [
@@ -2286,23 +2300,21 @@ boxShopOverlay.addEventListener('click', event => {
 boxShopBody.addEventListener('scroll', closeBoxProbabilities, {passive:true});
 window.addEventListener('resize', closeBoxProbabilities);
 
-function updateBoxShopUI(){
-    const disp=document.getElementById('box-shop-score');if(disp)disp.innerText=`${fmtN(score)}점`;
-    const full=nextFreeSlot()===-1;
-    // 일반 박스 버튼
-    const btn=document.getElementById('box-buy-btn');
-    if(btn){
-        if(full){btn.disabled=true;btn.innerText='슬롯 꽉참';btn.style.background='';btn.style.boxShadow='';}
-        else if(score<BOX_PRICE){btn.disabled=true;btn.innerText=fmtN(BOX_PRICE);btn.style.background='';btn.style.boxShadow='';}
-        else{btn.disabled=false;btn.innerText=fmtN(BOX_PRICE);btn.style.background='linear-gradient(135deg,#ff6b8a,#ff4757)';btn.style.boxShadow='0 3px 12px rgba(255,71,87,.35)';}
-    }
-    // 플러스 박스 버튼
-    const pbtn=document.getElementById('plusbox-buy-btn');
-    if(pbtn){
-        if(full){pbtn.disabled=true;pbtn.innerText='슬롯 꽉참';pbtn.style.background='';pbtn.style.boxShadow='';}
-        else if(score<PLUS_BOX_PRICE){pbtn.disabled=true;pbtn.innerText=fmtN(PLUS_BOX_PRICE);pbtn.style.background='';pbtn.style.boxShadow='';}
-        else{pbtn.disabled=false;pbtn.innerText=fmtN(PLUS_BOX_PRICE);pbtn.style.background='linear-gradient(135deg,#5bbf7a,#28a745)';pbtn.style.boxShadow='0 3px 12px rgba(40,167,69,.35)';}
-    }
+function updatePurchaseButton(button, disabled, label) {
+    if (!button) return;
+    if (button.disabled !== disabled) button.disabled = disabled;
+    if (button.textContent !== label) button.textContent = label;
+}
+
+function updateBoxShopUI() {
+    const display = document.getElementById('box-shop-score');
+    const scoreLabel = `${fmtN(score)}점`;
+    if (display && display.textContent !== scoreLabel) display.textContent = scoreLabel;
+    const full = nextFreeSlot() === -1;
+    updatePurchaseButton(document.getElementById('box-buy-btn'), full || score < BOX_PRICE,
+        full ? '슬롯 꽉참' : fmtN(BOX_PRICE));
+    updatePurchaseButton(document.getElementById('plusbox-buy-btn'), full || score < PLUS_BOX_PRICE,
+        full ? '슬롯 꽉참' : fmtN(PLUS_BOX_PRICE));
 }
 window.__buyBox=function(){
     if(score<BOX_PRICE||nextFreeSlot()===-1)return;const slot=nextFreeSlot();if(slot===-1)return;
@@ -2486,7 +2498,8 @@ function updateRoundedUi(element) {
     // Leave enough corner paint beneath the continuous clip on older WebViews.
     const paintRadius = parseFloat(style.borderTopWidth) ? Math.min(pixels, width / 2, height / 2) * .65 : 0;
     element.style.borderRadius = paintRadius + 'px';
-    element.style.clipPath = `path("${continuousCornerPath(width, height, pixels)}")`;
+    const clip = `path("${continuousCornerPath(width, height, pixels)}")`;
+    if (element.style.clipPath !== clip) element.style.clipPath = clip;
 }
 
 const roundedUiObserver = new ResizeObserver(entries => {
