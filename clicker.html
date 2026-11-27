@@ -129,25 +129,38 @@
         }
         #hold-hint.visible { opacity:1; }
 
+        #view-actions {
+            position:fixed; top:calc(16px + var(--toss-safe-top, env(safe-area-inset-top, 0px)));
+            left:calc(12px + var(--toss-safe-left, env(safe-area-inset-left, 0px)));
+            z-index:100; display:grid; justify-items:center; gap:6px;
+        }
         #settings-btn {
-            position:fixed; top:calc(16px + var(--toss-safe-top, env(safe-area-inset-top, 0px))); left:calc(16px + var(--toss-safe-left, env(safe-area-inset-left, 0px))); z-index:100;
             background:none; border:none; padding:0; cursor:pointer;
             transition:all .18s; filter:drop-shadow(0 2px 6px rgba(0,0,0,.15));
             -webkit-tap-highlight-color:transparent;
         }
-        #settings-btn img { width:clamp(80px,11.5vw,100px); height:auto; display:block; }
+        #settings-btn img { width:clamp(64px,11.5vw,100px); height:auto; display:block; }
         #settings-btn:hover { transform:translateY(-3px) scale(1.08); filter:drop-shadow(0 5px 12px rgba(0,0,0,.2)); }
         #settings-btn:active { transform:translateY(0) scale(.93); }
 
         #camera-lock-btn {
-            position:fixed; top:calc(16px + var(--toss-safe-top, env(safe-area-inset-top, 0px))); right:calc(16px + var(--toss-safe-right, env(safe-area-inset-right, 0px))); z-index:100;
             display:flex; align-items:center; justify-content:center; gap:4px;
-            min-width:80px; min-height:44px; padding:0 11px;
+            min-width:76px; min-height:44px; padding:0 8px;
             background:var(--white); color:var(--text); border:1.5px solid var(--border); border-radius:999px;
             box-shadow:0 2px 8px rgba(0,0,0,.10); font:inherit; font-size:14px; font-weight:700; cursor:pointer;
         }
+        #camera-lock-btn { transition:background-color .18s, color .18s, border-color .18s; }
         #camera-lock-btn[aria-pressed="true"] { background:var(--blue-lt); color:#224d7a; border-color:var(--blue); }
-        #camera-lock-btn[aria-pressed="false"] span { display:none; }
+        #camera-lock-btn span { width:12px; }
+        #camera-lock-btn[aria-pressed="false"] span { visibility:hidden; }
+        #slot-marker {
+            position:fixed; z-index:110; pointer-events:none; transform:translate(-50%,-50%);
+            background:#f2eaff; color:#654095; border:1px solid #a677ef; border-radius:999px;
+            padding:5px 10px; font-size:14px; font-weight:700; white-space:nowrap;
+        }
+        #slot-marker:not([hidden]) { animation:slot-marker-in .25s ease-out; }
+        @keyframes slot-marker-in { from { opacity:0; } }
+        @media (prefers-reduced-motion:reduce) { #slot-marker { animation:none !important; } }
         #camera-lock-btn:focus-visible { outline:2px solid #224d7a; outline-offset:3px; }
 
         #settings-overlay {
@@ -160,7 +173,6 @@
             background:var(--white); border-radius:28px;
             width:420px; max-width:90vw; max-height:88vh; overflow:hidden;
             display:flex; flex-direction:column;
-            box-shadow:0 24px 60px rgba(0,0,0,.30);
         }
 
         .settings-body {
@@ -243,7 +255,6 @@
             background:var(--white); border-radius:28px;
             width:560px; max-width:94vw; max-height:88vh; overflow:hidden;
             display:flex; flex-direction:column;
-            box-shadow:0 24px 60px rgba(0,0,0,.30);
         }
 
         :is(#settings-overlay, .shop-overlay)::before {
@@ -261,6 +272,9 @@
         :is(.settings-panel, .shop-panel) {
             position:relative;
             border:1px solid #000;
+            box-shadow:0 18px 38px rgba(0,0,0,.22);
+            max-height:min(88vh, calc(100% - var(--popup-top, 12px) - var(--popup-bottom, 12px)));
+            margin-top:var(--popup-top, 12px); margin-bottom:var(--popup-bottom, 12px);
             opacity:0;
             transform:translateY(16px) scale(.955);
             transition:opacity .22s ease-in, transform .22s ease-in;
@@ -278,6 +292,9 @@
             }
         }
 
+        .toss-layout { --popup-top:calc(var(--toss-safe-top, 0px) + 58px); --popup-bottom:calc(var(--toss-safe-bottom, 0px) + 12px); }
+        .popup-contour { position:absolute; inset:-1px; width:calc(100% + 2px); height:calc(100% + 2px); pointer-events:none; z-index:20; }
+        .has-popup-contour { border-color:transparent !important; }
         .shop-header {
             background:var(--white);
             padding:26px 22px 28px;
@@ -321,7 +338,26 @@
         .shop-item.locked { opacity:.4; }
 
         .shop-item-art { width:100%; margin-bottom:8px; }
-        .shop-item-art img { width:100%; max-width:190px; height:190px; object-fit:contain; display:block; margin:0 auto; border-radius:12px; }
+        .shop-item-art img { width:100%; max-width:190px; height:clamp(86px, 29vw, 190px); object-fit:contain; display:block; margin:0 auto; border-radius:12px; }
+        .box-probabilities {
+            grid-column:1 / -1; background:var(--white); border:1px solid var(--border);
+            border-radius:14px; padding:12px 16px; font-size:13px; line-height:1.7;
+        }
+        .box-probabilities > strong { display:block; margin-bottom:5px; }
+        .bucket-body { display:flex; flex-direction:column; align-items:center; gap:14px; }
+        .bucket-art { width:clamp(112px, 36vw, 170px); aspect-ratio:1; object-fit:contain; flex:none; }
+        @media (max-width:600px) {
+            .shop-header { padding:12px 13px; min-height:58px; }
+            .shop-title { font-size:clamp(21px, 7vw, 34px); }
+            .shop-score-badge { padding:5px 10px; font-size:13px; }
+            .shop-body, .settings-body { padding:12px 13px 16px; min-height:0; }
+            .settings-body { gap:12px; }
+            .shop-grid { gap:9px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+            .shop-item { padding:9px; }
+            .shop-item-art { margin-bottom:5px; }
+            .shop-item-info { margin-bottom:7px; }
+            .shop-section-label { margin-bottom:8px; }
+        }
         .shop-item-info  { width:100%; flex:1; text-align:left; margin-bottom:10px; }
         .shop-item-name  { color:var(--text); font-size:clamp(18px,3.6vw,22px); font-weight:700; line-height:1.1; margin-bottom:4px; }
         .shop-item-meta  { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
@@ -481,10 +517,13 @@
 <div id="hold-hint"><svg class="ui-icon" aria-hidden="true"><use href="./ui-icons.svg#mouse"/></svg>길게 누르면 판매</div>
 
 <!-- 설정 버튼 -->
+<div id="view-actions">
 <button id="settings-btn">
     <img src="./SettingsUI.PNG" alt="설정">
 </button>
 <button id="camera-lock-btn" type="button" aria-pressed="false">시점 고정 <span aria-hidden="true">✓</span></button>
+</div>
+<div id="slot-marker" hidden></div>
 
 <!-- 설정 오버레이 -->
 <div id="settings-overlay">
@@ -584,8 +623,8 @@
             <div class="shop-title">과일바구니</div>
             <button class="shop-close shop-header-right" id="bucket-close">✕</button>
         </div>
-        <div class="shop-body" style="display:flex;flex-direction:column;align-items:center;gap:20px;padding:28px 20px;">
-            <img src="./FruitBucket.png" alt="과일바구니" style="width:180px;height:180px;object-fit:contain;">
+        <div class="shop-body bucket-body">
+            <img src="./FruitBucket.png" alt="과일바구니" class="bucket-art">
             <div style="text-align:center;">
                 <div style="font-size:clamp(18px,4vw,22px);font-weight:700;color:var(--text);margin-bottom:8px;">바구니에 담기</div>
                 <div style="font-size:clamp(13px,2.5vw,15px);color:#888;line-height:1.7;">
@@ -675,6 +714,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import * as TWEEN        from '@tweenjs/tween.js';
 
 const tossPlatform = null;
+if (tossPlatform) document.documentElement.classList.add('toss-layout');
 
 // ═══════════════════════════════════════════════════════════
 //  🔊 사운드 시스템
@@ -1020,7 +1060,15 @@ controls.maxZoom = 2.8;
 let cameraLocked = false;
 let fTw, cTw;
 const cameraLockButton = document.getElementById('camera-lock-btn');
+let cameraLockMotion;
 cameraLockButton.addEventListener('click', () => {
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        cameraLockMotion?.cancel();
+        cameraLockMotion = cameraLockButton.animate([
+            { transform:'scale(1)' }, { transform:'scale(.91)', offset:.28 },
+            { transform:'scale(1.045)', offset:.72 }, { transform:'scale(1)' },
+        ], { duration:270, easing:'ease-out' });
+    }
     cameraLocked = !cameraLocked;
     controls.enabled = !cameraLocked && !hold;
     cameraLockButton.setAttribute('aria-pressed', String(cameraLocked));
@@ -1162,6 +1210,7 @@ function place(def, slotIdx, animate, cb) {
         pools[def.key].list.push({model,slot:slotIdx});
         gridSlots[slotIdx]={key:def.key,idx:instIdx};
         scheduleFruitIdle(model);
+        if (animate) moveCameraTo(model);
         if (cb) cb(instIdx); else { updateAllUI(); writeSave(); }
     }, undefined, err=>{
         if (gridSlots[slotIdx] === 'reserved') gridSlots[slotIdx] = null;
@@ -1190,6 +1239,34 @@ function removeFruitAt(key, idx, refund) {
     pool.list.forEach((item,i)=>{gridSlots[item.slot]={key,idx:i};});
     beeInstances.filter(b=>b.fruitKey===key&&b.fruitIdx>idx).forEach(b=>{b.fruitIdx-=1;});
     compactGrid(slot); updateAllUI(); writeSave(); return true;
+}
+
+const slotMarker = document.getElementById('slot-marker');
+const slotMarkerPosition = new THREE.Vector3();
+const slotMarkerProjection = new THREE.Vector3();
+let slotMarkerUntil = 0;
+let slotMarkerTop = 86;
+
+function updateSlotMarker(time) {
+    if (!slotMarkerUntil) return;
+    if (time >= slotMarkerUntil) {
+        slotMarkerUntil = 0;
+        slotMarker.hidden = true;
+        return;
+    }
+    camera.updateMatrixWorld();
+    slotMarkerProjection.copy(slotMarkerPosition).project(camera);
+    const x = (slotMarkerProjection.x + 1) * innerWidth / 2;
+    const y = (1 - slotMarkerProjection.y) * innerHeight / 2;
+    const left = 72, right = Math.max(left, innerWidth - 72);
+    const top = Math.max(86, slotMarkerTop);
+    const bottom = Math.max(top, innerHeight - 112);
+    const arrow = x < left ? '← ' : x > right ? '→ ' : y < top ? '↑ ' : y > bottom ? '↓ ' : '';
+    const label = arrow + '새 슬롯';
+    if (slotMarker.textContent !== label) slotMarker.textContent = label;
+    slotMarker.style.left = Math.min(right, Math.max(left, x)) + 'px';
+    slotMarker.style.top = Math.min(bottom, Math.max(top, y)) + 'px';
+    slotMarker.hidden = false;
 }
 
 function moveCameraTo(model) {
@@ -1472,7 +1549,20 @@ function updateSlotShopUI(){
 window.__buySlot=function(){
     const nextIdx=nextLockedSlot();if(nextIdx===-1)return;const price=slotPrice(nextIdx+1);if(score<price)return;
     playUIClick(); // 🔊 UI 클릭음
-    score-=price;scoreEl.innerText=fmtN(score);gridSlots[nextIdx]=null;unlockedSlots++;writeSave();buildSlotShopUI();updateAllUI();};
+        score -= price;
+    gridSlots[nextIdx] = null;
+    unlockedSlots++;
+    writeSave();
+    buildSlotShopUI();
+    updateAllUI();
+    closeShop('fruit-shop-overlay');
+    showSellToast(`슬롯 확장 완료! ${unlockedSlots} / ${MAX_SLOTS}칸`, 'bottom', 'check');
+    const {x,z} = gridPos(nextIdx);
+    slotMarkerPosition.set(x, (floorY ?? 0) + .1, z);
+    slotMarkerTop = document.getElementById('view-actions').getBoundingClientRect().bottom + 16;
+    slotMarkerUntil = performance.now() + 3200;
+    moveCameraTo({position:slotMarkerPosition});
+};
 
 function buildFruitShopUI(){
     const grid=document.getElementById('fruit-shop-grid');grid.innerHTML='';
@@ -1535,10 +1625,10 @@ function buildBeeShopUI(){
     // ★ 아이템 그리드 (꽃, 비료 등)
     const itemsGrid=document.getElementById('bee-shop-items-grid');if(itemsGrid){itemsGrid.innerHTML='';
     const flowerCard=document.createElement('div');flowerCard.className='shop-item';flowerCard.id='bsi-flower';
-    flowerCard.innerHTML=`<div class="shop-item-art"><img src="./Flower.png" alt="꽃" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">꽃</div><div class="shop-item-clickval">벌 수입 15초간 ×2배</div><div class="shop-item-info2" style="color:#b04f8b;margin-top:3px;">환생 1회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-flower" onclick="window.__buyFlower()">${fmtN(FLOWER_PRICE)}</button>`;
+    flowerCard.innerHTML=`<div class="shop-item-art"><img src="./Flower.png" alt="꽃"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">꽃</div><div class="shop-item-clickval">벌 수입 15초간 ×2배</div><div class="shop-item-info2" style="color:#b04f8b;margin-top:3px;">환생 1회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-flower" onclick="window.__buyFlower()">${fmtN(FLOWER_PRICE)}</button>`;
     itemsGrid.appendChild(flowerCard);
     const manureCard=document.createElement('div');manureCard.className='shop-item';manureCard.id='bsi-manure';
-    manureCard.innerHTML=`<div class="shop-item-art"><img src="./Manure.png" alt="비료" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">비료</div><div class="shop-item-clickval">전체 수입 15초간 ×2배</div><div class="shop-item-info2" style="color:#8B6914;margin-top:3px;">환생 2회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-manure" onclick="window.__buyManure()">${fmtN(MANURE_PRICE)}</button>`;
+    manureCard.innerHTML=`<div class="shop-item-art"><img src="./Manure.png" alt="비료"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">비료</div><div class="shop-item-clickval">전체 수입 15초간 ×2배</div><div class="shop-item-info2" style="color:#8B6914;margin-top:3px;">환생 2회 필요 · 슬롯 1칸 사용</div></div><button class="shop-buy-btn bee-btn" id="bsb-manure" onclick="window.__buyManure()">${fmtN(MANURE_PRICE)}</button>`;
     itemsGrid.appendChild(manureCard);
     const sugarCard = document.createElement('div');
     sugarCard.className = 'shop-item';
@@ -2048,12 +2138,8 @@ function buildBoxShopUI(){
 
     const card=document.createElement('div');card.className='shop-item';card.id='box-shop-item';card.style.position='relative';
     card.innerHTML=`
-        <button onclick="window.__toggleBoxInfo(event)" style="position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;background:#bbb;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.12);">i</button>
-        <div id="box-info-popup" style="display:none;position:absolute;top:38px;right:8px;background:var(--white);border:2px solid var(--border);border-radius:14px;padding:12px 16px;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:180px;">
-            <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;">${uiIcon('box')} 뽑기 확률</div>
-            <div style="font-size:12px;color:#666;line-height:1.9;">${probRows}</div>
-        </div>
-        <div class="shop-item-art"><img src="./RandomBox.png" alt="과일박스" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div>
+        <button aria-label="과일박스 뽑기 확률" aria-controls="box-probabilities" aria-expanded="false" style="position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;background:#bbb;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.12);">i</button>
+        <div class="shop-item-art"><img src="./RandomBox.png" alt="과일박스"></div>
         <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">과일박스</div><div class="shop-item-clickval">오렌지~체리 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">${uiIcon('warning')}판매 시 0점</div></div>
         <button class="shop-buy-btn" id="box-buy-btn" style="background:linear-gradient(135deg,#ff6b8a,#ff4757);box-shadow:0 3px 12px rgba(255,71,87,.35);width:100%;" onclick="window.__buyBox()">${fmtN(BOX_PRICE)}</button>`;
     grid.appendChild(card);
@@ -2068,15 +2154,33 @@ function buildBoxShopUI(){
 
     const plusCard=document.createElement('div');plusCard.className='shop-item';plusCard.id='plusbox-shop-item';plusCard.style.position='relative';
     plusCard.innerHTML=`
-        <button onclick="window.__togglePlusBoxInfo(event)" style="position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;background:#bbb;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.12);">i</button>
-        <div id="plusbox-info-popup" style="display:none;position:absolute;top:38px;right:8px;background:var(--white);border:2px solid var(--border);border-radius:14px;padding:12px 16px;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:180px;">
-            <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;">${uiIcon('sparkle')}뽑기 확률</div>
-            <div style="font-size:12px;color:#666;line-height:1.9;">${plusProbRows}</div>
-        </div>
-        <div class="shop-item-art"><img src="./FruitsPlusBox.png" alt="과일플러스박스" style="width:100%;max-width:190px;height:190px;object-fit:contain;display:block;margin:0 auto;border-radius:12px;"></div>
+        <button aria-label="플러스 박스 뽑기 확률" aria-controls="box-probabilities" aria-expanded="false" style="position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;background:#bbb;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.12);">i</button>
+        <div class="shop-item-art"><img src="./FruitsPlusBox.png" alt="과일플러스박스"></div>
         <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">플러스 박스</div><div class="shop-item-clickval">체리~코코넛 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">${uiIcon('warning')}판매 시 0점</div></div>
         <button class="shop-buy-btn" id="plusbox-buy-btn" style="background:linear-gradient(135deg,#5bbf7a,#28a745);box-shadow:0 3px 12px rgba(40,167,69,.35);width:100%;" onclick="window.__buyPlusBox()">${fmtN(PLUS_BOX_PRICE)}</button>`;
     grid.appendChild(plusCard);
+    const probabilities = document.createElement('div');
+    probabilities.className = 'box-probabilities';
+    probabilities.id = 'box-probabilities';
+    probabilities.hidden = true;
+    grid.prepend(probabilities);
+    const buttons = grid.querySelectorAll('[aria-controls="box-probabilities"]');
+    const panels = [
+        ['과일박스 뽑기 확률', probRows],
+        ['플러스 박스 뽑기 확률', plusProbRows],
+    ];
+    buttons.forEach((button, index) => {
+        button.addEventListener('click', () => {
+            const open = button.getAttribute('aria-expanded') !== 'true';
+            buttons.forEach(item => item.setAttribute('aria-expanded', String(open && item === button)));
+            probabilities.hidden = !open;
+            if (open) {
+                const [title, rows] = panels[index];
+                probabilities.innerHTML = `<strong>${title}</strong>${rows}`;
+                probabilities.scrollIntoView({block:'nearest'});
+            }
+        });
+    });
     updateBoxShopUI();
 }
 function updateBoxShopUI(){
@@ -2097,16 +2201,6 @@ function updateBoxShopUI(){
         else{pbtn.disabled=false;pbtn.innerText=fmtN(PLUS_BOX_PRICE);pbtn.style.background='linear-gradient(135deg,#5bbf7a,#28a745)';pbtn.style.boxShadow='0 3px 12px rgba(40,167,69,.35)';}
     }
 }
-window.__toggleBoxInfo=function(e){
-    e.stopPropagation();const popup=document.getElementById('box-info-popup');if(!popup)return;
-    popup.style.display=popup.style.display==='none'?'block':'none';
-    if(popup.style.display==='block'){const close=(ev)=>{if(!popup.contains(ev.target)){popup.style.display='none';document.removeEventListener('pointerdown',close);}};setTimeout(()=>document.addEventListener('pointerdown',close),10);}
-};
-window.__togglePlusBoxInfo=function(e){
-    e.stopPropagation();const popup=document.getElementById('plusbox-info-popup');if(!popup)return;
-    popup.style.display=popup.style.display==='none'?'block':'none';
-    if(popup.style.display==='block'){const close=(ev)=>{if(!popup.contains(ev.target)){popup.style.display='none';document.removeEventListener('pointerdown',close);}};setTimeout(()=>document.addEventListener('pointerdown',close),10);}
-};
 window.__buyBox=function(){
     if(score<BOX_PRICE||nextFreeSlot()===-1)return;const slot=nextFreeSlot();if(slot===-1)return;
     playUIClick(); // 🔊 UI 클릭음
@@ -2246,6 +2340,54 @@ function updateAllUIImmediate(){
     updateSlotShopUI();updateFruitShopUI();updateBeeShopUI();updateBoxShopUI();updateBucketUI();
 }
 
+// The mirrored cubic pairs meet with matching curvature and run flat
+// into the straight edges. Rebuild the contour only when a panel resizes.
+function popupContourPath(width, height) {
+    const r = Math.min(30, width / 2, height / 2);
+    const point = (x, y, turn) => {
+        const a = x * r, b = y * r;
+        switch (turn) {
+            case 0: return `${width - b} ${a}`;
+            case 1: return `${width - a} ${height - b}`;
+            case 2: return `${b} ${height - a}`;
+            default: return `${a} ${b}`;
+        }
+    };
+    const corners = Array.from({length:4}, (_, turn) => {
+        const p = (x, y) => point(x, y, turn);
+        return `L ${p(0,1)} C ${p(0,.65)} ${p(0,.42)} ${p(.21,.21)} C ${p(.42,0)} ${p(.65,0)} ${p(1,0)}`;
+    });
+    return `M ${r} 0 ${corners.join(' ')} Z`;
+}
+
+const popupContours = new WeakMap();
+function updatePopupContour(panel) {
+    const width = panel.offsetWidth, height = panel.offsetHeight;
+    if (!width || !height) return;
+    let contour = popupContours.get(panel);
+    if (!contour) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.classList.add('popup-contour');
+        svg.setAttribute('aria-hidden', 'true');
+        contour = document.createElementNS(svg.namespaceURI, 'path');
+        contour.setAttribute('fill', 'none');
+        contour.setAttribute('stroke', '#000');
+        contour.setAttribute('stroke-width', '2');
+        svg.append(contour);
+        panel.append(svg);
+        popupContours.set(panel, contour);
+    }
+    const path = popupContourPath(width, height);
+    contour.setAttribute('d', path);
+    panel.style.clipPath = `path("${path}")`;
+    panel.classList.add('has-popup-contour');
+}
+
+const popupResizeObserver = new ResizeObserver(entries => {
+    entries.forEach(({target}) => updatePopupContour(target));
+});
+document.querySelectorAll('.settings-panel, .shop-panel').forEach(panel => popupResizeObserver.observe(panel));
+
 const popupCloseTimers = new WeakMap();
 function openShop(id){
     playUIClick(); // 🔊 UI 클릭음 (상점 열기)
@@ -2255,7 +2397,7 @@ function openShop(id){
     if (!ov.classList.contains('open')) {
         ov.classList.add('open');
         // Commit the starting style before making the popup visible.
-        ov.getBoundingClientRect();
+        updatePopupContour(ov.firstElementChild);
     }
     ov.classList.add('visible');
     if (id === 'settings-overlay') return;
@@ -2267,6 +2409,10 @@ function closeShop(id){
     const ov = document.getElementById(id);
     if (!ov.classList.contains('visible')) return;
     ov.classList.remove('visible');
+    if (id === 'box-shop-overlay') {
+        document.getElementById('box-probabilities').hidden = true;
+        ov.querySelector('[aria-expanded="true"]')?.setAttribute('aria-expanded', 'false');
+    }
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         ov.classList.remove('open');
         return;
@@ -3711,6 +3857,7 @@ function animate(t=performance.now()){
     if (_frameCount % 4 === 0) updateFruitIdle(t);
     updateFruitContactShadows();
     if (!cameraLocked) controls.update();
+    updateSlotMarker(t);
     renderer.render(scene,camera);
 }
 animate();
