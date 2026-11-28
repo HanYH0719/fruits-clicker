@@ -1365,12 +1365,12 @@ const pendingModels = new Map();
 function loadModelTemplate(url, onProgress) {
     if (_gltfCache[url]) return Promise.resolve(_gltfCache[url]);
     if (pendingModels.has(url)) return pendingModels.get(url);
-    const request = loader.loadAsync(url, onProgress).then(gltf => {
-        gltf.scene.position.set(0, 0, 0);
-        gltf.scene.rotation.set(0, 0, 0);
-        gltf.scene.scale.setScalar(1);
-        _gltfCache[url] = gltf;
-        return gltf;
+    const request = loader.loadAsync(url, onProgress).then(({ scene: template }) => {
+        template.position.set(0, 0, 0);
+        template.rotation.set(0, 0, 0);
+        template.scale.setScalar(1);
+        _gltfCache[url] = template;
+        return template;
     }).finally(() => pendingModels.delete(url));
     pendingModels.set(url, request);
     return request;
@@ -1378,8 +1378,8 @@ function loadModelTemplate(url, onProgress) {
 
 function loadModel(url, onLoad, onProgress, onError) {
     const cached = Boolean(_gltfCache[url]);
-    loadModelTemplate(url, onProgress).then(gltf => {
-        const deliver = () => onLoad({scene:gltf.scene.clone()});
+    loadModelTemplate(url, onProgress).then(template => {
+        const deliver = () => onLoad({scene:template.clone()});
         // Let the browser paint between cached placements when restoring a farm.
         if (cached) setTimeout(deliver, 0);
         else deliver();
