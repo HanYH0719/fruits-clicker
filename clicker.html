@@ -729,6 +729,14 @@
             <div style="font-size:clamp(11px,2.2vw,12px);letter-spacing:1px;color:#aaa;font-weight:400;">그래픽</div>
 
             <div class="settings-row">
+                <label class="settings-label" for="toggle-hide-bees">벌 가리기</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-hide-bees">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="settings-row">
                 <span class="settings-label">그림자</span>
                 <label class="toggle-switch">
                     <input type="checkbox" id="toggle-shadow" checked>
@@ -1557,12 +1565,14 @@ function compactGrid(trackSlot) {
 }
 
 const beeInstances=[];
+let hideBees = _settings.hideBees === true;
 function removeBeeInstance(b,doSave=true){const i=beeInstances.indexOf(b);if(i===-1)return;clearInterval(b.intervalId);playBeeSound(); scene.remove(b.model);beeInstances.splice(i,1);if(doSave){updateAllUI();writeSave();}}
 
 function spawnBeeOnFruit(bDef,fruitKey,fruitInstIdx,restore,startAngle=0){
     loader.load(bDef.file,gltf=>{
         const model = gltf.scene === _gltfCache[bDef.file]?.scene ? gltf.scene.clone() : gltf.scene;
         fixMesh(model);
+        model.visible = !hideBees;
         scene.add(model);
         const flight = prepareBeeFlight(model, bDef.key);
         const s=bDef.beeScale;model.scale.setScalar(restore?s:0);
@@ -2958,6 +2968,15 @@ document.getElementById('bucket-overlay').addEventListener('click',e=>{if(e.targ
     const settingsOverlay = document.getElementById('settings-overlay');
     const toggleFruit = document.getElementById('toggle-fruit-sound');
     const toggleUI    = document.getElementById('toggle-ui-sound');
+    const toggleHideBees = document.getElementById('toggle-hide-bees');
+    toggleHideBees.checked = hideBees;
+    toggleHideBees.addEventListener('change', () => {
+        hideBees = toggleHideBees.checked;
+        for (const bee of beeInstances) bee.model.visible = !hideBees;
+        const settings = _loadSettings();
+        settings.hideBees = hideBees;
+        _saveSettings(settings);
+    });
     const toggleShadow = document.getElementById('toggle-shadow');
     const selectShadowQ = document.getElementById('select-shadow-quality');
     const toggleAA = document.getElementById('toggle-antialias');
@@ -4721,7 +4740,7 @@ function animate(t=performance.now()){
     const dt=Math.min(t-lastT,50);lastT=t;_frameCount++;
     updateSugarCoatings(t, dt);
     if(t-_lastScoreUpdate>150){scoreEl.innerText=fmtN(score);_lastScoreUpdate=t;}
-    for (const bee of beeInstances) updateBeeFlight(bee, t, dt);
+    if (!hideBees) for (const bee of beeInstances) updateBeeFlight(bee, t, dt);
     if (_frameCount % 4 === 0) updateFruitIdle(t);
     updateFruitContactShadows();
     if (!cameraLocked) controls.update();
