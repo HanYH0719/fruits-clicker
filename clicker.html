@@ -1264,13 +1264,29 @@ renderer.setPixelRatio(Math.min(_settings.pixelRatio || DEFAULT_PIXEL_RATIO, win
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false;
 document.body.appendChild(renderer.domElement);
+
+let farmNeedsRender = true;
+let farmShadowsNeedUpdate = true;
+let renderedFarmChildren = [];
+function invalidateFarmRender() {
+    farmNeedsRender = true;
+    farmShadowsNeedUpdate = true;
+}
+renderer.domElement.addEventListener('webglcontextrestored', invalidateFarmRender);
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) invalidateFarmRender();
+});
 
 const aspect = window.innerWidth / window.innerHeight;
 const FRUS = 10;
 const camera = new THREE.OrthographicCamera(-FRUS*aspect/2, FRUS*aspect/2, FRUS/2, -FRUS/2, 0.1, 1000);
 camera.position.set(-7-4.4, 7, -7-4.4);
 camera.lookAt(-4.4, 0, -4.4);
+const renderedCameraPosition = new THREE.Vector3();
+const renderedCameraRotation = new THREE.Quaternion();
+let renderedCameraZoom;
 
 scene.add(new THREE.HemisphereLight(0xf5f9ff, 0xd9c9b5, 0.85));
 const dirLight = new THREE.DirectionalLight(0xfff2e5, 2.12);
@@ -2101,6 +2117,7 @@ function updateEffectItemMotion(model, time) {
         rig.sprout.rotation.x = -detail * 0.48;
         rig.sprout.rotation.z = detail;
     }
+    return true;
 }
 
 function removeEffectItem(type) {
@@ -2995,6 +3012,7 @@ document.getElementById('bucket-overlay').addEventListener('click',e=>{if(e.targ
     toggleHideBees.addEventListener('change', () => {
         hideBees = toggleHideBees.checked;
         for (const bee of beeInstances) bee.model.visible = !hideBees;
+        invalidateFarmRender();
         const settings = _loadSettings();
         settings.hideBees = hideBees;
         _saveSettings(settings);
@@ -3021,6 +3039,7 @@ document.getElementById('bucket-overlay').addEventListener('click',e=>{if(e.targ
         renderer.shadowMap.enabled = on;
         dirLight.castShadow = on;
         fruitContactShadows.visible = on;
+        invalidateFarmRender();
         document.getElementById('shadow-quality-row').style.opacity = on ? '1' : '0.4';
         document.getElementById('shadow-quality-row').style.pointerEvents = on ? '' : 'none';
     }
@@ -3030,9 +3049,11 @@ document.getElementById('bucket-overlay').addEventListener('click',e=>{if(e.targ
         dirLight.shadow.mapSize.height = s;
         dirLight.shadow.map?.dispose();
         dirLight.shadow.map = null;
+        invalidateFarmRender();
     }
     function _applyPixelRatio(ratio) {
         renderer.setPixelRatio(Math.min(parseFloat(ratio), window.devicePixelRatio));
+        farmNeedsRender = true;
     }
 
     toggleShadow.checked = _shadowOn;
@@ -4345,6 +4366,7 @@ function coatFruitWithSugar(model, key, broken = []) {
     mesh.raycast = () => {};
     mesh.renderOrder = 2;
     surface.group.add(mesh);
+    farmNeedsRender = true;
 
     const coating = {
         mesh, position, rest: rest.array, cells,
@@ -4786,32 +4808,60 @@ let lastT=0,_frameCount=0;
 function animate(t=performance.now()){
     requestAnimationFrame(animate);
     const previewApple = tutorialApplePreview?.apple;
-    const previewWasMoving = previewApple && (
-        activeFruitPresses.has(previewApple) || activeFruitDentSurfaces.has(fruitDentSurfaces.get(previewApple))
-    );
-    TWEEN.update(t);
-    updateEffectItemMotion(_flowerModel, t);
-    updateEffectItemMotion(_manureModel, t);
+    const previewPress = activeFruitPresses.has(previewApple);
+    const previewDent = activeFruitDentSurfaces.has(fruitDentSurfaces.get(previewApple));
+    const fruitWasMoving = activeFruitPresses.size > Number(previewPress) || activeFruitDentSurfaces.size > Number(previewDent);
+    const tweened = TWEEN.update(t);
+    const flowerMoved = updateEffectItemMotion(_flowerModel, t);
+    const manureMoved = updateEffectItemMotion(_manureModel, t);
     updateFruitPresses(t);
     updateFruitDents(t);
-    if (tutorial.open && tutorialPage === 0 && (previewWasMoving || tutorialAppleDirty)) {
+    if (tutorial.open && tutorialPage === 0 && (previewPress || previewDent || tutorialAppleDirty)) {
         tutorialApplePreview.render();
         tutorialAppleDirty = false;
     }
     const dt=Math.min(t-lastT,50);lastT=t;_frameCount++;
+    const sugarWasMoving = sugarApplications.size || sugarBursts.length || sugarFragments.length;
     updateSugarCoatings(t, dt);
-    if (!hideBees) for (const bee of beeInstances) updateBeeFlight(bee, t, dt);
+    const beesMoving = !hideBees && beeInstances.length > 0;
+    if (beesMoving) for (const bee of beeInstances) updateBeeFlight(bee, t, dt);
     if (_frameCount % 4 === 0) updateFruitIdle(t);
     updateFruitContactShadows();
     if (!cameraLocked) controls.update();
+    const slotWasVisible = slotHighlight.visible;
     updateSlotHighlight(t);
+
+    const children = scene.children;
+    if (children.length !== renderedFarmChildren.length || children.some((child, i) => child !== renderedFarmChildren[i])) {
+        renderedFarmChildren = children.slice();
+        invalidateFarmRender();
+    }
+    if (tweened || fruitWasMoving || flowerMoved || manureMoved || beesMoving) invalidateFarmRender();
+    // OrbitControls emits change on every orthographic update, even at rest.
+    const cameraMoved = renderedCameraZoom !== camera.zoom ||
+        renderedCameraPosition.distanceToSquared(camera.position) > 1e-12 ||
+        Math.abs(renderedCameraRotation.dot(camera.quaternion)) < 1 - 1e-12;
+    if (!farmNeedsRender && !sugarWasMoving && !slotWasVisible && !cameraMoved) return;
+    if (farmShadowsNeedUpdate) renderer.shadowMap.needsUpdate = true;
     renderer.render(scene,camera);
+    renderedCameraPosition.copy(camera.position);
+    renderedCameraRotation.copy(camera.quaternion);
+    renderedCameraZoom = camera.zoom;
+    farmNeedsRender = false;
+    farmShadowsNeedUpdate = false;
 }
 try { initGame(); } catch(e) { console.error('initGame error:', e); finishInit(); }
 setTimeout(()=>{if(document.getElementById('loading-overlay'))finishInit();},8000);
 animate();
 
-window.addEventListener('resize',()=>{const nA=window.innerWidth/window.innerHeight;camera.left=-FRUS*nA/2;camera.right=FRUS*nA/2;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight);});
+window.addEventListener('resize', () => {
+    const ratio = window.innerWidth / window.innerHeight;
+    camera.left = -FRUS * ratio / 2;
+    camera.right = FRUS * ratio / 2;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    farmNeedsRender = true;
+});
 document.addEventListener('contextmenu',e=>e.preventDefault());
 document.addEventListener('selectstart',e=>e.preventDefault());
 document.addEventListener('touchstart',e=>{if(anyShopOpen())return;if(e.touches.length>1)e.preventDefault();},{passive:false});
