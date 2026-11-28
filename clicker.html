@@ -1136,7 +1136,7 @@ function loadSave() { try { return SAVE_KEY ? JSON.parse(localStorage.getItem(SA
 // ★ writeSave: 슬롯 순서대로 {key, fromBox} 배열(fruitsEx)로 저장
 function writeSave() {
     if (isResetting || !SAVE_KEY) return;
-    const d = { score, unlockedSlots, rebirthCount };
+    const d = { score, unlockedSlots, rebirthCount, plusBoxAdCompletions };
 
     // fruitsEx: 슬롯 인덱스 순으로 과일 key + _fromBox 플래그 저장
     const fruitsEx = [];
@@ -1161,6 +1161,8 @@ function writeSave() {
 }
 
 const save  = loadSave();
+const PLUS_BOX_ADS_REQUIRED = 2;
+let plusBoxAdCompletions = [1, 2].includes(save.plusBoxAdCompletions) ? save.plusBoxAdCompletions : 0;
 let   score = save.score || 0;
 let   rebirthCount = save.rebirthCount || 0;
 const REBIRTH_MULTI = () => 1 + rebirthCount * 0.5;
@@ -2334,7 +2336,7 @@ function openBox(inst){
     ).start();
 }
 
-function spawnPlusBox(slotIdx,animate,cb){
+function spawnPlusBox(slotIdx,animate,cb,onError){
     loader.load('./FruitsPlusBox.glb',gltf=>{
         const model=gltf.scene;fixMesh(model);
         const{x,z}=gridPos(slotIdx);
@@ -2343,8 +2345,8 @@ function spawnPlusBox(slotIdx,animate,cb){
         model.scale.setScalar(animate?0:1.0);scene.add(model);
         if(animate){ playShowup(); new TWEEN.Tween(model.scale).to({x:1.0,y:1.0,z:1.0},600).easing(TWEEN.Easing.Elastic.Out).start(); }
         const inst={model,slot:slotIdx,clicks:0};plusBoxInstances.push(inst);gridSlots[slotIdx]={key:'__plusbox__',idx:plusBoxInstances.length-1};
-        updateBoxShopUI();writeSave();if(cb)cb();
-    },undefined,err=>console.error('PlusBoxGLB 실패',err));
+        if(cb)cb();updateBoxShopUI();writeSave();
+    },undefined,err=>{ console.error('PlusBoxGLB 실패',err); onError?.(); });
 }
 
 function clickPlusBox(inst, event){
@@ -2412,6 +2414,9 @@ function buildBoxShopUI(){
         <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">플러스 박스</div><div class="shop-item-clickval">체리~코코넛 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">${uiIcon('warning')}판매 시 0점</div></div>
         <button class="shop-buy-btn" id="plusbox-buy-btn" onclick="window.__buyPlusBox()">${fmtN(PLUS_BOX_PRICE)}</button>`;
     appendShopCard(grid, plusCard);
+    if (tossPlatform?.rewardedAds) {
+        addRewardButton(plusCard, 'ad-plus-box', () => claimRewardedPurchase(undefined, 'plusBox')).hidden = false;
+    }
     const buttons = grid.querySelectorAll('[aria-controls="box-probabilities"]');
     const panels = [
         ['과일박스 뽑기 확률', probRows],
@@ -2504,39 +2509,49 @@ function addRewardButton(card, id, onClick) {
     return button;
 }
 
-function updateRewardButton(button, full) {
+function updateRewardButton(button, full, message = '광고 보고 얻기') {
     if (!button) return;
     const busy = pendingRewardPurchase?.id === button.id;
-    const label = busy ? '광고 준비 중…' : full ? '빈 슬롯 필요' : '광고 보고 얻기';
+    const label = busy ? '광고 준비 중…' : full ? '빈 슬롯 필요' : message;
     updatePurchaseButton(button, full || Boolean(pendingRewardPurchase) || isResetting, label);
 }
 
-async function claimRewardedPurchase(fruit) {
+async function claimRewardedPurchase(fruit, placement = fruit ? 'fruit' : 'box') {
     const ads = tossPlatform?.rewardedAds;
     const slot = nextFreeSlot();
     if (!ads || slot < 0 || pendingRewardPurchase || isResetting) return;
     if (fruit && (nextRewardFruit() !== fruit || pendingFruitPurchases.has(fruit.key))) return;
 
-    const placement = fruit ? 'fruit' : 'box';
-    const id = fruit ? `ad-fruit-${fruit.key}` : 'ad-fruit-box';
+    const plusBox = placement === 'plusBox';
+    const id = plusBox ? 'ad-plus-box' : fruit ? `ad-fruit-${fruit.key}` : 'ad-fruit-box';
     pendingRewardPurchase = {id, fruit};
     gridSlots[slot] = 'reserved';
     updateAllUIImmediate();
     try {
         // Cache the model before showing the ad so payout doesn't require another download.
-        const file = fruit?.file ?? './RandomBox.glb';
+        const file = fruit?.file ?? (plusBox ? './FruitsPlusBox.glb' : './RandomBox.glb');
         await preloadGLBs([file]);
         if (!_gltfCache[file]) {
             showSellToast('보상을 준비하지 못했어요. 다시 시도해 주세요.');
             return;
         }
 
-        const outcome = await ads.watch(placement);
-        if (outcome !== 'earned') {
-            showSellToast(outcome === 'dismissed'
-                ? '광고를 끝까지 보면 보상을 받을 수 있어요.'
-                : '지금은 광고를 불러올 수 없어요. 잠시 후 다시 눌러 주세요.');
-            return;
+        if (!plusBox || plusBoxAdCompletions < PLUS_BOX_ADS_REQUIRED) {
+            const outcome = await ads.watch(placement);
+            if (outcome !== 'earned') {
+                showSellToast(outcome === 'dismissed'
+                    ? '광고를 끝까지 보면 보상을 받을 수 있어요.'
+                    : '지금은 광고를 불러올 수 없어요. 잠시 후 다시 눌러 주세요.');
+                return;
+            }
+            if (plusBox) {
+                plusBoxAdCompletions++;
+                writeSave();
+                if (plusBoxAdCompletions < PLUS_BOX_ADS_REQUIRED) {
+                    showSellToast('광고 1/2 완료. 한 번 더 보면 플러스 박스를 받아요.', 'bottom');
+                    return;
+                }
+            }
         }
 
         const granted = await new Promise(resolve => {
@@ -2547,6 +2562,11 @@ async function claimRewardedPurchase(fruit) {
                     pools[fruit.key].list[index]._fromBox = true;
                     resolve(true);
                 });
+            } else if (plusBox) {
+                spawnPlusBox(slot, true, () => {
+                    plusBoxAdCompletions = 0;
+                    resolve(true);
+                }, () => resolve(false));
             } else {
                 spawnBox(slot, true, () => resolve(true), () => resolve(false));
             }
@@ -2557,7 +2577,7 @@ async function claimRewardedPurchase(fruit) {
         }
         writeSave();
         closeShop(fruit ? 'fruit-shop-overlay' : 'box-shop-overlay');
-        showSellToast(`${fruit?.name ?? '과일박스'} 획득!`, 'bottom', 'gift');
+        showSellToast(`${fruit?.name ?? (plusBox ? '플러스 박스' : '과일박스')} 획득!`, 'bottom', 'gift');
     } catch {
         showSellToast('광고를 완료하지 못했어요. 다시 시도해 주세요.');
     } finally {
@@ -2579,6 +2599,10 @@ function updateBoxShopUI() {
     if (display && display.textContent !== scoreLabel) display.textContent = scoreLabel;
     const full = nextFreeSlot() === -1;
     updateRewardButton(document.getElementById('ad-fruit-box'), full);
+    const plusLabel = plusBoxAdCompletions === PLUS_BOX_ADS_REQUIRED
+        ? '플러스 박스 받기'
+        : `광고 2개 보고 얻기 (${plusBoxAdCompletions}/2)`;
+    updateRewardButton(document.getElementById('ad-plus-box'), full, plusLabel);
     updatePurchaseButton(document.getElementById('box-buy-btn'), full || score < BOX_PRICE,
         full ? '슬롯 꽉참' : fmtN(BOX_PRICE));
     updatePurchaseButton(document.getElementById('plusbox-buy-btn'), full || score < PLUS_BOX_PRICE,

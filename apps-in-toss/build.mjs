@@ -100,6 +100,7 @@ try {
     const testRewardedId = 'ait-ad-test-rewarded-id';
     const rewardedAdIds = {
         box: process.env.TOSS_REWARDED_BOX_ID?.trim() || testRewardedId,
+        plusBox: process.env.TOSS_REWARDED_PLUS_BOX_ID?.trim() || testRewardedId,
         fruit: process.env.TOSS_REWARDED_FRUIT_ID?.trim() || testRewardedId,
     };
     const game = module[1]
