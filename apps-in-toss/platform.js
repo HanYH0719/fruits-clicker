@@ -1,6 +1,44 @@
-import { Environment, SafeArea, Screen, User, graniteEvent } from '@apps-in-toss/web-framework';
+import { Environment, SafeArea, Screen, User, graniteEvent, loadFullScreenAd, showFullScreenAd } from '@apps-in-toss/web-framework';
 
-export async function initTossPlatform() {
+function waitForAdEvent(subscribe, adGroupId, handleEvent, timeout) {
+    let unsubscribe;
+    let done = false;
+    return new Promise(resolve => {
+        const finish = result => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            resolve(result);
+        };
+        const timer = setTimeout(() => finish('unavailable'), timeout);
+        try {
+            unsubscribe = subscribe({
+                options: { adGroupId },
+                onEvent: event => { if (!done) handleEvent(event, finish); },
+                onError: () => finish('unavailable'),
+            });
+        } catch {
+            finish('unavailable');
+        }
+    }).finally(() => unsubscribe?.());
+}
+
+async function watchRewardedAd(adGroupId) {
+    const loaded = await waitForAdEvent(loadFullScreenAd, adGroupId, (event, finish) => {
+        if (event.type === 'loaded') finish('loaded');
+    }, 12000);
+    if (loaded !== 'loaded') return loaded;
+
+    let earned = false;
+    const result = await waitForAdEvent(showFullScreenAd, adGroupId, (event, finish) => {
+        if (event.type === 'userEarnedReward') earned = true;
+        if (event.type === 'dismissed') finish('dismissed');
+        if (event.type === 'failedToShow') finish('unavailable');
+    }, 180000);
+    return earned ? 'earned' : result;
+}
+
+export async function initTossPlatform(rewardedAdIds) {
     let environment;
     try {
         environment = Environment.environment;
@@ -33,7 +71,14 @@ export async function initTossPlatform() {
         clearTimeout(timeout);
     }
 
+    let rewardedAds;
+    if (loadFullScreenAd.isSupported() && showFullScreenAd.isSupported()) {
+        rewardedAds = {
+            watch: placement => watchRewardedAd(rewardedAdIds[placement]),
+        };
+    }
     return {
+        rewardedAds,
         saveKey: key ? 'fc_v16:' + key : null,
         onBack(onEvent) {
             graniteEvent.addEventListener('backEvent', { onEvent });

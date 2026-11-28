@@ -97,8 +97,13 @@ try {
         .replace(/<!-- debug-code:start -->[\s\S]*?<!-- debug-code:end -->/, '');
     await writeFile(new URL('index.html', staged), publicHtml);
 
+    const testRewardedId = 'ait-ad-test-rewarded-id';
+    const rewardedAdIds = {
+        box: process.env.TOSS_REWARDED_BOX_ID?.trim() || testRewardedId,
+        fruit: process.env.TOSS_REWARDED_FRUIT_ID?.trim() || testRewardedId,
+    };
     const game = module[1]
-        .replace(standalonePlatform, 'const tossPlatform = await initTossPlatform();')
+        .replace(standalonePlatform, `const tossPlatform = await initTossPlatform(${JSON.stringify(rewardedAdIds)});`)
         .replace(/\/\/ debug-handler:start[\s\S]*?\/\/ debug-handler:end/, '');
     await build({
         stdin: {

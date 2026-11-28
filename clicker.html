@@ -493,6 +493,14 @@
             white-space:nowrap; width:100%;
             text-align:center;
         }
+        .reward-ad-btn {
+            margin-top:7px; min-height:42px; width:100%; border:0; border-radius:12px;
+            background:#ece3fc; color:#593986; font:inherit; font-size:14px; font-weight:700;
+            cursor:pointer; transition:background-color .16s ease;
+        }
+        .reward-ad-btn:active:not(:disabled) { background:#dfd0f4; }
+        .reward-ad-btn:disabled { color:#736584; cursor:default; }
+        .reward-ad-btn[hidden] { display:none; }
         .shop-buy-btn.free  { background:var(--green); }
         .shop-buy-btn.bee-btn { background:var(--yellow); color:#5a3800; font-weight:700; }
         #box-buy-btn:not(:disabled) { background:linear-gradient(135deg,#ff6b8a,#ff4757); }
@@ -1485,11 +1493,13 @@ function compactGrid(trackSlot) {
         else if(g.key==='__plusbox__'){const inst=plusBoxInstances[g.idx];if(!inst)continue;entries.push({key:'__plusbox__',inst,oldSlot:s});}
         else{const p=pools[g.key];if(!p)continue;const item=p.list[g.idx];if(!item)continue;entries.push({key:g.key,item,oldSlot:s});}
     }
-    for (let i=0;i<gridSlots.length;i++) gridSlots[i]=i>=unlockedSlots?'locked':null;
+    for (let i=0;i<gridSlots.length;i++) if (gridSlots[i] !== 'reserved') gridSlots[i]=i>=unlockedSlots?'locked':null;
     for (const k of Object.keys(pools)) pools[k].list=[];
     const newBoxList=[];
     const newPlusBoxList=[];
-    entries.forEach(({key:k,item,inst,oldSlot},newSlot)=>{
+    const openSlots = gridSlots.flatMap((entry, index) => entry === null ? [index] : []);
+    entries.forEach(({key:k,item,inst,oldSlot},index)=>{
+        const newSlot = openSlots[index];
         if(k==='__manure__'){
             _manureSlot=newSlot; gridSlots[newSlot]={key:'__manure__',idx:0};
             if(newSlot!==oldSlot&&_manureModel){
@@ -1797,12 +1807,16 @@ function buildFruitShopUI(){
         card.innerHTML=`<div class="shop-item-art"><img src="${fd.icon}" alt="${fd.name}"></div><div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">${fd.name}</div><div class="shop-item-clickval">클릭 +${fd.clickVal}</div></div><button class="shop-buy-btn${isFree?' free':''}" id="fsb-${fd.key}">${isFree?'무료 획득':fmtN(fd.buyPrice)}</button>`;
         card.querySelector('button').addEventListener('click', () => buyFruit(fd));
         appendShopCard(grid, card);
+        if (tossPlatform?.rewardedAds && !isFree) {
+            addRewardButton(card, `ad-fruit-${fd.key}`, () => claimRewardedPurchase(fd));
+        }
     }
     updateAllUI();
 }
 function updateFruitShopUI(){
     document.getElementById('fruit-shop-score').innerText=`${fmtN(score)}점`;
     const full=nextFreeSlot()===-1;
+    const rewardFruit = nextRewardFruit();
     for(const fd of FRUIT_DEFS){
         const bEl=document.getElementById(`fsb-${fd.key}`),rEl=document.getElementById(`fsi-${fd.key}`);if(!bEl||!rEl)continue;
         const isFree = fd.buyPrice === 0;
@@ -1811,6 +1825,11 @@ function updateFruitShopUI(){
         const label = pending ? '불러오는 중…' : full ? '꽉참' : isFree ? '무료 획득' : fmtN(fd.buyPrice);
         updatePurchaseButton(bEl, disabled, label);
         bEl.classList.toggle('free', !disabled && isFree);
+        const ad = document.getElementById(`ad-fruit-${fd.key}`);
+        if (ad) {
+            ad.hidden = rewardFruit !== fd && pendingRewardPurchase?.fruit !== fd;
+            updateRewardButton(ad, full || pending);
+        }
     }
 }
 function buyFruit(fd) {
@@ -2273,7 +2292,7 @@ function rollPlusBoxReward(){
     return FRUIT_DEFS.find(f=>f.key===PLUS_BOX_REWARDS[0].key);
 }
 
-function spawnBox(slotIdx,animate,cb){
+function spawnBox(slotIdx,animate,cb,onError){
     loader.load('./RandomBox.glb',gltf=>{
         const model=gltf.scene;fixMesh(model);
         const{x,z}=gridPos(slotIdx);
@@ -2283,7 +2302,7 @@ function spawnBox(slotIdx,animate,cb){
         if(animate){ playShowup(); new TWEEN.Tween(model.scale).to({x:1.0,y:1.0,z:1.0},600).easing(TWEEN.Easing.Elastic.Out).start(); }
         const inst={model,slot:slotIdx,clicks:0};boxInstances.push(inst);gridSlots[slotIdx]={key:'__box__',idx:boxInstances.length-1};
         updateBoxShopUI();writeSave();if(cb)cb();
-    },undefined,err=>console.error('BoxGLB 실패',err));
+    },undefined,err=>{ console.error('BoxGLB 실패',err); onError?.(); });
 }
 
 function clickBox(inst, event){
@@ -2374,6 +2393,9 @@ function buildBoxShopUI(){
         <div class="shop-item-info"><div class="shop-item-name" style="font-weight:700;">과일박스</div><div class="shop-item-clickval">오렌지~체리 랜덤</div><div class="shop-item-info2" style="color:#ff6b8a;margin-top:3px;">${uiIcon('warning')}판매 시 0점</div></div>
         <button class="shop-buy-btn" id="box-buy-btn" onclick="window.__buyBox()">${fmtN(BOX_PRICE)}</button>`;
     appendShopCard(grid, card);
+    if (tossPlatform?.rewardedAds) {
+        addRewardButton(card, 'ad-fruit-box', () => claimRewardedPurchase()).hidden = false;
+    }
 
     // ★ 과일 플러스 박스 카드
     const plusTotal=PLUS_BOX_REWARDS.reduce((s,r)=>s+r.weight,0);
@@ -2464,6 +2486,87 @@ boxShopOverlay.addEventListener('click', event => {
 boxShopBody.addEventListener('scroll', closeBoxProbabilities, {passive:true});
 window.addEventListener('resize', closeBoxProbabilities);
 
+let pendingRewardPurchase;
+
+function nextRewardFruit() {
+    const highest = FRUIT_DEFS.findLastIndex(fruit => pools[fruit.key]?.list.length);
+    return highest < 0 ? undefined : FRUIT_DEFS[highest + 1];
+}
+
+function addRewardButton(card, id, onClick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.id = id;
+    button.className = 'reward-ad-btn';
+    button.hidden = true;
+    button.addEventListener('click', onClick);
+    card.append(button);
+    return button;
+}
+
+function updateRewardButton(button, full) {
+    if (!button) return;
+    const busy = pendingRewardPurchase?.id === button.id;
+    const label = busy ? '광고 준비 중…' : full ? '빈 슬롯 필요' : '광고 보고 얻기';
+    updatePurchaseButton(button, full || Boolean(pendingRewardPurchase) || isResetting, label);
+}
+
+async function claimRewardedPurchase(fruit) {
+    const ads = tossPlatform?.rewardedAds;
+    const slot = nextFreeSlot();
+    if (!ads || slot < 0 || pendingRewardPurchase || isResetting) return;
+    if (fruit && (nextRewardFruit() !== fruit || pendingFruitPurchases.has(fruit.key))) return;
+
+    const placement = fruit ? 'fruit' : 'box';
+    const id = fruit ? `ad-fruit-${fruit.key}` : 'ad-fruit-box';
+    pendingRewardPurchase = {id, fruit};
+    gridSlots[slot] = 'reserved';
+    updateAllUIImmediate();
+    try {
+        // Cache the model before showing the ad so payout doesn't require another download.
+        const file = fruit?.file ?? './RandomBox.glb';
+        await preloadGLBs([file]);
+        if (!_gltfCache[file]) {
+            showSellToast('보상을 준비하지 못했어요. 다시 시도해 주세요.');
+            return;
+        }
+
+        const outcome = await ads.watch(placement);
+        if (outcome !== 'earned') {
+            showSellToast(outcome === 'dismissed'
+                ? '광고를 끝까지 보면 보상을 받을 수 있어요.'
+                : '지금은 광고를 불러올 수 없어요. 잠시 후 다시 눌러 주세요.');
+            return;
+        }
+
+        const granted = await new Promise(resolve => {
+            if (fruit) {
+                place(fruit, slot, true, index => {
+                    if (index == null) return resolve(false);
+                    // Reuse the existing non-resellable reward flag and save format.
+                    pools[fruit.key].list[index]._fromBox = true;
+                    resolve(true);
+                });
+            } else {
+                spawnBox(slot, true, () => resolve(true), () => resolve(false));
+            }
+        });
+        if (!granted) {
+            showSellToast('보상을 불러오지 못했어요. 다시 시도해 주세요.');
+            return;
+        }
+        writeSave();
+        closeShop(fruit ? 'fruit-shop-overlay' : 'box-shop-overlay');
+        showSellToast(`${fruit?.name ?? '과일박스'} 획득!`, 'bottom', 'gift');
+    } catch {
+        showSellToast('광고를 완료하지 못했어요. 다시 시도해 주세요.');
+    } finally {
+        if (gridSlots[slot] === 'reserved') gridSlots[slot] = null;
+        pendingRewardPurchase = undefined;
+        updateAllUIImmediate();
+    }
+}
+
 function updatePurchaseButton(button, disabled, label) {
     if (!button) return;
     if (button.disabled !== disabled) button.disabled = disabled;
@@ -2475,6 +2578,7 @@ function updateBoxShopUI() {
     const scoreLabel = `${fmtN(score)}점`;
     if (display && display.textContent !== scoreLabel) display.textContent = scoreLabel;
     const full = nextFreeSlot() === -1;
+    updateRewardButton(document.getElementById('ad-fruit-box'), full);
     updatePurchaseButton(document.getElementById('box-buy-btn'), full || score < BOX_PRICE,
         full ? '슬롯 꽉참' : fmtN(BOX_PRICE));
     updatePurchaseButton(document.getElementById('plusbox-buy-btn'), full || score < PLUS_BOX_PRICE,
@@ -2536,11 +2640,18 @@ function updateBucketUI() {
 
 window.__rebirth = async function() {
     const { hasFruit, isFull, hasScore } = checkRebirthConditions();
-    if (!hasFruit || !isFull || !hasScore) return;
+    if (!hasFruit || !isFull || !hasScore || pendingRewardPurchase || isResetting) return;
     playUIClick(); // 🔊 UI 클릭음
     closeShop('bucket-overlay');
-    await new Promise(r => setTimeout(r, 300));
-    await playRebirthAnimation();
+    isResetting = true;
+    try {
+        await new Promise(r => setTimeout(r, 300));
+        await playRebirthAnimation();
+    } finally {
+        isResetting = false;
+        writeSave();
+        updateAllUIImmediate();
+    }
 };
 
 function playRebirthAnimation() {
