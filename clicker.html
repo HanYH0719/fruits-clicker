@@ -217,6 +217,7 @@
         #tutorial-tap {
             position:absolute; inset:0; display:flex; justify-content:center; align-items:end;
             background:none; border:0; border-radius:inherit; padding:5px; touch-action:none;
+            -webkit-tap-highlight-color:transparent;
         }
         #tutorial-tap span {
             background:var(--white); color:var(--tutorial-accent); font-size:13px; font-weight:700;
@@ -1148,6 +1149,10 @@ function loadSave() { try { return SAVE_KEY ? JSON.parse(localStorage.getItem(SA
 // ★ writeSave: 슬롯 순서대로 {key, fromBox} 배열(fruitsEx)로 저장
 function writeSave() {
     if (isResetting || !SAVE_KEY) return;
+    if (passiveSaveTimer !== undefined) {
+        clearTimeout(passiveSaveTimer);
+        passiveSaveTimer = undefined;
+    }
     const d = { score, unlockedSlots, rebirthCount, plusBoxAdCompletions };
 
     // fruitsEx: 슬롯 인덱스 순으로 과일 key + _fromBox 플래그 저장
@@ -1218,7 +1223,34 @@ function fmtN(n) {
     }
     return n.toLocaleString();
 }
-scoreEl.innerText = fmtN(score);
+const shopScoreLabels = ['fruit-shop-score', 'bee-shop-score', 'box-shop-score']
+    .map(id => document.getElementById(id));
+let displayedScore;
+let displayedScoreLabel;
+function refreshScoreLabels() {
+    if (displayedScore !== score) {
+        displayedScore = score;
+        displayedScoreLabel = fmtN(score);
+    }
+    if (scoreEl.textContent !== displayedScoreLabel) scoreEl.textContent = displayedScoreLabel;
+    const shopLabel = `${displayedScoreLabel}점`;
+    for (const label of shopScoreLabels) {
+        if (label.textContent !== shopLabel) label.textContent = shopLabel;
+    }
+}
+refreshScoreLabels();
+
+let passiveSaveTimer;
+function flushPassiveIncome() {
+    if (passiveSaveTimer === undefined) return;
+    clearTimeout(passiveSaveTimer);
+    passiveSaveTimer = undefined;
+    writeSave();
+}
+window.addEventListener('pagehide', flushPassiveIncome);
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) flushPassiveIncome();
+});
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xF8F8F8);
@@ -1328,22 +1360,31 @@ const plusBoxInstances = [];
 
 const loader = new GLTFLoader();
 const _gltfCache = {};
-const _origLoad = loader.load.bind(loader);
-loader.load = function(url, onLoad, onProgress, onError) {
-    if (_gltfCache[url]) {
-        setTimeout(() => {
-            const clone = _gltfCache[url].scene.clone();
-            clone.position.set(0, 0, 0); clone.rotation.set(0, 0, 0); clone.scale.set(1, 1, 1);
-            onLoad({ scene: clone });
-        }, 0);
-        return;
-    }
-    _origLoad(url, (gltf) => {
-        gltf.scene.position.set(0, 0, 0); gltf.scene.rotation.set(0, 0, 0); gltf.scene.scale.set(1, 1, 1);
+const pendingModels = new Map();
+
+function loadModelTemplate(url, onProgress) {
+    if (_gltfCache[url]) return Promise.resolve(_gltfCache[url]);
+    if (pendingModels.has(url)) return pendingModels.get(url);
+    const request = loader.loadAsync(url, onProgress).then(gltf => {
+        gltf.scene.position.set(0, 0, 0);
+        gltf.scene.rotation.set(0, 0, 0);
+        gltf.scene.scale.setScalar(1);
         _gltfCache[url] = gltf;
-        onLoad(gltf);
-    }, onProgress, onError);
-};
+        return gltf;
+    }).finally(() => pendingModels.delete(url));
+    pendingModels.set(url, request);
+    return request;
+}
+
+function loadModel(url, onLoad, onProgress, onError) {
+    const cached = Boolean(_gltfCache[url]);
+    loadModelTemplate(url, onProgress).then(gltf => {
+        const deliver = () => onLoad({scene:gltf.scene.clone()});
+        // Let the browser paint between cached placements when restoring a farm.
+        if (cached) setTimeout(deliver, 0);
+        else deliver();
+    }, onError).catch(error => console.error('GLB callback failed:', url, error));
+}
 
 const filteredTextures = new WeakSet();
 const preparedFruitMaterials = new WeakSet();
@@ -1387,11 +1428,8 @@ function fixMesh(obj, fruit = false) {
 }
 
 function place(def, slotIdx, animate, cb) {
-    loader.load(def.file, gltf => {
-        // Keep the cached template independent of each fruit's animated pose.
-        const model = gltf.scene === _gltfCache[def.file]?.scene
-            ? gltf.scene.clone()
-            : gltf.scene;
+    loadModel(def.file, gltf => {
+        const model = gltf.scene;
         fixMesh(model, true);
         const box = new THREE.Box3().setFromObject(model);
         prepareFruitPress(model, box);
@@ -1569,8 +1607,8 @@ let hideBees = _settings.hideBees === true;
 function removeBeeInstance(b,doSave=true){const i=beeInstances.indexOf(b);if(i===-1)return;clearInterval(b.intervalId);playBeeSound(); scene.remove(b.model);beeInstances.splice(i,1);if(doSave){updateAllUI();writeSave();}}
 
 function spawnBeeOnFruit(bDef,fruitKey,fruitInstIdx,restore,startAngle=0){
-    loader.load(bDef.file,gltf=>{
-        const model = gltf.scene === _gltfCache[bDef.file]?.scene ? gltf.scene.clone() : gltf.scene;
+    loadModel(bDef.file,gltf=>{
+        const model = gltf.scene;
         fixMesh(model);
         model.visible = !hideBees;
         scene.add(model);
@@ -1585,13 +1623,8 @@ function spawnBeeOnFruit(bDef,fruitKey,fruitInstIdx,restore,startAngle=0){
                 score+=Math.floor(perSec*BEE_SCORE_MULTI());
                 if (_manureMulti > 1) playEffectItemMotion(_manureModel, 'boost');
                 if (_flowerMulti > 1) playEffectItemMotion(_flowerModel, 'boost');
-                scoreEl.innerText=fmtN(score);
-                const _fs=document.getElementById('fruit-shop-score');
-                const _bs=document.getElementById('bee-shop-score');
-                const _bxs=document.getElementById('box-shop-score');
-                const _sl=`${fmtN(score)}점`;
-                if(_fs)_fs.innerText=_sl; if(_bs)_bs.innerText=_sl; if(_bxs)_bxs.innerText=_sl;
-                writeSave();
+                refreshScoreLabels();
+                passiveSaveTimer ??= setTimeout(flushPassiveIncome, 75);
             }
         },1000);
         _pendingBeeSlots.delete(fruitKey+'_'+fruitInstIdx);
@@ -1635,20 +1668,15 @@ function preloadGLBs(urls) {
     let resolved = false;
     return new Promise(resolve => {
         const finish = () => { if (!resolved) { resolved = true; resolve(); } };
-        // 안전장치: 6초 타임아웃
-        setTimeout(finish, 6000);
-        let done = 0;
-        const tick = () => { done++; loaded++; _updateLoadingBar(loaded, total); if (done >= total) finish(); };
-        urls.forEach(url => {
-            if (_gltfCache[url]) { tick(); return; }
-            try {
-                _origLoad(url, gltf => {
-                    gltf.scene.position.set(0,0,0); gltf.scene.rotation.set(0,0,0); gltf.scene.scale.set(1,1,1);
-                    _gltfCache[url] = gltf;
-                    tick();
-                }, undefined, () => { tick(); });
-            } catch(e) { console.error('GLB preload error:', url, e); tick(); }
-        });
+        const timer = setTimeout(finish, 6000);
+        const tick = () => {
+            _updateLoadingBar(++loaded, total);
+            if (loaded >= total) {
+                clearTimeout(timer);
+                finish();
+            }
+        };
+        urls.forEach(url => loadModelTemplate(url).then(tick, tick));
     });
 }
 
@@ -2105,8 +2133,8 @@ function removeEffectItem(type) {
 function spawnEffectItem(type, slot) {
     const isFlower = type === 'flower';
     const file = isFlower ? './Flower.glb' : './Manure.glb';
-    loader.load(file, gltf => {
-        const model = gltf.scene === _gltfCache[file]?.scene ? gltf.scene.clone() : gltf.scene;
+    loadModel(file, gltf => {
+        const model = gltf.scene;
         fixMesh(model);
         const box = new THREE.Box3().setFromObject(model);
         prepareEffectItem(model, type, box);
@@ -2309,7 +2337,7 @@ function rollPlusBoxReward(){
 }
 
 function spawnBox(slotIdx,animate,cb,onError){
-    loader.load('./RandomBox.glb',gltf=>{
+    loadModel('./RandomBox.glb',gltf=>{
         const model=gltf.scene;fixMesh(model);
         const{x,z}=gridPos(slotIdx);
         model.position.set(x,0,z);
@@ -2351,7 +2379,7 @@ function openBox(inst){
 }
 
 function spawnPlusBox(slotIdx,animate,cb,onError){
-    loader.load('./FruitsPlusBox.glb',gltf=>{
+    loadModel('./FruitsPlusBox.glb',gltf=>{
         const model=gltf.scene;fixMesh(model);
         const{x,z}=gridPos(slotIdx);
         model.position.set(x,0,z);
@@ -2694,7 +2722,7 @@ window.__rebirth = async function() {
 
 function playRebirthAnimation() {
     return new Promise(resolve => {
-        loader.load('./Bucket.glb', gltf => {
+        loadModel('./Bucket.glb', gltf => {
             const bucket = gltf.scene;
             fixMesh(bucket);
             bucket.scale.setScalar(0);
@@ -2751,19 +2779,13 @@ function finishRebirth(bucket, resolve) {
 }
 
 function updateAllUI() {
-    scoreEl.innerText=fmtN(score);
-    const fs=document.getElementById('fruit-shop-score');
-    const bs=document.getElementById('bee-shop-score');
-    const bxs=document.getElementById('box-shop-score');
-    if(fs)fs.innerText=`${fmtN(score)}점`;
-    if(bs)bs.innerText=`${fmtN(score)}점`;
-    if(bxs)bxs.innerText=`${fmtN(score)}점`;
+    refreshScoreLabels();
     if(_uiTimer)return;
     _uiTimer=setTimeout(()=>{_uiTimer=null;updateSlotShopUI();updateFruitShopUI();updateBeeShopUI();updateBoxShopUI();updateBucketUI();},200);
 }
 function updateAllUIImmediate(){
     if(_uiTimer){clearTimeout(_uiTimer);_uiTimer=null;}
-    scoreEl.innerText=fmtN(score);
+    refreshScoreLabels();
     updateSlotShopUI();updateFruitShopUI();updateBeeShopUI();updateBoxShopUI();updateBucketUI();
 }
 
@@ -3124,7 +3146,7 @@ let tutorialAppleRequested = false;
 function prepareTutorialApple() {
     if (tutorialAppleRequested) return;
     tutorialAppleRequested = true;
-    loader.load(FRUIT_DEFS[0].file, ({scene: source}) => {
+    loadModel(FRUIT_DEFS[0].file, ({scene: source}) => {
         let previewRenderer;
         try {
             previewRenderer = new THREE.WebGLRenderer({
@@ -3136,7 +3158,7 @@ function prepareTutorialApple() {
             const previewScene = new THREE.Scene();
             const light = new THREE.DirectionalLight(0xfff2e5, 2.1);
             light.position.set(-4, 7, -3);
-            const apple = source.clone();
+            const apple = source;
             fixMesh(apple, true);
             const bounds = new THREE.Box3().setFromObject(apple);
             prepareFruitPress(apple, bounds);
@@ -3567,21 +3589,37 @@ function createFruitContactShadows(capacity) {
 }
 
 const contactShadowPose = new THREE.Object3D();
+const contactShadowValues = new Float64Array(MAX_SLOTS * 5).fill(NaN);
 function updateFruitContactShadows() {
     if (!fruitContactShadows.visible || floorY === null) return;
     let count = 0;
+    let changed = false;
     for (const { key } of FRUIT_DEFS) {
         for (const { model } of pools[key]?.list ?? []) {
             const { group, footprint } = fruitPressSurfaces.get(model);
-            contactShadowPose.position.set(model.position.x, floorY + 0.002, model.position.z);
-            contactShadowPose.scale.set(footprint.x * model.scale.x * group.scale.x, 1,
-                footprint.z * model.scale.z * group.scale.z);
-            contactShadowPose.updateMatrix();
-            fruitContactShadows.setMatrixAt(count++, contactShadowPose.matrix);
+            const x = model.position.x, z = model.position.z, y = floorY + .002;
+            const width = footprint.x * model.scale.x * group.scale.x;
+            const depth = footprint.z * model.scale.z * group.scale.z;
+            const offset = count * 5;
+            if (x !== contactShadowValues[offset] || y !== contactShadowValues[offset + 1] ||
+                z !== contactShadowValues[offset + 2] || width !== contactShadowValues[offset + 3] ||
+                depth !== contactShadowValues[offset + 4]) {
+                contactShadowValues[offset] = x;
+                contactShadowValues[offset + 1] = y;
+                contactShadowValues[offset + 2] = z;
+                contactShadowValues[offset + 3] = width;
+                contactShadowValues[offset + 4] = depth;
+                contactShadowPose.position.set(x, y, z);
+                contactShadowPose.scale.set(width, 1, depth);
+                contactShadowPose.updateMatrix();
+                fruitContactShadows.setMatrixAt(count, contactShadowPose.matrix);
+                changed = true;
+            }
+            count++;
         }
     }
     fruitContactShadows.count = count;
-    if (count) fruitContactShadows.instanceMatrix.needsUpdate = true;
+    if (changed) fruitContactShadows.instanceMatrix.needsUpdate = true;
 }
 
 function prepareFruitPress(model, box) {
@@ -4545,17 +4583,40 @@ function doSell(key,idx){
     }
 }
 
-const ray=new THREE.Raycaster(),mp=new THREE.Vector2();
-function findFruitByMesh(obj){
-    // 효과 아이템 체크
-    if(_manureModel&&!effectItemRigs.get(_manureModel)?.exiting){let cur=obj;while(cur){if(cur===_manureModel)return{isManure:true};cur=cur.parent;}}
-    if(_flowerModel&&!effectItemRigs.get(_flowerModel)?.exiting){let cur=obj;while(cur){if(cur===_flowerModel)return{isFlower:true};cur=cur.parent;}}
-    for(let i=0;i<boxInstances.length;i++){let cur=obj;while(cur){if(cur===boxInstances[i].model)return{isBox:true,boxInst:boxInstances[i]};cur=cur.parent;}}
-    for(let i=0;i<plusBoxInstances.length;i++){let cur=obj;while(cur){if(cur===plusBoxInstances[i].model)return{isPlusBox:true,boxInst:plusBoxInstances[i]};cur=cur.parent;}}
-    for(const fd of FRUIT_DEFS){const pool=pools[fd.key];if(!pool)continue;for(let i=0;i<pool.list.length;i++){let cur=obj;while(cur){if(cur===pool.list[i].model)return{fd,idx:i};cur=cur.parent;}}}
-    return null;
+const ray = new THREE.Raycaster(), mp = new THREE.Vector2();
+const pickTargets = new Map();
+const pickRoots = [];
+const pickHits = [];
+
+function hitFruit(cx, cy) {
+    mp.set(cx / innerWidth * 2 - 1, 1 - cy / innerHeight * 2);
+    ray.setFromCamera(mp, camera);
+    pickTargets.clear();
+    for (const fd of FRUIT_DEFS) {
+        const items = pools[fd.key]?.list;
+        items?.forEach(({ model }, idx) => pickTargets.set(model, { fd, idx }));
+    }
+    for (const boxInst of boxInstances) pickTargets.set(boxInst.model, { isBox:true, boxInst });
+    for (const boxInst of plusBoxInstances) pickTargets.set(boxInst.model, { isPlusBox:true, boxInst });
+    if (_manureModel && !effectItemRigs.get(_manureModel)?.exiting) pickTargets.set(_manureModel, { isManure:true });
+    if (_flowerModel && !effectItemRigs.get(_flowerModel)?.exiting) pickTargets.set(_flowerModel, { isFlower:true });
+
+    // Preserve scene order for coincident hits while excluding non-interactive meshes.
+    pickRoots.length = 0;
+    for (const child of scene.children) if (pickTargets.has(child)) pickRoots.push(child);
+    pickHits.length = 0;
+    ray.intersectObjects(pickRoots, true, pickHits);
+    const intersection = pickHits[0];
+    let object = intersection?.object;
+    while (object && object.parent !== scene) {
+        object = object.parent;
+    }
+    const target = pickTargets.get(object);
+    pickHits.length = 0;
+    pickRoots.length = 0;
+    pickTargets.clear();
+    return target ? { ...target, intersection } : null;
 }
-function hitFruit(cx,cy){mp.x=(cx/window.innerWidth)*2-1;mp.y=-(cy/window.innerHeight)*2+1;ray.setFromCamera(mp,camera);for(const h of ray.intersectObjects(scene.children,true)){const r=findFruitByMesh(h.object);if(r)return {...r, intersection:h};}return null;}
 
 renderer.domElement.addEventListener('pointerdown',e=>{
     if (!e.isPrimary || anyShopOpen()) return;
@@ -4721,7 +4782,7 @@ function updateFruitIdle(time) {
     }
 }
 
-let lastT=0,_lastScoreUpdate=0,_frameCount=0;
+let lastT=0,_frameCount=0;
 function animate(t=performance.now()){
     requestAnimationFrame(animate);
     const previewApple = tutorialApplePreview?.apple;
@@ -4739,7 +4800,6 @@ function animate(t=performance.now()){
     }
     const dt=Math.min(t-lastT,50);lastT=t;_frameCount++;
     updateSugarCoatings(t, dt);
-    if(t-_lastScoreUpdate>150){scoreEl.innerText=fmtN(score);_lastScoreUpdate=t;}
     if (!hideBees) for (const bee of beeInstances) updateBeeFlight(bee, t, dt);
     if (_frameCount % 4 === 0) updateFruitIdle(t);
     updateFruitContactShadows();
