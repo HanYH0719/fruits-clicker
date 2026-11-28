@@ -1,4 +1,4 @@
-import { Environment, SafeArea, Screen, User, graniteEvent, loadFullScreenAd, showFullScreenAd } from '@apps-in-toss/web-framework';
+import { Environment, SafeArea, Screen, User, graniteEvent, TossAds, loadFullScreenAd, showFullScreenAd } from '@apps-in-toss/web-framework';
 
 function waitForAdEvent(subscribe, adGroupId, handleEvent, timeout) {
     let unsubscribe;
@@ -38,7 +38,37 @@ async function watchRewardedAd(adGroupId) {
     return earned ? 'earned' : result;
 }
 
-export async function initTossPlatform(rewardedAdIds) {
+function createBannerAds(adGroupId) {
+    if (!TossAds.initialize.isSupported() || !TossAds.attachBanner.isSupported()) return;
+    let ready;
+    return {
+        async attach(target, isCurrent, {onUnavailable, onRendered}) {
+            ready ??= new Promise(resolve => {
+                const timer = setTimeout(() => resolve(false), 8000);
+                const finish = result => { clearTimeout(timer); resolve(result); };
+                try {
+                    TossAds.initialize({ callbacks: {
+                        onInitialized: () => finish(true),
+                        onInitializationFailed: () => finish(false),
+                    } });
+                } catch {
+                    finish(false);
+                }
+            });
+            if (!await ready || !isCurrent()) return null;
+            return TossAds.attachBanner(adGroupId, target, {
+                theme:'light', variant:'expanded',
+                callbacks: {
+                    onAdRendered: onRendered,
+                    onNoFill: onUnavailable,
+                    onAdFailedToRender: onUnavailable,
+                },
+            });
+        },
+    };
+}
+
+export async function initTossPlatform(rewardedAdIds, bannerAdId) {
     let environment;
     try {
         environment = Environment.environment;
@@ -79,6 +109,7 @@ export async function initTossPlatform(rewardedAdIds) {
     }
     return {
         rewardedAds,
+        bannerAds: createBannerAds(bannerAdId),
         saveKey: key ? 'fc_v16:' + key : null,
         onBack(onEvent) {
             graniteEvent.addEventListener('backEvent', { onEvent });

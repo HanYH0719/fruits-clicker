@@ -103,8 +103,9 @@ try {
         plusBox: process.env.TOSS_REWARDED_PLUS_BOX_ID?.trim() || testRewardedId,
         fruit: process.env.TOSS_REWARDED_FRUIT_ID?.trim() || testRewardedId,
     };
+    const bannerAdId = process.env.TOSS_BANNER_AD_ID?.trim() || 'ait-ad-test-banner-id';
     const game = module[1]
-        .replace(standalonePlatform, `const tossPlatform = await initTossPlatform(${JSON.stringify(rewardedAdIds)});`)
+        .replace(standalonePlatform, `const tossPlatform = await initTossPlatform(${JSON.stringify(rewardedAdIds)}, ${JSON.stringify(bannerAdId)});`)
         .replace(/\/\/ debug-handler:start[\s\S]*?\/\/ debug-handler:end/, '');
     await build({
         stdin: {
